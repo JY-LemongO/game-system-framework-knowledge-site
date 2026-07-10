@@ -16,6 +16,21 @@
     'modules/quality-audit.html'
   ]);
 
+  const excludedSearchSections = new Set([
+    'index.html|#이번-2차-확장-범위',
+    'index.html|#새로-추가된-문서',
+    'index.html|#함께-보강된-문서',
+    'index.html|#다음-확장-방향',
+    'index.html|#equipment-item-system',
+    'index.html|#progression-reward-system',
+    'modules/runtime-reference.html|#source-contracts',
+    'modules/runtime-reference.html|#다음-생산-구현',
+    'modules/runtime-reference.html|#p3e-adapter',
+    'modules/runtime-reference.html|#p3e-authority',
+    'modules/runtime-reference.html|#p3e-multitarget',
+    'modules/runtime-reference.html|#p3f-equipment'
+  ]);
+
   const redirectTargets = {
     'modules/phase3-readiness.html': 'runtime-reference.html#핵심-학습-포인트',
     'modules/implementation-roadmap.html': '../index.html#추천-학습-루트',
@@ -25,8 +40,7 @@
 
   function normalizedFileFromHref(href = '') {
     try {
-      const withoutHash = href.split('#')[0].split('?')[0];
-      return withoutHash.replace(/^\.\//, '').replace(/^\.\.\//, '');
+      return href.split('#')[0].split('?')[0].replace(/^\.\//, '').replace(/^\.\.\//, '');
     } catch (_) {
       return '';
     }
@@ -52,7 +66,7 @@
   }
 
   function removeSiblingRange(start, endExclusive) {
-    if (!start || !start.parentNode) return;
+    if (!start?.parentNode) return;
     let node = start;
     while (node && node !== endExclusive) {
       const next = node.nextSibling;
@@ -61,21 +75,50 @@
     }
   }
 
-  function insertBefore(target, html) {
-    if (target) target.insertAdjacentHTML('beforebegin', html);
-  }
-
   function setLeadingLabel(label, text) {
     if (!label) return;
-    const textNode = Array.from(label.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.nodeValue.trim());
-    if (textNode) textNode.nodeValue = text;
+    const node = Array.from(label.childNodes).find(item => item.nodeType === Node.TEXT_NODE && item.nodeValue.trim());
+    if (node) node.nodeValue = text;
     else label.prepend(document.createTextNode(text));
+  }
+
+  function transformSearchEntry(entry) {
+    if (entry.file === 'index.html' && entry.anchor === '#실행-가능한-phase3') {
+      return {
+        ...entry,
+        anchor: '#런타임-실습',
+        title: '설계를 실행하며 확인하기',
+        desc: 'Fireball 실행으로 결정론적 판정, 원자적 상태 변경, 후속 반응과 상태 tick을 확인한다.'
+      };
+    }
+    if (entry.file === 'modules/runtime-reference.html' && entry.anchor === '#구현-결론') {
+      return {
+        ...entry,
+        anchor: '#핵심-학습-포인트',
+        title: '핵심 학습 포인트',
+        desc: '결정론, Resolve와 Commit 분리, bounded reaction, 시간·캐시·마이그레이션 정책을 요약한다.'
+      };
+    }
+    if (entry.file === 'modules/runtime-reference.html') {
+      return {
+        ...entry,
+        short: '런타임 실습',
+        title: entry.type === 'page' ? '런타임 아키텍처 실습' : entry.title,
+        group: '실행 실습'
+      };
+    }
+    return entry;
+  }
+
+  function ensureSearchEntry(entries, candidate) {
+    if (!entries.some(entry => entry.file === candidate.file && entry.anchor === candidate.anchor)) entries.push(candidate);
   }
 
   function filterSearchData() {
     const data = window.__GSF_SITE__;
     if (!data) return;
-    const keep = entry => !excludedPages.has(entry.file);
+    const keep = entry => !excludedPages.has(entry.file) && !excludedSearchSections.has(`${entry.file}|${entry.anchor || ''}`);
+
     if (Array.isArray(data.pages)) {
       data.pages = data.pages.filter(keep).map(page => {
         if (page.file !== 'modules/runtime-reference.html') return page;
@@ -89,15 +132,14 @@
         };
       });
     }
+
     if (Array.isArray(data.entries)) {
-      data.entries = data.entries.filter(keep).map(entry => {
-        if (entry.file !== 'modules/runtime-reference.html') return entry;
-        return {
-          ...entry,
-          short: '런타임 실습',
-          title: entry.type === 'page' ? '런타임 아키텍처 실습' : entry.title,
-          group: '실행 실습'
-        };
+      data.entries = data.entries.map(transformSearchEntry).filter(keep);
+      ensureSearchEntry(data.entries, {
+        type: 'section', file: 'modules/runtime-reference.html', anchor: '#학습-정리',
+        title: '학습 정리', short: '런타임 실습',
+        desc: 'Replay, Commit, Cache, 시간 정책을 실제 구현에 적용할 때의 검증 기준을 정리한다.',
+        group: '실행 실습', level: 'H2', text: 'runtime replay commit cache time learning'
       });
     }
   }
@@ -108,10 +150,7 @@
     });
 
     const topLabels = new Map([
-      ['Atlas', '학습 홈'],
-      ['Architecture', '구조'],
-      ['Case study', '예제'],
-      ['Runtime', '실습']
+      ['Atlas', '학습 홈'], ['Architecture', '구조'], ['Case study', '예제'], ['Runtime', '실습']
     ]);
     $$('.top-nav a').forEach(link => {
       const key = link.textContent.trim();
@@ -119,10 +158,7 @@
     });
 
     const mobileLabels = new Map([
-      ['Atlas', '홈'],
-      ['Map', '구조'],
-      ['Search', '검색'],
-      ['Docs', '문서']
+      ['Atlas', '홈'], ['Map', '구조'], ['Search', '검색'], ['Docs', '문서']
     ]);
     $$('.mobile-bar span').forEach(span => {
       const key = span.textContent.trim();
@@ -130,12 +166,8 @@
     });
 
     const drawerLabels = new Map([
-      ['Foundation', '기반'],
-      ['Core Systems', '핵심 시스템'],
-      ['Architecture', '구조'],
-      ['Practice', '사례 학습'],
-      ['Reference', '참고'],
-      ['Implementation', '실행 실습'],
+      ['Foundation', '기반'], ['Core Systems', '핵심 시스템'], ['Architecture', '구조'],
+      ['Practice', '사례 학습'], ['Reference', '참고'], ['Implementation', '실행 실습'],
       ['Maintenance', '유지 관리']
     ]);
     $$('.drawer-group').forEach(group => {
@@ -167,9 +199,8 @@
     if (commandTitle) commandTitle.textContent = '게임 시스템 학습 검색';
 
     $$('.context-title span').forEach(span => {
-      const value = span.textContent.trim();
-      if (value === 'On this page') span.textContent = '이 페이지';
-      if (value === 'Related paths') span.textContent = '연결 학습';
+      if (span.textContent.trim() === 'On this page') span.textContent = '이 페이지';
+      if (span.textContent.trim() === 'Related paths') span.textContent = '연결 학습';
     });
 
     $$('[data-print-page]').forEach(button => {
@@ -204,12 +235,9 @@
     }
     $('.context-rail')?.remove();
     $('[data-toc-open]')?.remove();
-    const pager = $('.doc-pager');
-    if (pager) pager.remove();
+    $('.doc-pager')?.remove();
 
-    if (['http:', 'https:', 'file:'].includes(location.protocol)) {
-      queueMicrotask(() => location.replace(target));
-    }
+    if (['http:', 'https:', 'file:'].includes(location.protocol)) queueMicrotask(() => location.replace(target));
     return true;
   }
 
@@ -223,7 +251,7 @@
     const eyebrow = $('.hero .eyebrow');
     if (eyebrow) eyebrow.textContent = 'Game System Architecture';
     const meta = $('.doc-meta > span:first-child');
-    if (meta && meta.textContent.trim() === 'Overview') meta.textContent = '개요';
+    if (meta?.textContent.trim() === 'Overview') meta.textContent = '개요';
 
     $$('.section-kicker').forEach(kicker => {
       if (kicker.textContent.trim() === 'System index') kicker.textContent = '시스템 목록';
@@ -242,9 +270,7 @@
     }
 
     const sideCta = $('a.readiness-card[href*="runtime-reference.html"]');
-    if (sideCta) {
-      sideCta.innerHTML = '<span>실행 실습</span><b>런타임 아키텍처 직접 확인</b><small>Replay · Commit · Reaction</small><i>→</i>';
-    }
+    if (sideCta) sideCta.innerHTML = '<span>실행 실습</span><b>런타임 아키텍처 직접 확인</b><small>Replay · Commit · Reaction</small><i>→</i>';
 
     const pageToc = $('.page-toc');
     if (pageToc && !pageToc.querySelector('a[href="#런타임-실습"]')) {
@@ -281,7 +307,7 @@
     const conclusionHeading = document.getElementById('구현-결론');
     if (conclusionHeading && architectureHeading) {
       removeSiblingRange(conclusionHeading, architectureHeading);
-      insertBefore(architectureHeading, `
+      architectureHeading.insertAdjacentHTML('beforebegin', `
         <h2 id="핵심-학습-포인트">핵심 학습 포인트</h2>
         <div class="runtime-kpi-grid">
           <article><span>결정론</span><strong>Versioned replay</strong><p>seed만 저장하지 않고 입력, Definition, 공식, 수치 정책과 정렬 의미를 함께 고정한다.</p></article>
@@ -313,9 +339,7 @@
     }
 
     const pager = $('.doc-pager');
-    if (pager) {
-      pager.innerHTML = '<a class="prev" href="../modules/fireball-case-study.html"><span>← 이전</span><b>Fireball 예제</b><small>Skill부터 Status까지 이어지는 수직 슬라이스</small></a><a class="next" href="../modules/integration-map.html"><span>다음 →</span><b>통합 구조</b><small>시스템 간 의존성과 계약 방향</small></a>';
-    }
+    if (pager) pager.innerHTML = '<a class="prev" href="../modules/fireball-case-study.html"><span>← 이전</span><b>Fireball 예제</b><small>Skill부터 Status까지 이어지는 수직 슬라이스</small></a><a class="next" href="../modules/integration-map.html"><span>다음 →</span><b>통합 구조</b><small>시스템 간 의존성과 계약 방향</small></a>';
 
     const rail = $('.context-rail');
     if (rail) {
@@ -338,13 +362,13 @@
       if (heading) heading.textContent = text;
     });
 
-    const legendLabels = ['리플레이 식별', '대상 스냅샷', '판정 정책'];
+    const legends = ['리플레이 식별', '대상 스냅샷', '판정 정책'];
     $$('.runtime-form legend').forEach((legend, index) => {
-      if (legendLabels[index]) legend.textContent = legendLabels[index];
+      if (legends[index]) legend.textContent = legends[index];
     });
-    const formLabels = ['루트 시드', '주문력', 'HP', '보호막', '화염 저항 %', '명중 확률 %', '치명타 확률 %', '화상 비율 %'];
+    const labels = ['루트 시드', '주문력', 'HP', '보호막', '화염 저항 %', '명중 확률 %', '치명타 확률 %', '화상 비율 %'];
     $$('.runtime-form fieldset label').forEach((label, index) => {
-      if (formLabels[index]) setLeadingLabel(label, formLabels[index]);
+      if (labels[index]) setLeadingLabel(label, labels[index]);
     });
 
     replaceText(article, 'Decision trace', '판정 추적');
@@ -353,9 +377,7 @@
     replaceText(article, 'Immutable outcome / plan JSON', '불변 결과 / 계획 JSON');
     replaceText(article, 'Final state JSON', '최종 상태 JSON');
     replaceText(article, 'Shared browser / Node kernel', '브라우저 / Node 공유 커널');
-
-    const replayStatus = $('[data-runtime-replay-status]');
-    if (replayStatus) replayStatus.setAttribute('aria-live', 'polite');
+    $('[data-runtime-replay-status]')?.setAttribute('aria-live', 'polite');
   }
 
   function removeBrokenHashLinks() {
@@ -390,12 +412,8 @@
 
   function postCoreLocalization() {
     const metricLabels = new Map([
-      ['Decision', '판정'],
-      ['Resolved', '저항 적용 피해'],
-      ['Shield', '보호막'],
-      ['HP damage', 'HP 피해'],
-      ['Burn', '화상'],
-      ['Final HP', '최종 HP']
+      ['Decision', '판정'], ['Resolved', '저항 적용 피해'], ['Shield', '보호막'],
+      ['HP damage', 'HP 피해'], ['Burn', '화상'], ['Final HP', '최종 HP']
     ]);
     $$('.runtime-metrics > div > span').forEach(span => {
       const key = span.textContent.trim();
@@ -403,16 +421,12 @@
     });
 
     const calculatorLabels = {
-      'calc-base': '기본값',
-      'calc-flat': '고정 가산',
-      'calc-inc': '증가 %',
-      'calc-more': '독립 배율 %',
-      'calc-clamp': '최대 제한'
+      'calc-base': '기본값', 'calc-flat': '고정 가산', 'calc-inc': '증가 %',
+      'calc-more': '독립 배율 %', 'calc-clamp': '최대 제한'
     };
-    Object.entries(calculatorLabels).forEach(([id, label]) => {
-      const input = document.getElementById(id);
-      const node = input ? document.querySelector(`label[for="${id}"]`) : null;
-      if (node) node.textContent = label;
+    Object.entries(calculatorLabels).forEach(([id, text]) => {
+      const label = document.querySelector(`label[for="${id}"]`);
+      if (label) label.textContent = text;
     });
     const result = $('.calc .result');
     if (result) result.textContent = result.textContent.replace('Final Value', '최종값');
