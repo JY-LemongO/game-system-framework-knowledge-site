@@ -1,19 +1,15 @@
 name: Learning content curation
 
 on:
-  pull_request:
+  push:
     branches:
-      - dev
-    types:
-      - opened
-      - synchronize
-      - reopened
+      - agent/learning-content-curation
 
 permissions:
   contents: write
 
 concurrency:
-  group: learning-content-curation-${{ github.event.pull_request.number }}
+  group: learning-content-curation-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -24,7 +20,6 @@ jobs:
       - name: Check out review branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
       - name: Set up Python
@@ -67,5 +62,5 @@ jobs:
             echo "No generated changes"
           else
             git commit -m "Curate site for learning content"
-            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+            git push origin HEAD:${{ github.ref_name }}
           fi
