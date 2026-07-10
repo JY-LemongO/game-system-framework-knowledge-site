@@ -1,0 +1,57 @@
+name: Deploy production and QA preview
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Check out production
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          path: production
+
+      - name: Check out QA preview
+        uses: actions/checkout@v6
+        with:
+          ref: dev
+          path: preview
+
+      - name: Assemble production and preview
+        shell: bash
+        run: |
+          mkdir -p dist/preview
+          rsync -a --exclude='.git' --exclude='.github' production/ dist/
+          rsync -a --exclude='.git' --exclude='.github' preview/ dist/preview/
+          touch dist/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -2,6 +2,16 @@
 
 `index.html`을 브라우저로 열면 됩니다. 외부 CDN 없이 로컬 파일만으로 동작합니다.
 
+## 배포 및 브랜치 운영
+
+- 운영 사이트: <https://jy-lemongo.github.io/game-system-framework-knowledge-site/>
+- QA 프리뷰: <https://jy-lemongo.github.io/game-system-framework-knowledge-site/preview/>
+- `main`: 운영·릴리스 브랜치
+- `dev`: 통합·QA 브랜치
+
+`dev`에 변경 사항을 푸시하면 QA 프리뷰가 갱신됩니다. 확인이 끝난 변경은 Pull Request로
+`dev`에서 `main`으로 머지하며, 머지 후 운영 사이트가 자동으로 갱신됩니다.
+
 ## 2026-07-09 Phase 2: Combat / Status 확장
 
 이번 패키지에는 Phase 1의 Core Runtime / Skill 구조 위에 Combat Resolution System과 Status System이 추가되었습니다.
