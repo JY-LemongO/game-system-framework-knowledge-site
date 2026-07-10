@@ -4,8 +4,8 @@
 
 ## 배포 및 브랜치 운영
 
-- 운영 사이트: <https://jy-lemongo.github.io/game-system-framework-knowledge-site/>
-- QA 프리뷰: <https://jy-lemongo.github.io/game-system-framework-knowledge-site/preview/>
+- 운영 사이트: <https://jy-lemongo.github.io/GameSystemKnowledge/>
+- QA 프리뷰: <https://jy-lemongo.github.io/GameSystemKnowledge/preview/>
 - `main`: 운영·릴리스 브랜치
 - `dev`: 통합·QA 브랜치
 
