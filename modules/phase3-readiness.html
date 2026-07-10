@@ -4,15 +4,15 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
-<title>문서 품질 점검 · GSF System Atlas</title>
-<meta content="UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준" name="description"/>
+<title>Architecture Review / Phase 3 Readiness · GSF System Atlas</title>
+<meta content="설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <script>
    (function(){try{var m=localStorage.getItem('gsf-theme')||'system';document.documentElement.dataset.theme=m;if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()
   </script>
 <link href="../assets/css/site.css" rel="stylesheet"/>
 </head>
-<body class="page-audit" data-accent="slate" data-page="audit" data-page-file="modules/quality-audit.html" data-prefix="../">
+<body class="page-readiness" data-accent="lime" data-page="readiness" data-page-file="modules/phase3-readiness.html" data-prefix="../">
 <a class="skip-link" href="#main-content">
    본문으로 건너뛰기
   </a>
@@ -181,18 +181,18 @@
        /
       </span>
 <span>
-       Maintenance
+       Implementation
       </span>
 <span>
        /
       </span>
 <b>
-       품질 점검
+       Phase 3 준비
       </b>
 </div>
 <div class="doc-meta">
 <span>
-       QA
+       Readiness
       </span>
 <span data-reading-time="">
        읽는 시간 계산 중
@@ -213,245 +213,415 @@
 </div>
 </div>
 <article class="content-area doc-article" id="article-content">
-<section class="hero" data-accent="slate">
+<section class="hero" data-accent="lime">
 <span class="eyebrow">
-       Quality Audit
+       Architecture Gate
       </span>
 <h1>
-       문서 품질 점검
+       Phase 3 Readiness
       </h1>
 <p class="lead">
-       내용 누락뿐 아니라 아키텍처 의미, 접근성, 검색 가능성, 상호작용 실패 모드까지 지속 점검하는 내부 QA 문서다.
+       현재 설계의 의도와 타당성을 검토하고, 실제 구현 전에 반드시 고정해야 할 런타임 계약과 수용 기준을 정리한다.
       </p>
 <div class="badges">
 <span class="badge">
-        정보량 점검
+        Verdict
        </span>
 <span class="badge">
-        누락 항목
+        Determinism
        </span>
 <span class="badge">
-        보강 기준
+        Commit
+       </span>
+<span class="badge">
+        Reaction
+       </span>
+<span class="badge">
+        Test Gate
        </span>
 </div>
 </section>
-<h2 id="진단-결과">
-      진단 결과
-     </h2>
-<div class="callout warn">
+<section class="verdict-panel">
+<div>
+<span class="section-kicker">
+        Overall verdict
+       </span>
+<h2 id="종합-판정">
+        방향은 타당하고, 구현 계약은 아직 보강이 필요하다
+       </h2>
+<p>
+        Ability/Effect/Attribute/Tag를 분리하는 업계의 검증된 방향과 잘 맞고, Definition과 Runtime 분리·Source 추적·DebugTrace·수직 슬라이스 접근도 강점이다. 다만 현재 문서만으로 구현하면 재현성, 상태 변경의 단일 책임, 이벤트 연쇄, 조건부 캐시에서 서로 다른 해석이 생길 수 있다.
+       </p>
+</div>
+<div aria-label="아키텍처 준비도 74점" class="score-ring">
 <strong>
-       결론.
-      </strong>
-      이전 멀티 페이지 버전은 “보기 좋은 포털”로는 성공했지만, 학습 자료로는 설명이 너무 요약된 부분이 있었다. 특히 Stat과 Effect의 경계, 계산 파이프라인의 단계별 의미, Runtime/Definition 분리, 실패 처리와 디버그 전략이 충분히 깊지 않았다.
-     </div>
+        74
+       </strong>
+<span>
+        / 100
+       </span>
+<small>
+        Concept ready
+        <br/>
+        Contract pending
+       </small>
+</div>
+</section>
+<h2 id="검토-결과-요약">
+      검토 결과 요약
+     </h2>
 <div class="table-scroll">
 <table class="data-table">
+<thead>
 <tr>
 <th>
-         영역
-        </th>
+          영역
+         </th>
 <th>
-         이전 상태
-        </th>
+          판정
+         </th>
 <th>
-         이번 보강
-        </th>
+          이유
+         </th>
+<th>
+          우선도
+         </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+          책임 분리
+         </td>
+<td>
+<span class="status good">
+           타당
+          </span>
+</td>
+<td>
+          Skill → Effect → Combat/Status 경계가 명확하고 Stat을 숫자 엔진으로 제한한다.
+         </td>
+<td>
+          P1 유지
+         </td>
 </tr>
 <tr>
 <td>
-         Stat System
-        </td>
+          Definition / Runtime
+         </td>
 <td>
-         핵심 객체와 계산 예시 중심으로 짧게 설명
-        </td>
+<span class="status good">
+           타당
+          </span>
+</td>
 <td>
-         정의/인스턴스/Modifier/Context/Resource/Derived/Save/Debug까지 확장
-        </td>
+          원본 정의를 수정하지 않고 instance/source를 추적하는 원칙이 안정적이다.
+         </td>
+<td>
+          P1 유지
+         </td>
 </tr>
 <tr>
 <td>
-         Effect System
-        </td>
+          의존성 표현
+         </td>
 <td>
-         EffectDefinition과 실행 흐름 위주 요약
-        </td>
+<span class="status warn">
+           보완
+          </span>
+</td>
 <td>
-         Target Selection, ValueExpression, Operation, Result, 실패 처리, 트랜잭션, 결정론까지 보강
-        </td>
+          학습 순서·호출·데이터 읽기가 동일한 화살표처럼 보일 수 있다.
+         </td>
+<td>
+          P0
+         </td>
 </tr>
 <tr>
 <td>
-         통합 구조
-        </td>
+          결정론
+         </td>
 <td>
-         의존성 방향만 간단히 설명
-        </td>
+<span class="status warn">
+           보완
+          </span>
+</td>
 <td>
-         시스템 간 계약, 이벤트, 데이터 흐름, 금지 의존성까지 명시
-        </td>
+          seed 외에 입력 스냅샷, definition version, 정렬, clock, 산술 정책이 필요하다.
+         </td>
+<td>
+          P0
+         </td>
 </tr>
 <tr>
 <td>
-         예제
-        </td>
+          Damage 적용
+         </td>
 <td>
-         Fireball 흐름이 짧은 단계 설명으로 끝남
-        </td>
+<span class="status warn">
+           보완
+          </span>
+</td>
 <td>
-         데이터, 런타임 컨텍스트, 로그, 실패 케이스, 확장 변형까지 추가
-        </td>
+          계산자와 실제 HP/Shield 변경 주체가 선택사항으로 남아 이중 적용 위험이 있다.
+         </td>
+<td>
+          P0
+         </td>
 </tr>
 <tr>
 <td>
-         로드맵
-        </td>
+          Event / Trigger
+         </td>
 <td>
-         단계 나열
-        </td>
+<span class="status warn">
+           보완
+          </span>
+</td>
 <td>
-         MVP 범위, 테스트, 안티패턴, 모듈별 완료 기준 추가
-        </td>
+          관찰 이벤트와 상태 변경 반응을 같은 EventBus에서 즉시 실행하면 순서·재진입이 불명확하다.
+         </td>
+<td>
+          P0
+         </td>
 </tr>
+<tr>
+<td>
+          Stat cache
+         </td>
+<td>
+<span class="status warn">
+           보완
+          </span>
+</td>
+<td>
+          context 조건부 Modifier와 단일 cachedValue 모델이 충돌한다.
+         </td>
+<td>
+          P0
+         </td>
+</tr>
+<tr>
+<td>
+          Status tick
+         </td>
+<td>
+<span class="status warn">
+           보완
+          </span>
+</td>
+<td>
+          동일 시각 tick/expire, catch-up, pause, independent stack 정책이 추가로 필요하다.
+         </td>
+<td>
+          P1
+         </td>
+</tr>
+</tbody>
 </table>
 </div>
-<h2 id="new-audit-gates">
-      Release 2 추가 품질 게이트
+<h2 id="phase3-핵심-게이트">
+      Phase 3 핵심 게이트
      </h2>
-<div class="grid cols2">
-<div class="card">
-<span class="tag">
-        Architecture
+<div class="gate-grid">
+<article class="gate-card">
+<span>
+        01
        </span>
 <h3>
-        관점 분리
+        Execution identity
        </h3>
 <p>
-        학습 순서, 런타임 흐름, 컴파일 의존성을 같은 화살표로 설명하지 않는다.
+        모든 요청에 executionId, correlationId, causationId, definitionVersion, idempotencyKey를 부여한다.
        </p>
-</div>
-<div class="card">
-<span class="tag">
-        Runtime
+<small>
+        Core · Skill · Trace
+       </small>
+</article>
+<article class="gate-card">
+<span>
+        02
        </span>
 <h3>
-        Commit 명확성
+        Single commit owner
        </h3>
 <p>
-        계산 결과와 실제 상태 변경, 후속 이벤트의 순서를 구분한다.
+        Combat은 계산만 하고 DamageCommitService가 Shield/HP를 정확히 한 번 적용한다.
        </p>
-</div>
-<div class="card">
-<span class="tag">
-        Accessibility
+<small>
+        Combat · Resource
+       </small>
+</article>
+<article class="gate-card">
+<span>
+        03
        </span>
 <h3>
-        Keyboard first
+        Reaction queue
        </h3>
 <p>
-        검색, 메뉴, 모달, 다이어그램을 키보드와 focus trap으로 사용할 수 있다.
+        상태를 바꾸는 후속 반응을 우선순위·깊이 제한·중복 방지 규칙으로 직렬화한다.
        </p>
-</div>
-<div class="card">
-<span class="tag">
-        Performance
+<small>
+        Event · Equipment
+       </small>
+</article>
+<article class="gate-card">
+<span>
+        04
        </span>
 <h3>
-        Progressive loading
+        Context cache
        </h3>
 <p>
-        다이어그램은 lazy load하고 인쇄/확대 시 필요한 자산을 명시적으로 불러온다.
+        무조건부 Stat 레이어와 context-dependent 질의를 분리하고 안정적인 modifier 정렬을 고정한다.
+       </p>
+<small>
+        Stat · Effect
+       </small>
+</article>
+<article class="gate-card">
+<span>
+        05
+       </span>
+<h3>
+        Clock &amp; tick
+       </h3>
+<p>
+        fixed tick/turn clock, pause, catch-up 상한, tick-vs-expire 순서, snapshot 정책을 데이터화한다.
+       </p>
+<small>
+        Status · Time
+       </small>
+</article>
+<article class="gate-card">
+<span>
+        06
+       </span>
+<h3>
+        Versioned data
+       </h3>
+<p>
+        Definition schema/version, save migration, replay compatibility, formula version을 기록한다.
+       </p>
+<small>
+        Registry · Save
+       </small>
+</article>
+</div>
+<h2 id="권장-구현-순서">
+      권장 구현 순서
+     </h2>
+<div class="timeline">
+<div class="ti">
+<h3 id="p3a-contracts">
+        P3-A. Contract types
+       </h3>
+<p>
+        ExecutionEnvelope, SourceRef, ResultEnvelope, DefinitionVersion, clock domain을 값 객체로 고정한다.
+       </p>
+</div>
+<div class="ti">
+<h3 id="p3b-commit">
+        P3-B. Commit pipeline
+       </h3>
+<p>
+        DamageRequest → DamageResult → DamageCommit → AfterDamage를 구현하고 중복 commit 테스트를 추가한다.
+       </p>
+</div>
+<div class="ti">
+<h3 id="p3c-reaction">
+        P3-C. Reaction queue
+       </h3>
+<p>
+        lifesteal, reflect, TriggeredEffect를 queue command로 바꾸고 depth/idempotency 제한을 검증한다.
+       </p>
+</div>
+<div class="ti">
+<h3 id="p3d-cache-tick">
+        P3-D. Cache &amp; tick semantics
+       </h3>
+<p>
+        조건부 Stat query와 Burn tick/expire 동률, snapshot/dynamic 정책을 테스트 가능한 규칙으로 만든다.
+       </p>
+</div>
+<div class="ti">
+<h3 id="p3e-fireball">
+        P3-E. Fireball regression slice
+       </h3>
+<p>
+        동일 snapshot과 version으로 결과가 재현되고 trace가 전 단계에서 연결되는지 확인한다.
+       </p>
+</div>
+<div class="ti">
+<h3 id="p3f-equipment">
+        P3-F. Equipment MVP
+       </h3>
+<p>
+        Gate 통과 후 ItemInstance sourceId, 장착/해제 Modifier, TriggeredEffect를 첫 외부 콘텐츠 공급자로 추가한다.
        </p>
 </div>
 </div>
-<h2 id="내용-품질-기준">
-      내용 품질 기준
+<h2 id="수용-기준">
+      수용 기준
+     </h2>
+<ul class="check">
+<li>
+       같은 input snapshot, definitionVersion, seed, target order에서 DamageResult와 StatusResult가 동일하다.
+      </li>
+<li>
+       Damage commit을 같은 idempotencyKey로 두 번 요청해도 HP/Shield는 한 번만 변경된다.
+      </li>
+<li>
+       반사 ↔ 흡혈 연쇄가 depth limit에서 종료되고 모든 causationId가 trace에 남는다.
+      </li>
+<li>
+       조건부 Modifier가 다른 target/context 사이에서 잘못 캐시되지 않는다.
+      </li>
+<li>
+       Burn의 마지막 tick과 만료가 같은 시각일 때 정의한 순서대로 항상 처리된다.
+      </li>
+<li>
+       장비 해제 시 해당 ItemInstance source의 Modifier와 Reaction만 제거된다.
+      </li>
+<li>
+       키보드만으로 검색, 전체 문서 메뉴, 다이어그램 확대, 모든 주요 링크에 접근할 수 있다.
+      </li>
+</ul>
+<h2 id="보류-가능-항목">
+      이번 Gate에서 보류 가능한 항목
      </h2>
 <p>
-      앞으로 각 시스템 문서는 단순히 “무엇이다”에서 끝나지 않고, 다음 8가지를 갖춰야 한다.
+      완전한 네트워크 prediction/rollback, 분산 서버, 대규모 ECS 최적화, 에디터 툴체인은 프로젝트 요구가 확정된 뒤 설계해도 된다. 다만 execution identity와 idempotency는 나중에 덧붙이기 어렵기 때문에 지금 포함한다.
      </p>
-<div class="grid cols2">
-<div class="card">
-<h3 id="1-책임-경계">
-        1. 책임 경계
-       </h3>
-<p>
-        이 시스템이 담당하는 일과 담당하지 않는 일을 분리한다.
-       </p>
-</div>
-<div class="card">
-<h3 id="2-핵심-객체">
-        2. 핵심 객체
-       </h3>
-<p>
-        클래스/데이터/런타임 객체를 나누고 UML과 연결한다.
-       </p>
-</div>
-<div class="card">
-<h3 id="3-실행-흐름">
-        3. 실행 흐름
-       </h3>
-<p>
-        요청이 들어와 결과가 나가기까지의 순서를 설명한다.
-       </p>
-</div>
-<div class="card">
-<h3 id="4-데이터-모델">
-        4. 데이터 모델
-       </h3>
-<p>
-        정의 데이터와 런타임 상태, 저장 데이터를 분리한다.
-       </p>
-</div>
-<div class="card">
-<h3 id="5-다른-시스템과의-계약">
-        5. 다른 시스템과의 계약
-       </h3>
-<p>
-        API, 이벤트, 컨텍스트, 반환값을 명확히 한다.
-       </p>
-</div>
-<div class="card">
-<h3 id="6-예시">
-        6. 예시
-       </h3>
-<p>
-        JSON, 의사코드, 로그, 실패 케이스를 포함한다.
-       </p>
-</div>
-<div class="card">
-<h3 id="7-안티패턴">
-        7. 안티패턴
-       </h3>
-<p>
-        나중에 확장을 막는 나쁜 구조를 미리 적는다.
-       </p>
-</div>
-<div class="card">
-<h3 id="8-구현-체크리스트">
-        8. 구현 체크리스트
-       </h3>
-<p>
-        MVP와 확장 단계의 완료 기준을 제공한다.
-       </p>
-</div>
-</div>
-<h2 id="이번-파일의-위치">
-      이번 파일의 위치
-     </h2>
-<p>
-      이번 버전은 단순히 “문서를 더 길게” 만든 것이 아니라, 주제별 페이지를 유지하면서 각 페이지 안에 깊이 있는 하위 섹션을 추가했다. 다이어그램 갤러리는 빠른 참조용으로 남기고, 실제 설명은 각 주제 페이지 안에서 문맥과 함께 읽도록 구성했다.
-     </p>
+<div class="callout good">
+<b>
+       최종 권고.
+      </b>
+      Equipment 문서를 먼저 늘리기보다 P3-A~E를 작게 구현하고 Fireball 회귀 테스트를 통과한 뒤 Equipment MVP로 이동한다.
+     </div>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/skill-combat-next.html">
+<a class="prev" href="../modules/glossary.html">
 <span>
        ← 이전
       </span>
 <b>
-       다음 확장
+       용어집
       </b>
 <small>
-       다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안
+       반복되는 시스템 설계 용어와 UML 기초 문법
+      </small>
+</a>
+<a class="next" href="../modules/implementation-roadmap.html">
+<span>
+       다음 →
+      </span>
+<b>
+       로드맵
+      </b>
+<small>
+       MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서
       </small>
 </a>
 </nav>
@@ -467,17 +637,23 @@
       </button>
 </div>
 <nav class="page-toc">
-<a href="#진단-결과">
-       진단 결과
+<a href="#종합-판정">
+       방향은 타당하고, 구현 계약은 아직 보강이 필요하다
       </a>
-<a href="#new-audit-gates">
-       Release 2 추가 품질 게이트
+<a href="#검토-결과-요약">
+       검토 결과 요약
       </a>
-<a href="#내용-품질-기준">
-       내용 품질 기준
+<a href="#phase3-핵심-게이트">
+       Phase 3 핵심 게이트
       </a>
-<a href="#이번-파일의-위치">
-       이번 파일의 위치
+<a href="#권장-구현-순서">
+       권장 구현 순서
+      </a>
+<a href="#수용-기준">
+       수용 기준
+      </a>
+<a href="#보류-가능-항목">
+       이번 Gate에서 보류 가능한 항목
       </a>
 </nav>
 </section>
@@ -488,14 +664,6 @@
       </span>
 </div>
 <div class="related-links">
-<a href="../modules/phase3-readiness.html">
-<span>
-        Readiness
-       </span>
-<b>
-        Phase 3 준비
-       </b>
-</a>
 <a href="../modules/integration-map.html">
 <span>
         Architecture
@@ -504,12 +672,20 @@
         통합 구조
        </b>
 </a>
-<a href="../modules/diagram-gallery.html">
+<a href="../modules/implementation-roadmap.html">
 <span>
-        Reference
+        Build Plan
        </span>
 <b>
-        다이어그램
+        로드맵
+       </b>
+</a>
+<a href="../modules/skill-combat-next.html">
+<span>
+        Next
+       </span>
+<b>
+        다음 확장
        </b>
 </a>
 </div>
@@ -788,7 +964,7 @@
        Implementation
       </h3>
 <div>
-<a href="../modules/phase3-readiness.html">
+<a aria-current="page" class="is-active" href="../modules/phase3-readiness.html">
 <span>
          Readiness
         </span>
@@ -828,7 +1004,7 @@
        Maintenance
       </h3>
 <div>
-<a aria-current="page" class="is-active" href="../modules/quality-audit.html">
+<a href="../modules/quality-audit.html">
 <span>
          QA
         </span>
@@ -892,17 +1068,23 @@
 </button>
 </header>
 <nav>
-<a href="#진단-결과">
-      진단 결과
+<a href="#종합-판정">
+      방향은 타당하고, 구현 계약은 아직 보강이 필요하다
      </a>
-<a href="#new-audit-gates">
-      Release 2 추가 품질 게이트
+<a href="#검토-결과-요약">
+      검토 결과 요약
      </a>
-<a href="#내용-품질-기준">
-      내용 품질 기준
+<a href="#phase3-핵심-게이트">
+      Phase 3 핵심 게이트
      </a>
-<a href="#이번-파일의-위치">
-      이번 파일의 위치
+<a href="#권장-구현-순서">
+      권장 구현 순서
+     </a>
+<a href="#수용-기준">
+      수용 기준
+     </a>
+<a href="#보류-가능-항목">
+      이번 Gate에서 보류 가능한 항목
      </a>
 </nav>
 </div>

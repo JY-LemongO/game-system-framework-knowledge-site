@@ -99,6 +99,15 @@
     "level": "Reference"
   },
   {
+    "file": "modules/phase3-readiness.html",
+    "short": "Phase 3 준비",
+    "title": "Architecture Review / Phase 3 Readiness",
+    "desc": "설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준",
+    "key": "review phase3 readiness architecture audit determinism commit cache reaction",
+    "group": "Implementation",
+    "level": "Readiness"
+  },
+  {
     "file": "modules/implementation-roadmap.html",
     "short": "로드맵",
     "title": "Implementation Roadmap",
