@@ -1,21 +1,918 @@
 <!DOCTYPE html>
 
-<html data-theme="light" lang="ko"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><title>Integration Map · Game System Framework</title><meta content="Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약" name="description"/><link href="../assets/css/site.css" rel="stylesheet"/></head><body data-page="integration"><div class="scroll-progress"></div><header class="site-header"><div class="header-inner"><button aria-label="메뉴 열기" class="icon-button sidebar-toggle">☰</button><a class="brand" href="../index.html"><span class="brand-mark">GS</span><span class="brand-text"><b>Game System Framework</b><small>Architecture Knowledgebase</small></span></a><nav class="primary-nav"><a class="" href="../index.html">홈</a><a class="" href="../modules/core-runtime.html">Core Runtime</a><a class="" href="../modules/stat-system.html">Stat System</a><a class="" href="../modules/effect-system.html">Effect System</a><a class="" href="../modules/skill-action-system.html">Skill / Action</a><a class="" href="../modules/combat-resolution-system.html">Combat</a><a class="" href="../modules/status-system.html">Status</a><a class="active" href="../modules/integration-map.html">통합 구조</a><a class="" href="../modules/diagram-gallery.html">다이어그램</a></nav><div class="header-actions"><button aria-label="검색 열기" class="search-trigger"><span>검색</span><kbd>⌘K</kbd></button><button aria-label="테마 전환" class="icon-button theme-toggle">◐</button></div></div></header><div class="app-shell"><aside class="left-rail"><div class="rail-card rail-intro"><div class="mini-label">Learning Path</div><b>Core → Stat → Effect → Skill → Combat → Status</b><p>공통 계약에서 시작해 숫자, 결과, 행동, 피해 계산, 지속 상태로 확장한다.</p></div><nav class="doc-nav"><div class="nav-section-title">Documentation</div><div class="nav-group"><div class="nav-group-label">시작</div><a class="doc-link" href="../index.html"><span class="doc-ico">⌘</span><span><b>홈</b><small>Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스</small></span></a></div><div class="nav-group"><div class="nav-group-label">Foundation</div><a class="doc-link" href="../modules/core-runtime.html"><span class="doc-ico">◎</span><span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></span></a></div><div class="nav-group"><div class="nav-group-label">Core Systems</div><a class="doc-link" href="../modules/stat-system.html"><span class="doc-ico">Σ</span><span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></span></a><a class="doc-link" href="../modules/effect-system.html"><span class="doc-ico">ƒ</span><span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></span></a><a class="doc-link" href="../modules/skill-action-system.html"><span class="doc-ico">⚔</span><span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></span></a><a class="doc-link" href="../modules/combat-resolution-system.html"><span class="doc-ico">◆</span><span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></span></a><a class="doc-link" href="../modules/status-system.html"><span class="doc-ico">✦</span><span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></span></a></div><div class="nav-group"><div class="nav-group-label">Architecture</div><a class="doc-link active" href="../modules/integration-map.html"><span class="doc-ico">⇄</span><span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></span></a></div><div class="nav-group"><div class="nav-group-label">Practice</div><a class="doc-link" href="../modules/fireball-case-study.html"><span class="doc-ico">🔥</span><span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></span></a></div><div class="nav-group"><div class="nav-group-label">Reference</div><a class="doc-link" href="../modules/diagram-gallery.html"><span class="doc-ico">◇</span><span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></span></a><a class="doc-link" href="../modules/glossary.html"><span class="doc-ico">Aa</span><span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></span></a></div><div class="nav-group"><div class="nav-group-label">Implementation</div><a class="doc-link" href="../modules/implementation-roadmap.html"><span class="doc-ico">→</span><span><b>로드맵</b><small>MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서</small></span></a><a class="doc-link" href="../modules/skill-combat-next.html"><span class="doc-ico">+</span><span><b>다음 확장</b><small>다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안</small></span></a></div><div class="nav-group"><div class="nav-group-label">Maintenance</div><a class="doc-link" href="../modules/quality-audit.html"><span class="doc-ico">✓</span><span><b>품질 점검</b><small>UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준</small></span></a></div></nav></aside><main class="content-area"><div class="breadcrumb"><a href="../index.html">Docs</a> / 통합 구조</div>
-<section class="hero"><span class="eyebrow">Architecture Map</span><h1>Integration Map</h1><p class="lead">Integration Map은 Core, Stat, Effect, Skill, Combat, Status가 어느 방향으로 의존하고 어떤 데이터를 주고받는지 정리하는 기준 문서다. 목표는 각 시스템을 독립적으로 테스트하면서도 Fireball 같은 실제 플레이 흐름이 끊기지 않게 만드는 것이다.</p><div class="badges"><span class="badge">Dependency Direction</span><span class="badge">API Contract</span><span class="badge">SourceId</span><span class="badge">EventBus</span><span class="badge">DebugTrace</span></div></section>
-<h2 id="전체-의존성-지도">전체 의존성 지도</h2>
-<figure class="diagram"><div class="dh"><strong>전체 프레임워크 의존성 맵</strong><div class="da"><a class="small" href="../assets/diagrams/38_full_framework_dependency_map.svg" target="_blank">SVG</a><a class="small" href="../assets/diagrams/38_full_framework_dependency_map.png" target="_blank">PNG</a></div></div><img alt="전체 프레임워크 의존성 맵" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/38_full_framework_dependency_map.svg"/><figcaption class="cap">Core Runtime은 공통 계약을 제공하고, Stat/Effect/Skill/Combat/Status는 각자의 책임에 맞게 연결된다.</figcaption></figure>
-<p>문서의 핵심은 “누가 누구를 직접 알아야 하는가”보다 “어떤 계약으로 대화하는가”다. Skill은 Combat 공식을 몰라야 하고, Combat은 장비 인벤토리를 몰라야 하며, Status는 스탯 값을 직접 수정하지 않아야 한다.</p>
-<h2 id="시스템별-계약">시스템별 계약</h2>
-<div class="table-scroll"><table class="data-table"><tr><th>흐름</th><th>전달 데이터</th><th>의미</th></tr><tr><td>Core → 모든 시스템</td><td><code>EntityId</code>, <code>TagSet</code>, <code>SourceId</code>, <code>EventBus</code>, <code>Time</code>, <code>RandomStream</code></td><td>모든 시스템이 공유하는 최소 런타임 언어다.</td></tr><tr><td>Stat → Effect / Combat</td><td><code>getFinalValue(statId, context)</code></td><td>Effect와 Combat은 최종 스탯 값을 읽지만 계산 파이프라인을 소유하지 않는다.</td></tr><tr><td>Skill → Effect</td><td><code>EffectBundle</code>, <code>EffectContext</code></td><td>Skill은 release marker에서 EffectBundle 실행을 요청한다.</td></tr><tr><td>Effect → Combat</td><td><code>DamageRequest</code></td><td>DamageEffect는 최종 피해 공식을 직접 계산하지 않는다.</td></tr><tr><td>Effect → Status</td><td><code>ApplyStatusRequest</code></td><td>ApplyStatusEffect는 지속시간과 tick을 직접 관리하지 않는다.</td></tr><tr><td>Combat → EventBus</td><td><code>DamageResult</code>, <code>OnDamageResolved</code></td><td>피해 계산 결과와 로그를 전파한다.</td></tr><tr><td>Status → Stat</td><td><code>StatModifier(sourceId=statusInstanceId)</code></td><td>상태가 제공하는 수치 변경은 Modifier로 등록/제거한다.</td></tr><tr><td>Status → Effect</td><td><code>PeriodicEffect</code></td><td>DoT, HoT, aura tick은 Effect를 다시 실행한다.</td></tr></table></div>
-<h2 id="수직-슬라이스">수직 슬라이스</h2>
-<div class="flow"><span>SkillRequest</span><b>→</b><span>SkillValidator</span><b>→</b><span>ActionTimeline</span><b>→</b><span>EffectBundle</span><b>→</b><span>DamageRequest</span><b>→</b><span>DamageResult</span><b>→</b><span>StatusResult</span></div>
-<p>Fireball 예제는 이 흐름을 한 번에 확인할 수 있는 대표 수직 슬라이스다. 마나 비용, 쿨다운, 사거리 검사는 Skill에서 처리되고, 피해와 Burn 부여는 Effect에서 요청되며, 실제 피해 숫자는 Combat이 계산하고 Burn 지속 관리는 Status가 맡는다.</p>
-<h2 id="금지-의존성">금지 의존성</h2>
-<div class="table-scroll"><table class="data-table"><tr><th>금지 구조</th><th>문제</th><th>대안</th></tr><tr><td>Skill이 최종 피해를 직접 계산</td><td>Effect / Combat / Log 구조가 무너진다.</td><td>Skill은 EffectBundle 실행 타이밍만 만든다.</td></tr><tr><td>DamageEffect 안에 모든 전투 공식 작성</td><td>게임별 공식 교체와 테스트가 어려워진다.</td><td>DamageRequest를 만들고 CombatResolver에 위임한다.</td></tr><tr><td>Status가 Stat 값을 직접 변경</td><td>중첩, 제거, 저장, 디버그가 어려워진다.</td><td>StatModifier를 sourceId로 등록/제거한다.</td></tr><tr><td>Combat이 장비 인벤토리를 직접 조회</td><td>장비 시스템과 전투 공식이 강하게 결합된다.</td><td>장비는 Modifier를 공급하고 Combat은 StatSystem을 읽는다.</td></tr><tr><td>Status tick이 Skill 쿨다운을 직접 수정</td><td>시간, 상태, 스킬 책임이 뒤섞인다.</td><td>EventBus 또는 명시적 Effect/Policy를 통해 요청한다.</td></tr></table></div>
-<h2 id="이벤트-흐름">이벤트 흐름</h2>
-<div class="table-scroll"><table class="data-table"><tr><th>이벤트</th><th>발행자</th><th>구독 예시</th></tr><tr><td><code>OnSkillUsed</code></td><td>SkillExecutor</td><td>UI 로그, 장비 triggered effect, 업적</td></tr><tr><td><code>OnEffectExecuted</code></td><td>EffectExecutor</td><td>DebugTrace, 연쇄 효과, 튜토리얼</td></tr><tr><td><code>OnDamageResolved</code></td><td>CombatResolver</td><td>피해 숫자 UI, 흡혈, 반사 피해, 카메라 흔들림</td></tr><tr><td><code>OnStatusApplied</code></td><td>StatusController</td><td>상태 아이콘, 면역 로그, 업적</td></tr><tr><td><code>OnStatusTick</code></td><td>StatusController</td><td>DoT 표시, 사운드, 추가 연쇄 효과</td></tr><tr><td><code>OnModifierChanged</code></td><td>StatSystem</td><td>스탯 패널 갱신, 캐시 무효화</td></tr></table></div>
-<h2 id="디버그-추적">DebugTrace 기준</h2>
-<p>시스템이 분리될수록 디버그 로그의 중요성이 커진다. 하나의 Fireball 실행은 sourceId와 eventId로 연결된 추적 단위를 가져야 한다.</p>
+<html data-theme="system" lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
+<title>Integration Map · GSF System Atlas</title>
+<meta content="Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약" name="description"/>
+<meta content="#f7f8fb" name="theme-color"/>
+<script>
+   (function(){try{var m=localStorage.getItem('gsf-theme')||'system';document.documentElement.dataset.theme=m;if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()
+  </script>
+<link href="../assets/css/site.css" rel="stylesheet"/>
+</head>
+<body class="page-integration" data-accent="indigo" data-page="integration" data-page-file="modules/integration-map.html" data-prefix="../">
+<a class="skip-link" href="#main-content">
+   본문으로 건너뛰기
+  </a>
+<div aria-hidden="true" class="ambient">
+</div>
+<div aria-hidden="true" class="scroll-progress">
+<span>
+</span>
+</div>
+<header class="topbar">
+<div class="topbar-inner">
+<a aria-label="Game System Framework 홈" class="brand" href="../index.html">
+<span class="brand-mark">
+<i>
+</i>
+<b>
+       GSF
+      </b>
+</span>
+<span class="brand-copy">
+<b>
+       System Atlas
+      </b>
+<small>
+       Game architecture knowledgebase
+      </small>
+</span>
+</a>
+<nav aria-label="주요 탐색" class="top-nav">
+<a href="../index.html">
+      Atlas
+     </a>
+<a aria-current="page" href="../modules/integration-map.html">
+      Architecture
+     </a>
+<a href="../modules/fireball-case-study.html">
+      Case study
+     </a>
+<a href="../modules/implementation-roadmap.html">
+      Build plan
+     </a>
+</nav>
+<div class="top-actions">
+<button aria-haspopup="dialog" class="command-trigger" data-search-open="" type="button">
+<span>
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<circle cx="11" cy="11" r="6.5">
+</circle>
+<path d="m16 16 4 4">
+</path>
+</svg>
+       문서와 섹션 검색
+      </span>
+<kbd>
+       ⌘ K
+      </kbd>
+</button>
+<button aria-label="집중 모드 전환" aria-pressed="false" class="icon-button" data-focus-toggle="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5">
+</path>
+</svg>
+</button>
+<button aria-label="테마 전환" class="icon-button" data-theme-toggle="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M12 3a9 9 0 1 0 9 9c0-.5 0-1-.1-1.5A7 7 0 0 1 12 3Z">
+</path>
+</svg>
+<span class="sr-only" data-theme-label="">
+       시스템 테마
+      </span>
+</button>
+<button aria-haspopup="dialog" aria-label="전체 문서 열기" class="icon-button menu-button" data-menu-open="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M4 7h16M4 12h16M4 17h16">
+</path>
+</svg>
+</button>
+</div>
+</div>
+</header>
+<nav aria-label="핵심 시스템" class="system-dock">
+<div class="system-dock-inner">
+<a aria-label="Atlas 홈" class="system-dock-home" href="../index.html">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m3 11 9-8 9 8">
+</path>
+<path d="M5 10v10h14V10M9 20v-6h6v6">
+</path>
+</svg>
+</a>
+<div class="system-dock-track">
+<a class="system-dock-link" data-system="core" href="../modules/core-runtime.html">
+<span>
+       00
+      </span>
+<b>
+       Core
+      </b>
+</a>
+<a class="system-dock-link" data-system="stat" href="../modules/stat-system.html">
+<span>
+       Σ
+      </span>
+<b>
+       Stat
+      </b>
+</a>
+<a class="system-dock-link" data-system="effect" href="../modules/effect-system.html">
+<span>
+       ƒ
+      </span>
+<b>
+       Effect
+      </b>
+</a>
+<a class="system-dock-link" data-system="skill" href="../modules/skill-action-system.html">
+<span>
+       ▶
+      </span>
+<b>
+       Skill
+      </b>
+</a>
+<a class="system-dock-link" data-system="combat" href="../modules/combat-resolution-system.html">
+<span>
+       ◆
+      </span>
+<b>
+       Combat
+      </b>
+</a>
+<a class="system-dock-link" data-system="status" href="../modules/status-system.html">
+<span>
+       ✦
+      </span>
+<b>
+       Status
+      </b>
+</a>
+</div>
+<a class="system-dock-map is-active" href="../modules/integration-map.html">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m4 6 5-2 6 2 5-2v14l-5 2-6-2-5 2Z">
+</path>
+<path d="M9 4v14M15 6v14">
+</path>
+</svg>
+<b>
+      Map
+     </b>
+</a>
+<button class="system-dock-all" data-menu-open="" type="button">
+     All docs
+    </button>
+</div>
+</nav>
+<div class="page-shell">
+<main class="doc-main" id="main-content" tabindex="-1">
+<div class="doc-topline">
+<div class="breadcrumb">
+<a href="../index.html">
+       Atlas
+      </a>
+<span>
+       /
+      </span>
+<span>
+       Architecture
+      </span>
+<span>
+       /
+      </span>
+<b>
+       통합 구조
+      </b>
+</div>
+<div class="doc-meta">
+<span>
+       Architecture
+      </span>
+<span data-reading-time="">
+       읽는 시간 계산 중
+      </span>
+<button data-toc-open="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M9 6h11M9 12h11M9 18h11">
+</path>
+<circle cx="4" cy="6" r="1">
+</circle>
+<circle cx="4" cy="12" r="1">
+</circle>
+<circle cx="4" cy="18" r="1">
+</circle>
+</svg>
+       목차
+      </button>
+</div>
+</div>
+<article class="content-area doc-article" id="article-content">
+<section class="hero" data-accent="indigo">
+<span class="eyebrow">
+       Architecture Map
+      </span>
+<h1>
+       Integration Map
+      </h1>
+<p class="lead">
+       Integration Map은 Core, Stat, Effect, Skill, Combat, Status가 어느 방향으로 의존하고 어떤 데이터를 주고받는지 정리하는 기준 문서다. 목표는 각 시스템을 독립적으로 테스트하면서도 Fireball 같은 실제 플레이 흐름이 끊기지 않게 만드는 것이다.
+      </p>
+<div class="badges">
+<span class="badge">
+        Dependency Direction
+       </span>
+<span class="badge">
+        API Contract
+       </span>
+<span class="badge">
+        SourceId
+       </span>
+<span class="badge">
+        EventBus
+       </span>
+<span class="badge">
+        DebugTrace
+       </span>
+</div>
+</section>
+<section aria-labelledby="architecture-lens-title" class="architecture-lens" data-architecture-lens="">
+<div class="lens-head">
+<div>
+<span class="section-kicker">
+         Architecture lens
+        </span>
+<h2 id="architecture-lens-title">
+         하나의 화살표가 아니라, 세 가지 관점
+        </h2>
+<p>
+         학습 순서, 실제 실행 흐름, 코드 의존성은 서로 다르다. 관점을 전환해 같은 시스템을 다른 방식으로 읽는다.
+        </p>
+</div>
+<div aria-label="아키텍처 관점" class="lens-tabs" role="tablist">
+<button aria-selected="true" data-lens-tab="learn" role="tab" type="button">
+         학습 순서
+        </button>
+<button aria-selected="false" data-lens-tab="runtime" role="tab" type="button">
+         런타임 흐름
+        </button>
+<button aria-selected="false" data-lens-tab="contract" role="tab" type="button">
+         계약 의존성
+        </button>
+</div>
+</div>
+<div class="lens-stage">
+<div class="lens-view is-active" data-lens-view="learn" role="tabpanel">
+<div class="lens-note">
+<b>
+          목적
+         </b>
+<span>
+          개념을 난이도 순서로 익히는 추천 경로다. 호출 방향을 뜻하지 않는다.
+         </span>
+</div>
+<div class="node-flow learn-flow">
+<a class="system-node core" href="../modules/core-runtime.html">
+<small>
+           01
+          </small>
+<b>
+           Core
+          </b>
+<span>
+           공통 계약
+          </span>
+</a>
+<i>
+          →
+         </i>
+<a class="system-node stat" href="../modules/stat-system.html">
+<small>
+           02
+          </small>
+<b>
+           Stat
+          </b>
+<span>
+           숫자 엔진
+          </span>
+</a>
+<i>
+          →
+         </i>
+<a class="system-node effect" href="../modules/effect-system.html">
+<small>
+           03
+          </small>
+<b>
+           Effect
+          </b>
+<span>
+           결과 요청
+          </span>
+</a>
+<i>
+          →
+         </i>
+<a class="system-node skill" href="../modules/skill-action-system.html">
+<small>
+           04
+          </small>
+<b>
+           Skill
+          </b>
+<span>
+           행동 조율
+          </span>
+</a>
+<i>
+          →
+         </i>
+<a class="system-node combat" href="../modules/combat-resolution-system.html">
+<small>
+           05
+          </small>
+<b>
+           Combat
+          </b>
+<span>
+           피해 해석
+          </span>
+</a>
+<i>
+          →
+         </i>
+<a class="system-node status" href="../modules/status-system.html">
+<small>
+           06
+          </small>
+<b>
+           Status
+          </b>
+<span>
+           지속 상태
+          </span>
+</a>
+</div>
+</div>
+<div class="lens-view" data-lens-view="runtime" hidden="" role="tabpanel">
+<div class="lens-note">
+<b>
+          실행
+         </b>
+<span>
+          입력은 Skill에서 시작해 Effect 요청으로 바뀌고 Combat과 Status로 분기한 뒤 Commit과 Event로 모인다.
+         </span>
+</div>
+<div class="runtime-map">
+<div class="runtime-track">
+<span class="runtime-pill input">
+           Input / AI
+          </span>
+<i>
+           →
+          </i>
+<a class="runtime-pill skill" href="../modules/skill-action-system.html">
+           Skill Execution
+          </a>
+<i>
+           →
+          </i>
+<a class="runtime-pill effect" href="../modules/effect-system.html">
+           Effect Plan
+          </a>
+</div>
+<div class="runtime-branches">
+<span>
+</span>
+<div>
+<i>
+            ↙
+           </i>
+<a class="runtime-pill combat" href="../modules/combat-resolution-system.html">
+            Damage Resolve
+           </a>
+</div>
+<div>
+<i>
+            ↘
+           </i>
+<a class="runtime-pill status" href="../modules/status-system.html">
+            Status Apply
+           </a>
+</div>
+</div>
+<div class="runtime-track bottom">
+<a class="runtime-pill stat" href="../modules/stat-system.html">
+           Stat / Resource Commit
+          </a>
+<i>
+           →
+          </i>
+<span class="runtime-pill event">
+           Event + DebugTrace
+          </span>
+</div>
+</div>
+</div>
+<div class="lens-view" data-lens-view="contract" hidden="" role="tabpanel">
+<div class="lens-note">
+<b>
+          코드
+         </b>
+<span>
+          구현체끼리 얽히지 않고 작은 포트를 호출한다. 화살표는 소유권이 아니라 계약 사용 방향이다.
+         </span>
+</div>
+<div class="contract-map">
+<div class="contract-core">
+<span>
+           Core contracts
+          </span>
+<b>
+           Entity · Source · Tag · Time · Random · Trace
+          </b>
+</div>
+<div class="contract-grid">
+<a href="../modules/stat-system.html">
+<b>
+            IStatQuery
+           </b>
+<span>
+            read / modifier port
+           </span>
+</a>
+<a href="../modules/effect-system.html">
+<b>
+            IEffectExecutor
+           </b>
+<span>
+            plan / result
+           </span>
+</a>
+<a href="../modules/skill-action-system.html">
+<b>
+            ISkillService
+           </b>
+<span>
+            request / execution
+           </span>
+</a>
+<a href="../modules/combat-resolution-system.html">
+<b>
+            ICombatResolver
+           </b>
+<span>
+            request / result
+           </span>
+</a>
+<a href="../modules/status-system.html">
+<b>
+            IStatusService
+           </b>
+<span>
+            apply / tick / remove
+           </span>
+</a>
+<a href="../modules/integration-map.html">
+<b>
+            IReactionQueue
+           </b>
+<span>
+            ordered follow-up
+           </span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</section>
+<h2 id="전체-의존성-지도">
+      전체 의존성 지도
+     </h2>
+<figure class="diagram">
+<div class="dh">
+<strong>
+        전체 프레임워크 의존성 맵
+       </strong>
+<div class="da">
+<a class="small" href="../assets/diagrams/38_full_framework_dependency_map.svg" target="_blank">
+         SVG
+        </a>
+<a class="small" href="../assets/diagrams/38_full_framework_dependency_map.png" target="_blank">
+         PNG
+        </a>
+</div>
+</div>
+<img alt="전체 프레임워크 의존성 맵" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/38_full_framework_dependency_map.svg"/>
+<figcaption class="cap">
+       Core Runtime은 공통 계약을 제공하고, Stat/Effect/Skill/Combat/Status는 각자의 책임에 맞게 연결된다.
+      </figcaption>
+</figure>
+<p>
+      아래 그림은 런타임 협업과 데이터 읽기 방향을 요약한다. 컴파일 의존성, 실행 호출, 이벤트 반응을 하나의 화살표 의미로 섞지 않으며, 구현에서는 각 연결을 작은 Port/API로 분리한다.
+     </p>
+<h2 id="시스템별-계약">
+      시스템별 계약
+     </h2>
+<div class="table-scroll">
+<table class="data-table">
+<tr>
+<th>
+         흐름
+        </th>
+<th>
+         전달 데이터
+        </th>
+<th>
+         의미
+        </th>
+</tr>
+<tr>
+<td>
+         Core → 모든 시스템
+        </td>
+<td>
+<code>
+          EntityId
+         </code>
+         ,
+         <code>
+          TagSet
+         </code>
+         ,
+         <code>
+          SourceId
+         </code>
+         ,
+         <code>
+          EventBus
+         </code>
+         ,
+         <code>
+          Time
+         </code>
+         ,
+         <code>
+          RandomStream
+         </code>
+</td>
+<td>
+         모든 시스템이 공유하는 최소 런타임 언어다.
+        </td>
+</tr>
+<tr>
+<td>
+         Stat → Effect / Combat
+        </td>
+<td>
+<code>
+          getFinalValue(statId, context)
+         </code>
+</td>
+<td>
+         Effect와 Combat은 최종 스탯 값을 읽지만 계산 파이프라인을 소유하지 않는다.
+        </td>
+</tr>
+<tr>
+<td>
+         Skill → Effect
+        </td>
+<td>
+<code>
+          EffectBundle
+         </code>
+         ,
+         <code>
+          EffectContext
+         </code>
+</td>
+<td>
+         Skill은 release marker에서 EffectBundle 실행을 요청한다.
+        </td>
+</tr>
+<tr>
+<td>
+         Effect → Combat
+        </td>
+<td>
+<code>
+          DamageRequest
+         </code>
+</td>
+<td>
+         DamageEffect는 최종 피해 공식을 직접 계산하지 않는다.
+        </td>
+</tr>
+<tr>
+<td>
+         Effect → Status
+        </td>
+<td>
+<code>
+          ApplyStatusRequest
+         </code>
+</td>
+<td>
+         ApplyStatusEffect는 지속시간과 tick을 직접 관리하지 않는다.
+        </td>
+</tr>
+<tr>
+<td>
+         Combat → EventBus
+        </td>
+<td>
+<code>
+          DamageResult
+         </code>
+         ,
+         <code>
+          OnDamageResolved
+         </code>
+</td>
+<td>
+         피해 계산 결과와 로그를 전파한다.
+        </td>
+</tr>
+<tr>
+<td>
+         Status → Stat
+        </td>
+<td>
+<code>
+          StatModifier(sourceId=statusInstanceId)
+         </code>
+</td>
+<td>
+         상태가 제공하는 수치 변경은 Modifier로 등록/제거한다.
+        </td>
+</tr>
+<tr>
+<td>
+         Status → Effect
+        </td>
+<td>
+<code>
+          PeriodicEffect
+         </code>
+</td>
+<td>
+         DoT, HoT, aura tick은 Effect를 다시 실행한다.
+        </td>
+</tr>
+</table>
+</div>
+<h2 id="수직-슬라이스">
+      수직 슬라이스
+     </h2>
+<div class="flow">
+<span>
+       SkillRequest
+      </span>
+<b>
+       →
+      </b>
+<span>
+       SkillValidator
+      </span>
+<b>
+       →
+      </b>
+<span>
+       ActionTimeline
+      </span>
+<b>
+       →
+      </b>
+<span>
+       EffectBundle
+      </span>
+<b>
+       →
+      </b>
+<span>
+       DamageRequest
+      </span>
+<b>
+       →
+      </b>
+<span>
+       DamageResult
+      </span>
+<b>
+       →
+      </b>
+<span>
+       StatusResult
+      </span>
+</div>
+<p>
+      Fireball 예제는 이 흐름을 한 번에 확인할 수 있는 대표 수직 슬라이스다. 마나 비용, 쿨다운, 사거리 검사는 Skill에서 처리되고, 피해와 Burn 부여는 Effect에서 요청되며, 실제 피해 숫자는 Combat이 계산하고 Burn 지속 관리는 Status가 맡는다.
+     </p>
+<h2 id="금지-의존성">
+      금지 의존성
+     </h2>
+<div class="table-scroll">
+<table class="data-table">
+<tr>
+<th>
+         금지 구조
+        </th>
+<th>
+         문제
+        </th>
+<th>
+         대안
+        </th>
+</tr>
+<tr>
+<td>
+         Skill이 최종 피해를 직접 계산
+        </td>
+<td>
+         Effect / Combat / Log 구조가 무너진다.
+        </td>
+<td>
+         Skill은 EffectBundle 실행 타이밍만 만든다.
+        </td>
+</tr>
+<tr>
+<td>
+         DamageEffect 안에 모든 전투 공식 작성
+        </td>
+<td>
+         게임별 공식 교체와 테스트가 어려워진다.
+        </td>
+<td>
+         DamageRequest를 만들고 CombatResolver에 위임한다.
+        </td>
+</tr>
+<tr>
+<td>
+         Status가 Stat 값을 직접 변경
+        </td>
+<td>
+         중첩, 제거, 저장, 디버그가 어려워진다.
+        </td>
+<td>
+         StatModifier를 sourceId로 등록/제거한다.
+        </td>
+</tr>
+<tr>
+<td>
+         Combat이 장비 인벤토리를 직접 조회
+        </td>
+<td>
+         장비 시스템과 전투 공식이 강하게 결합된다.
+        </td>
+<td>
+         장비는 Modifier를 공급하고 Combat은 StatSystem을 읽는다.
+        </td>
+</tr>
+<tr>
+<td>
+         Status tick이 Skill 쿨다운을 직접 수정
+        </td>
+<td>
+         시간, 상태, 스킬 책임이 뒤섞인다.
+        </td>
+<td>
+         EventBus 또는 명시적 Effect/Policy를 통해 요청한다.
+        </td>
+</tr>
+</table>
+</div>
+<h2 id="이벤트-흐름">
+      이벤트 흐름
+     </h2>
+<div class="table-scroll">
+<table class="data-table">
+<tr>
+<th>
+         이벤트
+        </th>
+<th>
+         발행자
+        </th>
+<th>
+         구독 예시
+        </th>
+</tr>
+<tr>
+<td>
+<code>
+          OnSkillUsed
+         </code>
+</td>
+<td>
+         SkillExecutor
+        </td>
+<td>
+         UI 로그, 장비 triggered effect, 업적
+        </td>
+</tr>
+<tr>
+<td>
+<code>
+          OnEffectExecuted
+         </code>
+</td>
+<td>
+         EffectExecutor
+        </td>
+<td>
+         DebugTrace, 연쇄 효과, 튜토리얼
+        </td>
+</tr>
+<tr>
+<td>
+<code>
+          OnDamageResolved
+         </code>
+</td>
+<td>
+         CombatResolver
+        </td>
+<td>
+         피해 숫자 UI, 흡혈, 반사 피해, 카메라 흔들림
+        </td>
+</tr>
+<tr>
+<td>
+<code>
+          OnStatusApplied
+         </code>
+</td>
+<td>
+         StatusController
+        </td>
+<td>
+         상태 아이콘, 면역 로그, 업적
+        </td>
+</tr>
+<tr>
+<td>
+<code>
+          OnStatusTick
+         </code>
+</td>
+<td>
+         StatusController
+        </td>
+<td>
+         DoT 표시, 사운드, 추가 연쇄 효과
+        </td>
+</tr>
+<tr>
+<td>
+<code>
+          OnModifierChanged
+         </code>
+</td>
+<td>
+         StatSystem
+        </td>
+<td>
+         스탯 패널 갱신, 캐시 무효화
+        </td>
+</tr>
+</table>
+</div>
+<h2 id="reaction-queue-contract">
+      ReactionQueue 계약
+     </h2>
+<p>
+      OnDamageResolved에 흡혈, 반사, 장비 발동을 모두 즉시 구독시키면 실행 순서와 무한 연쇄가 불명확해진다. 상태를 바꾸는 반응은 이벤트를 명령으로 변환해 queue에 넣고
+      <code>
+       priority → sourceId → reactionId
+      </code>
+      순서로 처리한다.
+     </p>
+<ul class="check">
+<li>
+       eventId / correlationId / causationId를 분리한다.
+      </li>
+<li>
+       최대 reactionDepth와 반복 idempotencyKey를 둔다.
+      </li>
+<li>
+       UI·분석 subscriber는 state-mutating queue와 분리한다.
+      </li>
+<li>
+       Before/Calculated/Committed/After 이벤트 시점을 이름으로 구분한다.
+      </li>
+</ul>
+<h2 id="디버그-추적">
+      DebugTrace 기준
+     </h2>
+<p>
+      시스템이 분리될수록 디버그 로그의 중요성이 커진다. 하나의 Fireball 실행은 sourceId와 eventId로 연결된 추적 단위를 가져야 한다.
+     </p>
 <pre><code>sourceId: skill:fireball:cast_771
 OnSkillUsed
   SkillValidator: mana ok, cooldown ok, range ok
@@ -25,6 +922,573 @@ OnDamageResolved
   base 124 → fire bonus 1.2 → resistance 0.85 → shield 20 → final 106
 OnStatusApplied
   Burn applied, stack 1, duration 5.0s, nextTick +1.0s</code></pre>
-<h2 id="완료-체크리스트">완료 체크리스트</h2>
-<ul class="checklist"><li>각 시스템이 소유하는 데이터와 읽기 전용으로 참조하는 데이터가 구분되어 있다.</li><li>DamageEffect와 ApplyStatusEffect가 각각 Combat과 Status로 연결된다.</li><li>Status가 제공하는 수치 변화는 StatModifier로 표현된다.</li><li>모든 실행 결과는 EventBus와 DebugTrace로 추적된다.</li><li>Fireball 같은 수직 슬라이스를 통해 전체 흐름을 재현할 수 있다.</li></ul>
-<nav class="pager"><a href="../modules/status-system.html"><small>← 이전</small><strong>Status</strong><span>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</span></a><a href="../modules/fireball-case-study.html" style="text-align:right"><small>다음 →</small><strong>Fireball 예제</strong><span>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</span></a></nav></main><aside class="right-rail"><div class="rail-widget"><div class="rail-title">On this page</div><nav class="toc-list"><a href="#전체-의존성-지도">전체 의존성 지도</a><a href="#시스템별-계약">시스템별 계약</a><a href="#수직-슬라이스">수직 슬라이스</a><a href="#금지-의존성">금지 의존성</a><a href="#이벤트-흐름">이벤트 흐름</a><a href="#디버그-추적">DebugTrace 기준</a><a href="#완료-체크리스트">완료 체크리스트</a></nav></div><div class="rail-widget"><div class="rail-title">Related</div><div class="related-list"><a href="../modules/core-runtime.html"><b>Core Runtime</b><span>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</span></a><a href="../modules/effect-system.html"><b>Effect System</b><span>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</span></a><a href="../modules/combat-resolution-system.html"><b>Combat</b><span>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</span></a><a href="../modules/status-system.html"><b>Status</b><span>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</span></a></div></div><div class="rail-widget"><div class="rail-title">Tools</div><button class="rail-action print-page">인쇄 / PDF</button><a class="rail-action" href="../modules/diagram-gallery.html">다이어그램 갤러리</a></div></aside></div><div class="overlay"></div><div class="diagram-modal"><div class="diagram-window"><div class="diagram-toolbar"><b>Diagram Preview</b><div><button data-zoom-out="">−</button><button data-zoom-in="">＋</button><button data-modal-close="">닫기</button></div></div><div class="diagram-canvas"><img alt="선택된 다이어그램 미리보기" decoding="async" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="/></div></div></div><div class="command-palette"><div class="palette-box"><div class="palette-input"><span>⌕</span><input autocomplete="off" placeholder="검색어 입력: core, stat, effect, skill, combat, status..."/></div><div class="palette-results"></div></div></div><script>window.__GSF_PAGES__=[{"file": "index.html", "short": "홈", "title": "Game System Framework", "desc": "Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스", "key": "home", "group": "시작", "level": "Overview"}, {"file": "modules/core-runtime.html", "short": "Core Runtime", "title": "Core Runtime / System Contract", "desc": "Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약", "key": "core", "group": "Foundation", "level": "Foundation"}, {"file": "modules/stat-system.html", "short": "Stat System", "title": "Stat System", "desc": "스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조", "key": "stat", "group": "Core Systems", "level": "Core"}, {"file": "modules/effect-system.html", "short": "Effect System", "title": "Effect System", "desc": "EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계", "key": "effect damage status", "group": "Core Systems", "level": "Bridge"}, {"file": "modules/skill-action-system.html", "short": "Skill / Action", "title": "Skill / Action System", "desc": "비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조", "key": "skill action cooldown targeting timeline", "group": "Core Systems", "level": "Action"}, {"file": "modules/combat-resolution-system.html", "short": "Combat", "title": "Combat Resolution System", "desc": "명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조", "key": "combat damage hit critical armor resistance shield", "group": "Core Systems", "level": "Resolution"}, {"file": "modules/status-system.html", "short": "Status", "title": "Status System", "desc": "버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조", "key": "status buff debuff stack duration tick burn rage", "group": "Core Systems", "level": "Runtime"}, {"file": "modules/integration-map.html", "short": "통합 구조", "title": "Integration Map", "desc": "Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약", "key": "integration dependency contract", "group": "Architecture", "level": "Architecture"}, {"file": "modules/fireball-case-study.html", "short": "Fireball 예제", "title": "Fireball Case Study", "desc": "하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름", "key": "case fireball burn damage", "group": "Practice", "level": "Case Study"}, {"file": "modules/diagram-gallery.html", "short": "다이어그램", "title": "Diagram Gallery", "desc": "전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리", "key": "diagrams uml class sequence activity state", "group": "Reference", "level": "Reference"}, {"file": "modules/glossary.html", "short": "용어집", "title": "Glossary", "desc": "반복되는 시스템 설계 용어와 UML 기초 문법", "key": "glossary terms", "group": "Reference", "level": "Reference"}, {"file": "modules/implementation-roadmap.html", "short": "로드맵", "title": "Implementation Roadmap", "desc": "MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서", "key": "roadmap implementation mvp", "group": "Implementation", "level": "Build Plan"}, {"file": "modules/skill-combat-next.html", "short": "다음 확장", "title": "Equipment / Progression 확장안", "desc": "다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안", "key": "next equipment item progression reward", "group": "Implementation", "level": "Next"}, {"file": "modules/quality-audit.html", "short": "품질 점검", "title": "문서 품질 점검", "desc": "UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준", "key": "audit quality review check", "group": "Maintenance", "level": "QA"}];window.__GSF_PREFIX__="../";</script><script src="../assets/js/app.js"></script></body></html>
+<h2 id="완료-체크리스트">
+      완료 체크리스트
+     </h2>
+<ul class="checklist">
+<li>
+       각 시스템이 소유하는 데이터와 읽기 전용으로 참조하는 데이터가 구분되어 있다.
+      </li>
+<li>
+       DamageEffect와 ApplyStatusEffect가 각각 Combat과 Status로 연결된다.
+      </li>
+<li>
+       Status가 제공하는 수치 변화는 StatModifier로 표현된다.
+      </li>
+<li>
+       모든 실행 결과는 EventBus와 DebugTrace로 추적된다.
+      </li>
+<li>
+       Fireball 같은 수직 슬라이스를 통해 전체 흐름을 재현할 수 있다.
+      </li>
+</ul>
+</article>
+<nav aria-label="이전 및 다음 문서" class="doc-pager">
+<a class="prev" href="../modules/status-system.html">
+<span>
+       ← 이전
+      </span>
+<b>
+       Status
+      </b>
+<small>
+       버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조
+      </small>
+</a>
+<a class="next" href="../modules/fireball-case-study.html">
+<span>
+       다음 →
+      </span>
+<b>
+       Fireball 예제
+      </b>
+<small>
+       하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름
+      </small>
+</a>
+</nav>
+</main>
+<aside aria-label="페이지 보조 탐색" class="context-rail">
+<section class="context-card toc-card">
+<div class="context-title">
+<span>
+       On this page
+      </span>
+<button data-print-page="" type="button">
+       Print
+      </button>
+</div>
+<nav class="page-toc">
+<a href="#architecture-lens-title">
+       하나의 화살표가 아니라, 세 가지 관점
+      </a>
+<a href="#전체-의존성-지도">
+       전체 의존성 지도
+      </a>
+<a href="#시스템별-계약">
+       시스템별 계약
+      </a>
+<a href="#수직-슬라이스">
+       수직 슬라이스
+      </a>
+<a href="#금지-의존성">
+       금지 의존성
+      </a>
+<a href="#이벤트-흐름">
+       이벤트 흐름
+      </a>
+<a href="#reaction-queue-contract">
+       ReactionQueue 계약
+      </a>
+<a href="#디버그-추적">
+       DebugTrace 기준
+      </a>
+<a href="#완료-체크리스트">
+       완료 체크리스트
+      </a>
+</nav>
+</section>
+<section class="context-card">
+<div class="context-title">
+<span>
+       Related paths
+      </span>
+</div>
+<div class="related-links">
+<a href="../modules/core-runtime.html">
+<span>
+        Foundation
+       </span>
+<b>
+        Core Runtime
+       </b>
+</a>
+<a href="../modules/fireball-case-study.html">
+<span>
+        Case Study
+       </span>
+<b>
+        Fireball 예제
+       </b>
+</a>
+<a href="../modules/phase3-readiness.html">
+<span>
+        Readiness
+       </span>
+<b>
+        Phase 3 준비
+       </b>
+</a>
+</div>
+</section>
+<a class="readiness-card" href="../modules/phase3-readiness.html">
+<span>
+      Phase 3 gate
+     </span>
+<b>
+      설계 준비도와 다음 구현
+     </b>
+<small>
+      핵심 계약 6개 · 수용 기준 7개
+     </small>
+<i>
+      →
+     </i>
+</a>
+</aside>
+</div>
+<footer class="site-footer">
+<div>
+<b>
+     Game System Framework
+    </b>
+<span>
+     Offline-first · No external CDN · Release 2 redesign
+    </span>
+</div>
+<a href="../modules/quality-audit.html">
+    Quality audit
+   </a>
+</footer>
+<nav aria-label="모바일 빠른 탐색" class="mobile-bar">
+<a href="../index.html">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m3 11 9-8 9 8">
+</path>
+<path d="M5 10v10h14V10M9 20v-6h6v6">
+</path>
+</svg>
+<span>
+     Atlas
+    </span>
+</a>
+<a href="../modules/integration-map.html">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m4 6 5-2 6 2 5-2v14l-5 2-6-2-5 2Z">
+</path>
+<path d="M9 4v14M15 6v14">
+</path>
+</svg>
+<span>
+     Map
+    </span>
+</a>
+<button data-search-open="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<circle cx="11" cy="11" r="6.5">
+</circle>
+<path d="m16 16 4 4">
+</path>
+</svg>
+<span>
+     Search
+    </span>
+</button>
+<button data-menu-open="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M4 7h16M4 12h16M4 17h16">
+</path>
+</svg>
+<span>
+     Docs
+    </span>
+</button>
+</nav>
+<dialog aria-labelledby="drawer-title" class="site-drawer" data-site-drawer="">
+<div class="drawer-shell">
+<header>
+<div>
+<span class="section-kicker">
+       Knowledge map
+      </span>
+<h2 id="drawer-title">
+       전체 문서
+      </h2>
+</div>
+<button aria-label="닫기" class="icon-button" data-dialog-close="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m6 6 12 12M18 6 6 18">
+</path>
+</svg>
+</button>
+</header>
+<div class="drawer-search">
+<button data-search-open="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<circle cx="11" cy="11" r="6.5">
+</circle>
+<path d="m16 16 4 4">
+</path>
+</svg>
+      문서와 섹션을 바로 검색
+      <kbd>
+       ⌘K
+      </kbd>
+</button>
+</div>
+<div class="drawer-groups">
+<section class="drawer-group">
+<h3>
+       시작
+      </h3>
+<div>
+<a href="../index.html">
+<span>
+         Overview
+        </span>
+<b>
+         홈
+        </b>
+<small>
+         Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스
+        </small>
+</a>
+</div>
+</section>
+<section class="drawer-group">
+<h3>
+       Foundation
+      </h3>
+<div>
+<a href="../modules/core-runtime.html">
+<span>
+         Foundation
+        </span>
+<b>
+         Core Runtime
+        </b>
+<small>
+         Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약
+        </small>
+</a>
+</div>
+</section>
+<section class="drawer-group">
+<h3>
+       Core Systems
+      </h3>
+<div>
+<a href="../modules/stat-system.html">
+<span>
+         Core
+        </span>
+<b>
+         Stat System
+        </b>
+<small>
+         스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조
+        </small>
+</a>
+<a href="../modules/effect-system.html">
+<span>
+         Bridge
+        </span>
+<b>
+         Effect System
+        </b>
+<small>
+         EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계
+        </small>
+</a>
+<a href="../modules/skill-action-system.html">
+<span>
+         Action
+        </span>
+<b>
+         Skill / Action
+        </b>
+<small>
+         비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조
+        </small>
+</a>
+<a href="../modules/combat-resolution-system.html">
+<span>
+         Resolution
+        </span>
+<b>
+         Combat
+        </b>
+<small>
+         명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조
+        </small>
+</a>
+<a href="../modules/status-system.html">
+<span>
+         Runtime
+        </span>
+<b>
+         Status
+        </b>
+<small>
+         버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조
+        </small>
+</a>
+</div>
+</section>
+<section class="drawer-group">
+<h3>
+       Architecture
+      </h3>
+<div>
+<a aria-current="page" class="is-active" href="../modules/integration-map.html">
+<span>
+         Architecture
+        </span>
+<b>
+         통합 구조
+        </b>
+<small>
+         Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약
+        </small>
+</a>
+</div>
+</section>
+<section class="drawer-group">
+<h3>
+       Practice
+      </h3>
+<div>
+<a href="../modules/fireball-case-study.html">
+<span>
+         Case Study
+        </span>
+<b>
+         Fireball 예제
+        </b>
+<small>
+         하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름
+        </small>
+</a>
+</div>
+</section>
+<section class="drawer-group">
+<h3>
+       Reference
+      </h3>
+<div>
+<a href="../modules/diagram-gallery.html">
+<span>
+         Reference
+        </span>
+<b>
+         다이어그램
+        </b>
+<small>
+         전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리
+        </small>
+</a>
+<a href="../modules/glossary.html">
+<span>
+         Reference
+        </span>
+<b>
+         용어집
+        </b>
+<small>
+         반복되는 시스템 설계 용어와 UML 기초 문법
+        </small>
+</a>
+</div>
+</section>
+<section class="drawer-group">
+<h3>
+       Implementation
+      </h3>
+<div>
+<a href="../modules/phase3-readiness.html">
+<span>
+         Readiness
+        </span>
+<b>
+         Phase 3 준비
+        </b>
+<small>
+         설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준
+        </small>
+</a>
+<a href="../modules/implementation-roadmap.html">
+<span>
+         Build Plan
+        </span>
+<b>
+         로드맵
+        </b>
+<small>
+         MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서
+        </small>
+</a>
+<a href="../modules/skill-combat-next.html">
+<span>
+         Next
+        </span>
+<b>
+         다음 확장
+        </b>
+<small>
+         다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안
+        </small>
+</a>
+</div>
+</section>
+<section class="drawer-group">
+<h3>
+       Maintenance
+      </h3>
+<div>
+<a href="../modules/quality-audit.html">
+<span>
+         QA
+        </span>
+<b>
+         품질 점검
+        </b>
+<small>
+         UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준
+        </small>
+</a>
+</div>
+</section>
+</div>
+</div>
+</dialog>
+<dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
+<div class="command-shell">
+<header>
+<div>
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<circle cx="11" cy="11" r="6.5">
+</circle>
+<path d="m16 16 4 4">
+</path>
+</svg>
+<label for="command-input" id="command-title">
+       Search the system atlas
+      </label>
+</div>
+<button class="key-close" data-dialog-close="" type="button">
+      ESC
+     </button>
+</header>
+<input aria-controls="command-results" autocomplete="off" class="command-input" id="command-input" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
+<div class="command-hints">
+<span>
+      ↑↓ 이동
+     </span>
+<span>
+      ↵ 열기
+     </span>
+<span>
+      페이지 제목과 본문 섹션까지 검색
+     </span>
+</div>
+<div class="command-results" id="command-results" role="listbox">
+</div>
+</div>
+</dialog>
+<dialog aria-labelledby="toc-dialog-title" class="toc-dialog" data-toc-dialog="">
+<div class="toc-dialog-shell">
+<header>
+<h2 id="toc-dialog-title">
+      이 페이지의 섹션
+     </h2>
+<button aria-label="닫기" class="icon-button" data-dialog-close="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m6 6 12 12M18 6 6 18">
+</path>
+</svg>
+</button>
+</header>
+<nav>
+<a href="#architecture-lens-title">
+      하나의 화살표가 아니라, 세 가지 관점
+     </a>
+<a href="#전체-의존성-지도">
+      전체 의존성 지도
+     </a>
+<a href="#시스템별-계약">
+      시스템별 계약
+     </a>
+<a href="#수직-슬라이스">
+      수직 슬라이스
+     </a>
+<a href="#금지-의존성">
+      금지 의존성
+     </a>
+<a href="#이벤트-흐름">
+      이벤트 흐름
+     </a>
+<a href="#reaction-queue-contract">
+      ReactionQueue 계약
+     </a>
+<a href="#디버그-추적">
+      DebugTrace 기준
+     </a>
+<a href="#완료-체크리스트">
+      완료 체크리스트
+     </a>
+</nav>
+</div>
+</dialog>
+<dialog aria-labelledby="diagram-modal-title" class="diagram-modal" data-diagram-modal="">
+<div class="diagram-window">
+<header class="diagram-toolbar">
+<div>
+<span class="section-kicker">
+       Diagram focus
+      </span>
+<b id="diagram-modal-title">
+       Diagram
+      </b>
+</div>
+<div>
+<button aria-label="축소" data-zoom-out="" type="button">
+       −
+      </button>
+<button data-zoom-reset="" type="button">
+       100%
+      </button>
+<button aria-label="확대" data-zoom-in="" type="button">
+       ＋
+      </button>
+<a data-open-original="" rel="noopener" target="_blank">
+       원본
+      </a>
+<button aria-label="닫기" data-dialog-close="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m6 6 12 12M18 6 6 18">
+</path>
+</svg>
+</button>
+</div>
+</header>
+<div class="diagram-canvas" data-diagram-canvas="">
+<img alt=""/>
+</div>
+</div>
+</dialog>
+<script src="../assets/js/search-index.js">
+</script>
+<script src="../assets/js/app.js">
+</script>
+</body>
+</html>
