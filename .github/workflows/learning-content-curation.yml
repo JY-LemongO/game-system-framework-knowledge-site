@@ -1,0 +1,71 @@
+name: Learning content curation
+
+on:
+  pull_request:
+    branches:
+      - dev
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+
+concurrency:
+  group: learning-content-curation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  curate-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out review branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install beautifulsoup4 playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Curate learning-only pages
+        run: python source/tools/curate_learning_site.py
+
+      - name: Rebuild search index
+        run: python source/tools/build_search_index.py
+
+      - name: Run runtime regression tests
+        run: npm test
+
+      - name: Validate static site
+        run: python source/tools/validate_site.py
+
+      - name: Run desktop and mobile smoke checks
+        run: python source/tools/browser_smoke.py
+
+      - name: Commit curated result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+          else
+            git commit -m "Curate site for learning content"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
