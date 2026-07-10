@@ -1,1088 +1,440 @@
 (() => {
   'use strict';
 
+  const body = document.body;
+  if (!body) return;
+
+  const prefix = body.dataset.prefix || '';
+  const currentFile = body.dataset.pageFile || 'index.html';
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
-  const body = document.body;
-  const prefix = body?.dataset.prefix || '';
-  const currentFile = body?.dataset.pageFile || 'index.html';
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const dialogOpeners = new WeakMap();
 
-  const safeStorage = {
-    get(key, fallback = null) {
-      try {
-        const value = localStorage.getItem(key);
-        return value === null ? fallback : value;
-      } catch (_) {
-        return fallback;
-      }
-    },
-    set(key, value) {
-      try { localStorage.setItem(key, value); } catch (_) { /* private/file mode */ }
-    }
+  const excludedPages = new Set([
+    'modules/phase3-readiness.html',
+    'modules/implementation-roadmap.html',
+    'modules/skill-combat-next.html',
+    'modules/quality-audit.html'
+  ]);
+
+  const redirectTargets = {
+    'modules/phase3-readiness.html': 'runtime-reference.html#핵심-학습-포인트',
+    'modules/implementation-roadmap.html': '../index.html#추천-학습-루트',
+    'modules/skill-combat-next.html': 'integration-map.html',
+    'modules/quality-audit.html': '../index.html'
   };
 
-  function normalise(value = '') {
-    return String(value)
-      .normalize('NFKC')
-      .toLocaleLowerCase('ko-KR')
-      .replace(/[\u200b-\u200d\ufeff]/g, '')
-      .replace(/[_/\\|·•—–-]+/g, ' ')
-      .replace(/[^\p{L}\p{N}+#.% ]+/gu, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+  function normalizedFileFromHref(href = '') {
+    try {
+      const withoutHash = href.split('#')[0].split('?')[0];
+      return withoutHash.replace(/^\.\//, '').replace(/^\.\.\//, '');
+    } catch (_) {
+      return '';
+    }
   }
 
-  function copyText(text) {
-    if (navigator.clipboard && window.isSecureContext) {
-      return navigator.clipboard.writeText(text);
-    }
-    return new Promise((resolve, reject) => {
-      const area = document.createElement('textarea');
-      area.value = text;
-      area.setAttribute('readonly', '');
-      area.style.cssText = 'position:fixed;inset:auto auto -1000px -1000px;opacity:0';
-      document.body.appendChild(area);
-      area.select();
-      try {
-        if (!document.execCommand('copy')) throw new Error('copy failed');
-        resolve();
-      } catch (error) {
-        reject(error);
-      } finally {
-        area.remove();
+  function isExcludedHref(href = '') {
+    const normalized = normalizedFileFromHref(href);
+    return excludedPages.has(normalized) || [...excludedPages].some(file => normalized.endsWith(file));
+  }
+
+  function replaceText(root, source, target) {
+    if (!root || !source || source === target) return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || parent.closest('script, style, pre, code')) return NodeFilter.FILTER_REJECT;
+        return node.nodeValue.includes(source) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
       }
     });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(node => { node.nodeValue = node.nodeValue.replaceAll(source, target); });
   }
 
-  function closeDialog(dialog, returnFocus = true) {
-    if (!dialog?.open) return;
-    dialog.close();
-    if (returnFocus) {
-      const opener = dialogOpeners.get(dialog);
-      if (opener?.isConnected) requestAnimationFrame(() => opener.focus());
+  function removeSiblingRange(start, endExclusive) {
+    if (!start || !start.parentNode) return;
+    let node = start;
+    while (node && node !== endExclusive) {
+      const next = node.nextSibling;
+      node.remove();
+      node = next;
     }
   }
 
-  function openDialog(dialog, opener = document.activeElement) {
-    if (!dialog) return;
-    $$('dialog[open]').forEach(other => {
-      if (other !== dialog) closeDialog(other, false);
-    });
-    dialogOpeners.set(dialog, opener);
-    if (!dialog.open) dialog.showModal();
+  function insertBefore(target, html) {
+    if (target) target.insertAdjacentHTML('beforebegin', html);
   }
 
-  function initialiseDialogs() {
-    $$('[data-dialog-close]').forEach(button => {
-      button.addEventListener('click', () => closeDialog(button.closest('dialog')));
-    });
-
-    $$('dialog').forEach(dialog => {
-      dialog.addEventListener('cancel', event => {
-        event.preventDefault();
-        closeDialog(dialog);
-      });
-      dialog.addEventListener('click', event => {
-        if (event.target !== dialog) return;
-        const rect = dialog.getBoundingClientRect();
-        const inside = event.clientX >= rect.left && event.clientX <= rect.right &&
-          event.clientY >= rect.top && event.clientY <= rect.bottom;
-        if (!inside || event.target === dialog) closeDialog(dialog);
-      });
-    });
-
-    const drawer = $('[data-site-drawer]');
-    $$('[data-menu-open]').forEach(button => {
-      button.addEventListener('click', () => openDialog(drawer, button));
-    });
-
-    const tocDialog = $('[data-toc-dialog]');
-    $$('[data-toc-open]').forEach(button => {
-      button.addEventListener('click', () => openDialog(tocDialog, button));
-    });
-    $$('[data-toc-dialog] a').forEach(link => {
-      link.addEventListener('click', () => closeDialog(tocDialog, false));
-    });
+  function setLeadingLabel(label, text) {
+    if (!label) return;
+    const textNode = Array.from(label.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.nodeValue.trim());
+    if (textNode) textNode.nodeValue = text;
+    else label.prepend(document.createTextNode(text));
   }
 
-  function initialiseTheme() {
-    const html = document.documentElement;
-    const button = $('[data-theme-toggle]');
-    const label = $('[data-theme-label]');
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const order = ['system', 'light', 'dark'];
-    const labels = { system: '시스템 테마', light: '라이트 테마', dark: '다크 테마' };
-
-    function resolvedTheme(mode) {
-      return mode === 'system' ? (media.matches ? 'dark' : 'light') : mode;
-    }
-
-    function apply(mode, persist = true) {
-      const next = order.includes(mode) ? mode : 'system';
-      const resolved = resolvedTheme(next);
-      html.dataset.theme = next;
-      html.classList.toggle('dark', resolved === 'dark');
-      if (label) label.textContent = labels[next];
-      if (button) {
-        button.setAttribute('aria-label', `${labels[next]} 사용 중. 다음 테마로 전환`);
-        button.dataset.themeState = next;
-      }
-      const themeMeta = $('meta[name="theme-color"]') || document.head.appendChild(Object.assign(document.createElement('meta'), { name: 'theme-color' }));
-      themeMeta.content = resolved === 'dark' ? '#111319' : '#f5f5f2';
-      if (persist) safeStorage.set('gsf-theme', next);
-    }
-
-    apply(safeStorage.get('gsf-theme', html.dataset.theme || 'system'), false);
-    button?.addEventListener('click', () => {
-      const current = html.dataset.theme || 'system';
-      apply(order[(order.indexOf(current) + 1) % order.length]);
-    });
-    media.addEventListener?.('change', () => {
-      if ((html.dataset.theme || 'system') === 'system') apply('system', false);
-    });
-  }
-
-  function initialiseFocusMode() {
-    const button = $('[data-focus-toggle]');
-    if (!button) return;
-    const saved = safeStorage.get('gsf-focus', 'off') === 'on';
-
-    function apply(active, persist = true) {
-      body.classList.toggle('is-focus', active);
-      button.setAttribute('aria-pressed', String(active));
-      button.setAttribute('aria-label', active ? '집중 모드 종료' : '집중 모드 전환');
-      if (persist) safeStorage.set('gsf-focus', active ? 'on' : 'off');
-    }
-
-    apply(saved, false);
-    button.addEventListener('click', () => apply(!body.classList.contains('is-focus')));
-  }
-
-  function initialiseScrollProgress() {
-    const bar = $('.scroll-progress span');
-    if (!bar) return;
-    let ticking = false;
-    function update() {
-      const root = document.documentElement;
-      const max = Math.max(1, root.scrollHeight - root.clientHeight);
-      const progress = Math.min(1, Math.max(0, root.scrollTop / max));
-      bar.style.width = `${(progress * 100).toFixed(2)}%`;
-      ticking = false;
-    }
-    function requestUpdate() {
-      if (!ticking) {
-        ticking = true;
-        requestAnimationFrame(update);
-      }
-    }
-    addEventListener('scroll', requestUpdate, { passive: true });
-    addEventListener('resize', requestUpdate, { passive: true });
-    update();
-  }
-
-  function initialiseReadingTime() {
-    const output = $('[data-reading-time]');
-    const article = $('#article-content');
-    if (!output || !article) return;
-    const clone = article.cloneNode(true);
-    $$('pre, code, svg, .doc-pager', clone).forEach(node => node.remove());
-    const text = clone.textContent.replace(/\s+/g, ' ').trim();
-    const latinWords = (text.match(/[A-Za-z0-9_+#.-]+/g) || []).length;
-    const koreanChars = (text.match(/[가-힣]/g) || []).length;
-    const otherWords = Math.max(0, text.split(/\s+/).length - latinWords);
-    const units = latinWords + otherWords + koreanChars / 2.4;
-    const minutes = Math.max(1, Math.round(units / 240));
-    output.textContent = `약 ${minutes}분`;
-    output.title = '본문 기준 예상 읽기 시간';
-  }
-
-  function initialiseHeadingAnchors() {
-    const article = $('#article-content');
-    if (!article) return;
-    $$('h2[id], h3[id]', article).forEach(heading => {
-      if ($('.heading-anchor', heading)) return;
-      const headingTitle = heading.textContent.trim();
-      const button = document.createElement('button');
-      button.className = 'heading-anchor';
-      button.type = 'button';
-      button.setAttribute('aria-label', `${headingTitle} 섹션 링크 복사`);
-      button.title = '섹션 링크 복사';
-      button.textContent = '#';
-      button.addEventListener('click', async event => {
-        event.stopPropagation();
-        const url = `${location.href.split('#')[0]}#${encodeURIComponent(heading.id)}`;
-        try {
-          await copyText(url);
-          history.replaceState(null, '', `#${heading.id}`);
-          button.textContent = '✓';
-          button.setAttribute('aria-label', '섹션 링크가 복사됨');
-          setTimeout(() => {
-            button.textContent = '#';
-            button.setAttribute('aria-label', `${headingTitle} 섹션 링크 복사`);
-          }, 1300);
-        } catch (_) {
-          location.hash = heading.id;
-        }
-      });
-      heading.appendChild(button);
-    });
-  }
-
-  function initialiseTocSpy() {
-    const links = [...$$('.page-toc a'), ...$$('[data-toc-dialog] nav a')];
-    const map = new Map();
-    links.forEach(link => {
-      const id = decodeURIComponent((link.getAttribute('href') || '').replace(/^#/, ''));
-      if (!id) return;
-      if (!map.has(id)) map.set(id, []);
-      map.get(id).push(link);
-    });
-    const headings = [...map.keys()].map(id => document.getElementById(id)).filter(Boolean);
-    if (!headings.length) return;
-
-    function activate(id) {
-      links.forEach(link => link.classList.remove('is-active'));
-      (map.get(id) || []).forEach(link => link.classList.add('is-active'));
-    }
-
-    if (!('IntersectionObserver' in window)) {
-      activate(headings[0].id);
-      return;
-    }
-
-    const visible = new Map();
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => visible.set(entry.target.id, entry));
-      const candidates = headings
-        .map(heading => visible.get(heading.id))
-        .filter(entry => entry?.isIntersecting)
-        .sort((a, b) => Math.abs(a.boundingClientRect.top) - Math.abs(b.boundingClientRect.top));
-      if (candidates[0]) activate(candidates[0].target.id);
-      else {
-        const above = headings.filter(h => h.getBoundingClientRect().top < 180);
-        activate((above.at(-1) || headings[0]).id);
-      }
-    }, { rootMargin: '-18% 0px -68% 0px', threshold: [0, 0.01, 1] });
-    headings.forEach(heading => observer.observe(heading));
-    activate((location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1))))?.id || headings[0].id);
-  }
-
-  function inferCodeLabel(pre) {
-    const code = $('code', pre);
-    const className = code?.className || pre.className || '';
-    const classMatch = className.match(/(?:language-|lang-)([\w#+.-]+)/i);
-    if (classMatch) return classMatch[1];
-    const sample = (code?.textContent || pre.textContent || '').trim();
-    if (/^(class|interface|enum|record|struct|public|private|protected|using|namespace)\b/m.test(sample)) return 'contract / pseudo code';
-    if (/^(GET|POST|PUT|PATCH|DELETE)\s+\//m.test(sample)) return 'api';
-    if (/^[\w.-]+:\s/m.test(sample) && !/[;{}]/.test(sample)) return 'data / schema';
-    return 'example';
-  }
-
-  function initialiseCodeBlocks() {
-    $$('#article-content pre').forEach(pre => {
-      if (pre.parentElement?.classList.contains('codewrap')) return;
-      const wrapper = document.createElement('div');
-      wrapper.className = 'codewrap';
-      pre.before(wrapper);
-      wrapper.appendChild(pre);
-
-      const head = document.createElement('div');
-      head.className = 'code-head';
-      const label = document.createElement('span');
-      label.textContent = inferCodeLabel(pre);
-      const button = document.createElement('button');
-      button.className = 'code-copy';
-      button.type = 'button';
-      button.textContent = '복사';
-      button.setAttribute('aria-label', '코드 복사');
-      button.addEventListener('click', async () => {
-        try {
-          await copyText(pre.innerText);
-          button.textContent = '복사됨';
-          button.setAttribute('aria-label', '코드가 복사됨');
-        } catch (_) {
-          button.textContent = '복사 실패';
-        }
-        setTimeout(() => {
-          button.textContent = '복사';
-          button.setAttribute('aria-label', '코드 복사');
-        }, 1400);
-      });
-      head.append(label, button);
-      wrapper.prepend(head);
-    });
-  }
-
-  function initialiseArchitectureLens() {
-    $$('[data-architecture-lens]').forEach((lens, lensIndex) => {
-      const tabs = $$('[data-lens-tab]', lens);
-      const views = $$('[data-lens-view]', lens);
-      if (!tabs.length || !views.length) return;
-
-      tabs.forEach((tab, index) => {
-        const key = tab.dataset.lensTab;
-        const panel = views.find(view => view.dataset.lensView === key);
-        const tabId = `lens-${lensIndex}-tab-${key}`;
-        const panelId = `lens-${lensIndex}-panel-${key}`;
-        tab.id = tabId;
-        tab.setAttribute('aria-controls', panelId);
-        tab.tabIndex = index === 0 ? 0 : -1;
-        if (panel) {
-          panel.id = panelId;
-          panel.setAttribute('aria-labelledby', tabId);
-        }
-      });
-
-      function switchTo(key, focus = false) {
-        const update = () => {
-          tabs.forEach(tab => {
-            const active = tab.dataset.lensTab === key;
-            tab.setAttribute('aria-selected', String(active));
-            tab.tabIndex = active ? 0 : -1;
-            if (active && focus) tab.focus();
-          });
-          views.forEach(view => {
-            const active = view.dataset.lensView === key;
-            view.classList.toggle('is-active', active);
-            view.hidden = !active;
-          });
+  function filterSearchData() {
+    const data = window.__GSF_SITE__;
+    if (!data) return;
+    const keep = entry => !excludedPages.has(entry.file);
+    if (Array.isArray(data.pages)) {
+      data.pages = data.pages.filter(keep).map(page => {
+        if (page.file !== 'modules/runtime-reference.html') return page;
+        return {
+          ...page,
+          short: '런타임 실습',
+          title: '런타임 아키텍처 실습',
+          desc: 'Fireball 예제로 결정론적 실행, 원자적 상태 변경, 반응 큐, 조건부 캐시와 마이그레이션을 확인하는 실습',
+          group: '실행 실습',
+          level: 'Interactive'
         };
-        update();
-      }
-
-      tabs.forEach((tab, index) => {
-        tab.addEventListener('click', () => switchTo(tab.dataset.lensTab));
-        tab.addEventListener('keydown', event => {
-          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-          event.preventDefault();
-          let next = index;
-          if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
-          if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
-          if (event.key === 'Home') next = 0;
-          if (event.key === 'End') next = tabs.length - 1;
-          switchTo(tabs[next].dataset.lensTab, true);
-        });
-      });
-    });
-  }
-
-  function initialiseFilters() {
-    $$('[data-filter]').forEach(input => {
-      const group = document.querySelector(`[data-group="${CSS.escape(input.dataset.filter)}"]`);
-      if (!group) return;
-      const items = $$('[data-item]', group);
-      const status = document.createElement('span');
-      status.className = 'sr-only';
-      status.setAttribute('aria-live', 'polite');
-      input.insertAdjacentElement('afterend', status);
-
-      function filter() {
-        const query = normalise(input.value);
-        const tokens = query.split(' ').filter(Boolean);
-        let count = 0;
-        items.forEach(item => {
-          const haystack = normalise(item.dataset.item || item.textContent);
-          const visible = tokens.every(token => haystack.includes(token));
-          item.hidden = !visible;
-          if (visible) count += 1;
-        });
-        status.textContent = query ? `${count}개 결과` : `${items.length}개 항목`;
-      }
-      input.addEventListener('input', filter);
-      input.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && input.value) {
-          input.value = '';
-          filter();
-        }
-      });
-      filter();
-    });
-  }
-
-  function subsequenceScore(query, value) {
-    if (!query || !value) return 0;
-    let qi = 0;
-    let streak = 0;
-    let score = 0;
-    for (let i = 0; i < value.length && qi < query.length; i += 1) {
-      if (value[i] === query[qi]) {
-        qi += 1;
-        streak += 1;
-        score += 1 + streak * 0.35;
-      } else {
-        streak = 0;
-      }
-    }
-    return qi === query.length ? score / Math.max(value.length, 1) : 0;
-  }
-
-  function scoreSearchEntry(entry, query) {
-    const title = normalise(entry.title);
-    const short = normalise(entry.short);
-    const desc = normalise(entry.desc);
-    const text = normalise(entry.text);
-    const group = normalise(`${entry.group || ''} ${entry.level || ''}`);
-    const haystack = `${title} ${short} ${desc} ${text} ${group}`;
-    const tokens = query.split(' ').filter(Boolean);
-    if (!tokens.length) return entry.type === 'page' ? 20 : 0;
-    let score = 0;
-    for (const token of tokens) {
-      let tokenScore = 0;
-      if (title === token) tokenScore = Math.max(tokenScore, 150);
-      if (title.startsWith(token)) tokenScore = Math.max(tokenScore, 110);
-      if (title.includes(token)) tokenScore = Math.max(tokenScore, 80);
-      if (short.startsWith(token)) tokenScore = Math.max(tokenScore, 75);
-      if (short.includes(token)) tokenScore = Math.max(tokenScore, 65);
-      if (desc.includes(token)) tokenScore = Math.max(tokenScore, 42);
-      if (text.includes(token)) tokenScore = Math.max(tokenScore, 30);
-      if (group.includes(token)) tokenScore = Math.max(tokenScore, 20);
-      if (!tokenScore && token.length > 1) {
-        const fuzzy = Math.max(subsequenceScore(token, title), subsequenceScore(token, short));
-        if (fuzzy > 0.08) tokenScore = 8 + fuzzy * 35;
-      }
-      if (!tokenScore) return 0;
-      score += tokenScore;
-    }
-    if (entry.type === 'page') score += 10;
-    if (entry.file === currentFile) score += 5;
-    return score;
-  }
-
-  function initialiseCommandPalette() {
-    const dialog = $('[data-command-palette]');
-    const input = $('.command-input', dialog || document);
-    const results = $('.command-results', dialog || document);
-    const data = window.__GSF_SITE__ || {};
-    const entries = Array.isArray(data.entries) ? data.entries : (Array.isArray(data.pages) ? data.pages.map(page => ({ ...page, type: 'page', anchor: '', text: page.key })) : []);
-    if (!dialog || !input || !results) return;
-    let activeIndex = 0;
-    let currentResults = [];
-
-    const commandKey = navigator.platform?.toLowerCase().includes('mac') ? '⌘ K' : 'Ctrl K';
-    $$('.command-trigger kbd, .drawer-search kbd').forEach(kbd => { kbd.textContent = commandKey; });
-
-    function hrefFor(entry) {
-      const anchor = entry.anchor || '';
-      if (entry.file === currentFile && anchor) return anchor;
-      return `${prefix}${entry.file}${anchor}`;
-    }
-
-    function makeResult(entry, index) {
-      const link = document.createElement('a');
-      link.className = 'command-result';
-      link.id = `command-option-${index}`;
-      link.href = hrefFor(entry);
-      link.setAttribute('role', 'option');
-      link.setAttribute('aria-selected', String(index === activeIndex));
-      link.dataset.index = String(index);
-
-      const type = document.createElement('span');
-      type.textContent = entry.type === 'section' ? entry.level || 'SECTION' : entry.level || 'PAGE';
-      const copy = document.createElement('div');
-      const title = document.createElement('b');
-      title.textContent = entry.title || entry.short || 'Untitled';
-      const description = document.createElement('small');
-      description.textContent = entry.type === 'section'
-        ? `${entry.short || ''}${entry.desc ? ` · ${entry.desc}` : ''}`
-        : entry.desc || entry.group || '';
-      copy.append(title, description);
-      const arrow = document.createElement('i');
-      arrow.textContent = '↵';
-      link.append(type, copy, arrow);
-      link.addEventListener('mouseenter', () => setActive(index, false));
-      link.addEventListener('click', () => closeDialog(dialog, false));
-      return link;
-    }
-
-    function setActive(index, scroll = true) {
-      const options = $$('.command-result', results);
-      if (!options.length) {
-        activeIndex = 0;
-        input.removeAttribute('aria-activedescendant');
-        return;
-      }
-      activeIndex = Math.max(0, Math.min(index, options.length - 1));
-      options.forEach((option, optionIndex) => {
-        const active = optionIndex === activeIndex;
-        option.classList.toggle('is-active', active);
-        option.setAttribute('aria-selected', String(active));
-      });
-      input.setAttribute('aria-activedescendant', options[activeIndex].id);
-      if (scroll) options[activeIndex].scrollIntoView({ block: 'nearest' });
-    }
-
-    function render(value = '') {
-      const query = normalise(value);
-      currentResults = entries
-        .map(entry => ({ entry, score: scoreSearchEntry(entry, query) }))
-        .filter(item => item.score > 0)
-        .sort((a, b) => b.score - a.score || ((a.entry.type === 'page') === (b.entry.type === 'page') ? 0 : (a.entry.type === 'page' ? -1 : 1)) || String(a.entry.title).localeCompare(String(b.entry.title), 'ko'))
-        .slice(0, query ? 18 : 12)
-        .map(item => item.entry);
-      activeIndex = 0;
-      results.replaceChildren();
-      if (!currentResults.length) {
-        const empty = document.createElement('p');
-        empty.className = 'command-empty';
-        empty.textContent = '일치하는 문서나 섹션이 없습니다. 다른 핵심 용어로 검색해 보세요.';
-        results.appendChild(empty);
-        input.removeAttribute('aria-activedescendant');
-        return;
-      }
-      const fragment = document.createDocumentFragment();
-      currentResults.forEach((entry, index) => fragment.appendChild(makeResult(entry, index)));
-      results.appendChild(fragment);
-      setActive(0, false);
-    }
-
-    function open(opener) {
-      const drawer = $('[data-site-drawer]');
-      if (drawer?.open) closeDialog(drawer, false);
-      openDialog(dialog, opener);
-      input.value = '';
-      render('');
-      requestAnimationFrame(() => {
-        input.focus();
-        input.select();
       });
     }
-
-    $$('[data-search-open]').forEach(button => button.addEventListener('click', () => open(button)));
-    input.addEventListener('input', () => render(input.value));
-    input.addEventListener('keydown', event => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        closeDialog(dialog);
-      } else if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        setActive((activeIndex + 1) % Math.max(currentResults.length, 1));
-      } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        setActive((activeIndex - 1 + Math.max(currentResults.length, 1)) % Math.max(currentResults.length, 1));
-      } else if (event.key === 'Home') {
-        event.preventDefault();
-        setActive(0);
-      } else if (event.key === 'End') {
-        event.preventDefault();
-        setActive(currentResults.length - 1);
-      } else if (event.key === 'Enter' && currentResults[activeIndex]) {
-        event.preventDefault();
-        location.href = hrefFor(currentResults[activeIndex]);
-        closeDialog(dialog, false);
-      }
-    });
-
-    addEventListener('keydown', event => {
-      const target = event.target;
-      const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        open(document.activeElement);
-      } else if (event.key === '/' && !typing && !event.metaKey && !event.ctrlKey && !event.altKey && !dialog.open) {
-        event.preventDefault();
-        open(document.activeElement);
-      }
-    });
-
-    render('');
-  }
-
-  function initialiseDiagramViewer() {
-    const dialog = $('[data-diagram-modal]');
-    const canvas = $('[data-diagram-canvas]', dialog || document);
-    const modalImage = $('img', canvas || dialog || document);
-    const title = $('#diagram-modal-title');
-    const original = $('[data-open-original]', dialog || document);
-    const resetButton = $('[data-zoom-reset]', dialog || document);
-    const zoomIn = $('[data-zoom-in]', dialog || document);
-    const zoomOut = $('[data-zoom-out]', dialog || document);
-    if (!dialog || !canvas || !modalImage) return;
-
-    let scale = 1;
-    let x = 0;
-    let y = 0;
-    let dragging = false;
-    let pointerStart = null;
-
-    function applyTransform() {
-      modalImage.style.left = `calc(50% + ${x}px)`;
-      modalImage.style.top = `calc(50% + ${y}px)`;
-      modalImage.style.transform = `translate(-50%, -50%) scale(${scale})`;
-      canvas.classList.toggle('is-zoomed', scale > 1.01);
-      if (resetButton) resetButton.textContent = `${Math.round(scale * 100)}%`;
-    }
-
-    function reset() {
-      scale = 1;
-      x = 0;
-      y = 0;
-      dragging = false;
-      applyTransform();
-    }
-
-    function setScale(next, originX = canvas.clientWidth / 2, originY = canvas.clientHeight / 2) {
-      const previous = scale;
-      scale = Math.max(0.5, Math.min(5, next));
-      if (scale === previous) return;
-      const rect = canvas.getBoundingClientRect();
-      const localX = originX - rect.left - rect.width / 2;
-      const localY = originY - rect.top - rect.height / 2;
-      const ratio = scale / previous;
-      x = localX - (localX - x) * ratio;
-      y = localY - (localY - y) * ratio;
-      if (scale <= 1) { x = 0; y = 0; }
-      applyTransform();
-    }
-
-    function metadataFor(image) {
-      const container = image.closest('.diagram, .thumb') || image.parentElement;
-      const heading = container?.querySelector('.dh strong, h3, h2');
-      const sourceLink = container?.querySelector('.da a[href$=".svg"], .da a[href$=".png"], a[href$=".svg"], a[href$=".png"]');
-      return {
-        title: heading?.textContent.trim() || image.alt || 'Diagram',
-        src: image.currentSrc || image.getAttribute('src'),
-        original: sourceLink?.href || image.currentSrc || image.src
-      };
-    }
-
-    function open(image) {
-      const meta = metadataFor(image);
-      if (!meta.src) return;
-      reset();
-      modalImage.src = meta.src;
-      modalImage.alt = image.alt || meta.title;
-      if (title) title.textContent = meta.title;
-      if (original) original.href = meta.original;
-      openDialog(dialog, image);
-    }
-
-    $$('img.zoomable, img[data-zoom]').forEach(image => {
-      image.tabIndex = image.tabIndex >= 0 ? image.tabIndex : 0;
-      image.setAttribute('role', 'button');
-      image.setAttribute('aria-label', `${image.alt || '다이어그램'} 크게 보기`);
-      image.addEventListener('click', () => open(image));
-      image.addEventListener('keydown', event => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          open(image);
-        }
+    if (Array.isArray(data.entries)) {
+      data.entries = data.entries.filter(keep).map(entry => {
+        if (entry.file !== 'modules/runtime-reference.html') return entry;
+        return {
+          ...entry,
+          short: '런타임 실습',
+          title: entry.type === 'page' ? '런타임 아키텍처 실습' : entry.title,
+          group: '실행 실습'
+        };
       });
-    });
-
-    zoomIn?.addEventListener('click', () => setScale(scale + 0.25));
-    zoomOut?.addEventListener('click', () => setScale(scale - 0.25));
-    resetButton?.addEventListener('click', reset);
-    canvas.addEventListener('wheel', event => {
-      event.preventDefault();
-      setScale(scale + (event.deltaY < 0 ? 0.18 : -0.18), event.clientX, event.clientY);
-    }, { passive: false });
-
-    canvas.addEventListener('pointerdown', event => {
-      if (scale <= 1 || event.button !== 0) return;
-      dragging = true;
-      pointerStart = { pointerX: event.clientX, pointerY: event.clientY, x, y };
-      canvas.setPointerCapture(event.pointerId);
-      canvas.classList.add('is-dragging');
-    });
-    canvas.addEventListener('pointermove', event => {
-      if (!dragging || !pointerStart) return;
-      x = pointerStart.x + event.clientX - pointerStart.pointerX;
-      y = pointerStart.y + event.clientY - pointerStart.pointerY;
-      applyTransform();
-    });
-    function endDrag(event) {
-      dragging = false;
-      pointerStart = null;
-      canvas.classList.remove('is-dragging');
-      if (event?.pointerId !== undefined && canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     }
-    canvas.addEventListener('pointerup', endDrag);
-    canvas.addEventListener('pointercancel', endDrag);
-    canvas.addEventListener('dblclick', event => setScale(scale > 1 ? 1 : 2, event.clientX, event.clientY));
-    modalImage.addEventListener('dragstart', event => event.preventDefault());
-    dialog.addEventListener('close', () => {
-      modalImage.removeAttribute('src');
-      reset();
-    });
-    dialog.addEventListener('keydown', event => {
-      if (event.key === '+' || event.key === '=') setScale(scale + 0.25);
-      if (event.key === '-') setScale(scale - 0.25);
-      if (event.key === '0') reset();
-    });
   }
 
-  function initialiseCalculator() {
-    const box = $('.calc');
-    if (!box) return;
-    if (!box.children.length) {
-      const fields = [
-        ['base', 'Base', 100],
-        ['flat', 'Flat Add', 20],
-        ['inc', 'Increase %', 30],
-        ['more', 'More %', 20],
-        ['clamp', 'Max Clamp', 9999]
-      ];
-      fields.forEach(([key, labelText, value]) => {
-        const field = document.createElement('div');
-        const id = `calc-${key}`;
-        const label = document.createElement('label');
-        label.htmlFor = id;
-        label.textContent = labelText;
-        const input = document.createElement('input');
-        input.id = id;
-        input.type = 'number';
-        input.inputMode = 'decimal';
-        input.step = 'any';
-        input.value = String(value);
-        input.dataset.calcKey = key;
-        field.append(label, input);
-        box.appendChild(field);
-      });
-      const result = document.createElement('output');
-      result.className = 'result';
-      result.setAttribute('aria-live', 'polite');
-      box.appendChild(result);
-      const note = document.createElement('p');
-      note.className = 'calc-note';
-      note.textContent = 'min(clamp, (base + flat) × (1 + increase/100) × (1 + more/100))';
-      box.appendChild(note);
-    }
-
-    const result = $('.result', box);
-    function calculate() {
-      const values = {};
-      $$('input[data-calc-key]', box).forEach(input => {
-        values[input.dataset.calcKey] = Number.parseFloat(input.value) || 0;
-      });
-      const raw = (values.base + values.flat) * (1 + values.inc / 100) * (1 + values.more / 100);
-      const finalValue = Math.min(values.clamp, raw);
-      if (result) result.textContent = `Final Value = ${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 2 }).format(finalValue)}`;
-    }
-    box.addEventListener('input', calculate);
-    calculate();
-  }
-
-  function initialiseSteppers() {
-    $$('.stepper').forEach(stepper => {
-      const buttons = $$('.steps button', stepper);
-      const panelTitle = $('.panel h3', stepper);
-      const panelText = $('.panel p', stepper);
-      if (!buttons.length || !panelTitle || !panelText) return;
-      const records = buttons.map(button => ({
-        title: button.dataset.title || button.textContent.trim(),
-        text: button.dataset.description || button.getAttribute('aria-description') || ''
-      }));
-      function show(index, focus = false) {
-        buttons.forEach((button, buttonIndex) => {
-          const active = index === buttonIndex;
-          button.classList.toggle('active', active);
-          button.setAttribute('aria-pressed', String(active));
-          button.tabIndex = active ? 0 : -1;
-        });
-        panelTitle.textContent = records[index].title;
-        if (records[index].text) panelText.textContent = records[index].text;
-        if (focus) buttons[index].focus();
-      }
-      buttons.forEach((button, index) => {
-        button.type = 'button';
-        button.addEventListener('click', () => show(index));
-        button.addEventListener('keydown', event => {
-          if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
-          event.preventDefault();
-          let next = index;
-          if (event.key === 'ArrowUp') next = (index - 1 + buttons.length) % buttons.length;
-          if (event.key === 'ArrowDown') next = (index + 1) % buttons.length;
-          if (event.key === 'Home') next = 0;
-          if (event.key === 'End') next = buttons.length - 1;
-          show(next, true);
-        });
-      });
-      show(0);
-    });
-  }
-
-  function initialisePrintAndImages() {
-    $$('[data-print], .print-page').forEach(button => button.addEventListener('click', () => print()));
-    $$('#article-content img').forEach((image, index) => {
-      if (!image.hasAttribute('decoding')) image.decoding = 'async';
-      if (!image.hasAttribute('loading') && index > 0) image.loading = 'lazy';
-    });
-    addEventListener('beforeprint', () => {
-      $$('#article-content img').forEach(image => image.loading = 'eager');
-    });
-  }
-
-  function initialiseCurrentNavigation() {
-    const current = currentFile.replace(/^\.\//, '');
+  function pruneNavigation() {
     $$('a[href]').forEach(link => {
-      const href = link.getAttribute('href');
-      if (!href || href.startsWith('#') || /^(?:https?:|mailto:|tel:|javascript:)/i.test(href)) return;
-      const clean = href.split('#')[0].replace(/^\.\//, '').replace(/^\.\.\//, '');
-      if (clean === current || (current.startsWith('modules/') && `modules/${clean.replace(/^modules\//, '')}` === current)) {
-        if (link.closest('.top-nav, .drawer-groups')) link.setAttribute('aria-current', 'page');
+      if (isExcludedHref(link.getAttribute('href') || '')) link.remove();
+    });
+
+    const topLabels = new Map([
+      ['Atlas', '학습 홈'],
+      ['Architecture', '구조'],
+      ['Case study', '예제'],
+      ['Runtime', '실습']
+    ]);
+    $$('.top-nav a').forEach(link => {
+      const key = link.textContent.trim();
+      if (topLabels.has(key)) link.textContent = topLabels.get(key);
+    });
+
+    const mobileLabels = new Map([
+      ['Atlas', '홈'],
+      ['Map', '구조'],
+      ['Search', '검색'],
+      ['Docs', '문서']
+    ]);
+    $$('.mobile-bar span').forEach(span => {
+      const key = span.textContent.trim();
+      if (mobileLabels.has(key)) span.textContent = mobileLabels.get(key);
+    });
+
+    const drawerLabels = new Map([
+      ['Foundation', '기반'],
+      ['Core Systems', '핵심 시스템'],
+      ['Architecture', '구조'],
+      ['Practice', '사례 학습'],
+      ['Reference', '참고'],
+      ['Implementation', '실행 실습'],
+      ['Maintenance', '유지 관리']
+    ]);
+    $$('.drawer-group').forEach(group => {
+      const title = $('h3', group);
+      if (title && drawerLabels.has(title.textContent.trim())) title.textContent = drawerLabels.get(title.textContent.trim());
+      if (!$('a', group)) group.remove();
+    });
+
+    $$('.drawer-groups a[href*="runtime-reference.html"]').forEach(link => {
+      const type = $('span', link);
+      const title = $('b', link);
+      const desc = $('small', link);
+      if (type) type.textContent = '실습';
+      if (title) title.textContent = '런타임 아키텍처';
+      if (desc) desc.textContent = '결정론적 실행, 원자적 상태 변경, 반응 큐, 조건부 캐시와 마이그레이션을 직접 확인한다.';
+    });
+
+    $$('.related-links').forEach(links => {
+      if (!$('a', links)) links.closest('.context-card')?.remove();
+    });
+
+    const dockAll = $('.system-dock-all');
+    if (dockAll) dockAll.textContent = '전체 문서';
+    const brandSmall = $('.brand-copy small');
+    if (brandSmall) brandSmall.textContent = '게임 시스템 아키텍처 학습';
+    const drawerKicker = $('.site-drawer .section-kicker');
+    if (drawerKicker) drawerKicker.textContent = '학습 지도';
+    const commandTitle = $('#command-title');
+    if (commandTitle) commandTitle.textContent = '게임 시스템 학습 검색';
+
+    $$('.context-title span').forEach(span => {
+      const value = span.textContent.trim();
+      if (value === 'On this page') span.textContent = '이 페이지';
+      if (value === 'Related paths') span.textContent = '연결 학습';
+    });
+
+    $$('[data-print-page]').forEach(button => {
+      button.textContent = '인쇄';
+      button.setAttribute('data-print', '');
+    });
+
+    const footer = $('.site-footer');
+    if (footer) {
+      const span = $('span', footer);
+      if (span) span.textContent = '게임 시스템 설계 학습 자료';
+      $$('a', footer).forEach(link => {
+        if (isExcludedHref(link.getAttribute('href') || '')) link.remove();
+      });
+    }
+  }
+
+  function sanitizeExcludedPage() {
+    const target = redirectTargets[currentFile];
+    if (!target) return false;
+
+    document.title = '학습 경로 안내 · GSF System Atlas';
+    const article = $('#article-content');
+    if (article) {
+      article.innerHTML = `
+        <section class="hero" data-accent="violet">
+          <span class="eyebrow">Learning path</span>
+          <h1>학습 경로 안내</h1>
+          <p class="lead">이 문서는 현재 학습 목차에서 제외되었습니다. 개념 설명과 실행 예제가 있는 학습 페이지로 이어집니다.</p>
+          <div class="hero-actions"><a class="button primary" href="${target}">학습 계속하기</a></div>
+        </section>`;
+    }
+    $('.context-rail')?.remove();
+    $('[data-toc-open]')?.remove();
+    const pager = $('.doc-pager');
+    if (pager) pager.remove();
+
+    if (['http:', 'https:', 'file:'].includes(location.protocol)) {
+      queueMicrotask(() => location.replace(target));
+    }
+    return true;
+  }
+
+  function curateHome() {
+    const architecture = $('[data-architecture-lens]');
+    removeSiblingRange(document.getElementById('이번-2차-확장-범위'), architecture);
+
+    const launch = $('#runtime-reference-launch');
+    removeSiblingRange(document.getElementById('다음-확장-방향'), launch);
+
+    const eyebrow = $('.hero .eyebrow');
+    if (eyebrow) eyebrow.textContent = 'Game System Architecture';
+    const meta = $('.doc-meta > span:first-child');
+    if (meta && meta.textContent.trim() === 'Overview') meta.textContent = '개요';
+
+    $$('.section-kicker').forEach(kicker => {
+      if (kicker.textContent.trim() === 'System index') kicker.textContent = '시스템 목록';
+      if (kicker.textContent.trim() === 'Architecture lens') kicker.textContent = '아키텍처 관점';
+    });
+
+    if (launch) {
+      launch.innerHTML = `
+        <div>
+          <span class="section-kicker">Interactive practice</span>
+          <h2 id="런타임-실습">설계를 실행하며 확인하기</h2>
+          <p>Fireball 한 번의 실행을 통해 결정론적 판정, 원자적 상태 변경, 후속 반응, 상태 tick과 replay trace가 어떻게 이어지는지 직접 확인한다.</p>
+          <div class="badges"><span class="badge">Deterministic replay</span><span class="badge">Atomic commit</span><span class="badge">Reaction queue</span><span class="badge">Context cache</span></div>
+        </div>
+        <a class="runtime-launch-console" href="modules/runtime-reference.html"><span><i></i>RUNTIME LAB</span><strong>실습<br>열기</strong><small>replay · commit · reaction</small><b>→</b></a>`;
+    }
+
+    const sideCta = $('a.readiness-card[href*="runtime-reference.html"]');
+    if (sideCta) {
+      sideCta.innerHTML = '<span>실행 실습</span><b>런타임 아키텍처 직접 확인</b><small>Replay · Commit · Reaction</small><i>→</i>';
+    }
+
+    const pageToc = $('.page-toc');
+    if (pageToc && !pageToc.querySelector('a[href="#런타임-실습"]')) {
+      const link = document.createElement('a');
+      link.href = '#런타임-실습';
+      link.textContent = '런타임 실습';
+      pageToc.appendChild(link);
+    }
+  }
+
+  function curateRuntime() {
+    document.title = '런타임 아키텍처 실습 · GSF System Atlas';
+    const description = $('meta[name="description"]');
+    if (description) description.content = 'Fireball 예제로 결정론적 실행, 원자적 상태 변경, 반응 큐, 조건부 캐시와 스키마 마이그레이션을 학습하는 실습';
+
+    const breadcrumb = $('.breadcrumb');
+    if (breadcrumb) breadcrumb.innerHTML = '<a href="../index.html">학습 홈</a><span>/</span><span>실습</span><span>/</span><b>런타임 아키텍처</b>';
+    const meta = $('.doc-meta > span:first-child');
+    if (meta) meta.textContent = '실행 실습';
+
+    const hero = $('.runtime-hero');
+    if (hero) {
+      hero.innerHTML = `
+        <span class="eyebrow">Interactive Runtime Learning</span>
+        <h1>런타임 아키텍처<br>실습</h1>
+        <p class="lead">같은 JavaScript 커널을 브라우저 실습과 Node 회귀 테스트가 공유한다. Fireball의 resolve·commit·reaction·status tick을 한 trace에서 따라가며, 설계 문장이 실제 상태 변경 규칙으로 어떻게 고정되는지 확인한다.</p>
+        <div class="badges"><span class="badge">Deterministic replay</span><span class="badge">Atomic commit</span><span class="badge">Bounded reaction</span><span class="badge">Schema migration</span></div>
+        <div class="hero-actions"><a class="button primary" href="#fireball-workbench">Fireball 실습 시작</a><a class="button secondary" href="#실행-아키텍처">개념부터 보기</a></div>`;
+    }
+
+    $('.runtime-release-band')?.remove();
+
+    const architectureHeading = document.getElementById('실행-아키텍처');
+    const conclusionHeading = document.getElementById('구현-결론');
+    if (conclusionHeading && architectureHeading) {
+      removeSiblingRange(conclusionHeading, architectureHeading);
+      insertBefore(architectureHeading, `
+        <h2 id="핵심-학습-포인트">핵심 학습 포인트</h2>
+        <div class="runtime-kpi-grid">
+          <article><span>결정론</span><strong>Versioned replay</strong><p>seed만 저장하지 않고 입력, Definition, 공식, 수치 정책과 정렬 의미를 함께 고정한다.</p></article>
+          <article><span>계산과 변경</span><strong>Resolve → Commit</strong><p>읽기 전용 snapshot에서 결과와 계획을 만든 뒤, 검증된 변경만 한 경계에서 반영한다.</p></article>
+          <article><span>후속 효과</span><strong>Bounded queue</strong><p>상태를 바꾸는 반응은 우선순위, 안정 정렬 키, 깊이와 예산을 가진 큐에서 직렬화한다.</p></article>
+          <article><span>시간과 저장</span><strong>Explicit policy</strong><p>tick 동률, catch-up 상한, 캐시 의존성, 순차 migration을 명시적인 계약으로 다룬다.</p></article>
+        </div>
+        <div class="callout"><b>학습 범위.</b> 이 실습은 단일 대상 Fireball과 메모리 상태 저장소를 사용해 핵심 계약을 작게 드러낸다. 범용 게임 엔진 전체가 아니라 책임 경계와 실패 의미를 검증하기 위한 최소 수직 슬라이스다.</div>`);
+    }
+
+    const article = $('#article-content');
+    const sourceHeading = document.getElementById('source-contracts');
+    if (article && sourceHeading) {
+      let node = sourceHeading;
+      while (node) {
+        const next = node.nextSibling;
+        node.remove();
+        node = next;
       }
+      article.insertAdjacentHTML('beforeend', `
+        <h2 id="학습-정리">학습 정리</h2>
+        <div class="grid cols2">
+          <article class="card"><h3 id="replay-check">Replay를 검증할 때</h3><p>결과 hash만 비교하지 말고 첫 번째로 갈라진 판정 key와 trace 단계까지 함께 비교한다. 그래야 데이터 변경과 실행 의미 변경을 구분할 수 있다.</p></article>
+          <article class="card"><h3 id="commit-check">Commit을 검증할 때</h3><p>중복 command, 오래된 version, 과거 tick, 부분 실패가 모두 상태와 event를 남기지 않는지 확인한다.</p></article>
+          <article class="card"><h3 id="cache-check">Cache를 검증할 때</h3><p>compute가 읽는 context path를 빠짐없이 dependency로 선언해야 한다. 선언이 불완전하면 빠른 오답이 만들어지므로 안전한 기본값은 조건부 레이어를 캐시하지 않는 것이다.</p></article>
+          <article class="card"><h3 id="time-check">시간 정책을 검증할 때</h3><p>catch-up 상한에 걸린 tick을 버릴지, 합산할지, 다음 프레임으로 넘길지를 상태별 정책으로 명시한다.</p></article>
+        </div>
+        <div class="callout warn"><b>교차 구현 주의.</b> 브라우저와 Node는 같은 JavaScript 구현을 공유한다. 다른 언어나 엔진과 replay를 공유하려면 문자열 인코딩, canonical serialization, 정수 범위와 반올림을 byte 단위 적합성 테스트로 고정해야 한다.</div>`);
+    }
+
+    const pager = $('.doc-pager');
+    if (pager) {
+      pager.innerHTML = '<a class="prev" href="../modules/fireball-case-study.html"><span>← 이전</span><b>Fireball 예제</b><small>Skill부터 Status까지 이어지는 수직 슬라이스</small></a><a class="next" href="../modules/integration-map.html"><span>다음 →</span><b>통합 구조</b><small>시스템 간 의존성과 계약 방향</small></a>';
+    }
+
+    const rail = $('.context-rail');
+    if (rail) {
+      rail.innerHTML = `
+        <section class="context-card toc-card"><div class="context-title"><span>이 페이지</span><button data-print-page data-print type="button">인쇄</button></div><nav class="page-toc">
+          <a href="#핵심-학습-포인트">핵심 학습 포인트</a><a href="#실행-아키텍처">실행 아키텍처</a><a href="#fireball-workbench">Fireball 실습</a><a href="#failure-probes">실패 안전성</a><a href="#context-cache-lab">조건부 캐시</a><a href="#migration-lab">스키마 마이그레이션</a><a href="#deterministic-envelope">결정론 envelope</a><a href="#학습-정리">학습 정리</a>
+        </nav></section>
+        <section class="context-card"><div class="context-title"><span>연결 학습</span></div><div class="related-links"><a href="../modules/fireball-case-study.html"><span>사례</span><b>Fireball 예제</b></a><a href="../modules/integration-map.html"><span>구조</span><b>통합 구조</b></a><a href="../modules/core-runtime.html"><span>기반</span><b>Core Runtime</b></a></div></section>
+        <a class="readiness-card runtime-side-cta" href="#fireball-workbench"><span>직접 확인</span><b>Replay를 실행한다</b><small>같은 입력 · 같은 trace</small><i>↓</i></a>`;
+    }
+
+    const headingLabels = {
+      'fireball-workbench': 'Fireball 리플레이 실습',
+      'failure-probes': '실패 안전성 실습',
+      'context-cache-lab': '조건부 스탯 캐시 실습',
+      'migration-lab': '스키마 마이그레이션 실습'
+    };
+    Object.entries(headingLabels).forEach(([id, text]) => {
+      const heading = document.getElementById(id);
+      if (heading) heading.textContent = text;
+    });
+
+    const legendLabels = ['리플레이 식별', '대상 스냅샷', '판정 정책'];
+    $$('.runtime-form legend').forEach((legend, index) => {
+      if (legendLabels[index]) legend.textContent = legendLabels[index];
+    });
+    const formLabels = ['루트 시드', '주문력', 'HP', '보호막', '화염 저항 %', '명중 확률 %', '치명타 확률 %', '화상 비율 %'];
+    $$('.runtime-form fieldset label').forEach((label, index) => {
+      if (formLabels[index]) setLeadingLabel(label, formLabels[index]);
+    });
+
+    replaceText(article, 'Decision trace', '판정 추적');
+    replaceText(article, 'Committed events', '커밋된 이벤트');
+    replaceText(article, 'post-commit only', '커밋 성공 후에만 발행');
+    replaceText(article, 'Immutable outcome / plan JSON', '불변 결과 / 계획 JSON');
+    replaceText(article, 'Final state JSON', '최종 상태 JSON');
+    replaceText(article, 'Shared browser / Node kernel', '브라우저 / Node 공유 커널');
+
+    const replayStatus = $('[data-runtime-replay-status]');
+    if (replayStatus) replayStatus.setAttribute('aria-live', 'polite');
+  }
+
+  function removeBrokenHashLinks() {
+    $$('a[href^="#"]').forEach(link => {
+      const raw = link.getAttribute('href') || '';
+      if (raw === '#') return;
+      let id = '';
+      try { id = decodeURIComponent(raw.slice(1)); } catch (_) { id = raw.slice(1); }
+      if (id && !document.getElementById(id)) link.remove();
     });
   }
 
-  function initialiseRuntimeReference() {
-    const lab = $('[data-runtime-lab]');
-    const G = window.GSFRuntime;
-    if (!lab || !G) return;
-
-    const format = value => new Intl.NumberFormat('ko-KR').format(value);
-    const json = value => JSON.stringify(value, null, 2);
-    const setText = (selector, value, root = document) => {
-      const node = $(selector, root);
-      if (node) node.textContent = String(value);
-    };
-    const numberValue = key => {
-      const input = $(`[data-runtime-key="${key}"]`, lab);
-      const value = Number(input?.value);
-      return Number.isFinite(value) ? Math.trunc(value) : 0;
-    };
-    const percentBps = key => Math.max(0, Math.min(100, numberValue(key))) * 100;
-
-    function inputFromForm() {
-      const hp = Math.max(1, numberValue('targetHp'));
-      const shield = Math.max(0, numberValue('shield'));
-      return {
-        rootSeed: Math.max(0, Math.min(0xffffffff, numberValue('rootSeed'))),
-        caster: { spellPower: Math.max(0, numberValue('spellPower')) },
-        target: {
-          hp,
-          maxHp: hp,
-          shield,
-          maxShield: Math.max(200, shield),
-          fireResistanceBps: percentBps('resistancePercent')
-        },
-        skill: {
-          hitChanceBps: percentBps('hitChancePercent'),
-          critChanceBps: percentBps('critChancePercent')
-        },
-        burn: { ratioBps: percentBps('burnRatioPercent') },
-        simulateStatusTicks: Boolean($('[data-runtime-key="simulateStatusTicks"]', lab)?.checked)
-      };
-    }
-
-    function metric(label, value, detail = '') {
-      const div = document.createElement('div');
-      const span = document.createElement('span');
-      const strong = document.createElement('strong');
-      const small = document.createElement('small');
-      span.textContent = label;
-      strong.textContent = String(value);
-      small.textContent = detail;
-      div.append(span, strong, small);
-      return div;
-    }
-
-    function renderReplay(result, replay) {
-      const outcome = result.resolution.outcome;
-      const target = result.finalState.entities[result.input.target.id];
-      const metrics = $('[data-runtime-metrics]', lab);
-      if (metrics) {
-        metrics.replaceChildren(
-          metric('Decision', outcome.hit ? (outcome.critical ? 'CRITICAL' : 'HIT') : 'MISS', `roll ${result.resolution.decisions.hitRollBps} / ${result.resolution.decisions.critRollBps}`),
-          metric('Resolved', format(outcome.resolvedDamage), `raw ${format(outcome.rawDamage)}`),
-          metric('Shield', format(outcome.shieldAbsorbed), `remaining ${format(target.resources.shield)}`),
-          metric('HP damage', format(outcome.hpDamage), `impact HP ${format(outcome.targetHpAfter)}`),
-          metric('Burn', format(result.outbox.filter(event => event.type === 'StatusTicked').reduce((sum, event) => sum + event.payload.hpDamage, 0)), `${result.statusAdvance.tickCount} committed ticks`),
-          metric('Final HP', format(target.resources.hp), `${Object.keys(target.statuses).length} active status`)
-        );
-      }
-
-      const replayOkay = replay.match && replay.traceMatch && replay.finalStateMatch;
-      const status = $('[data-runtime-replay-status]', lab);
-      if (status) {
-        status.textContent = replayOkay ? 'MATCH' : 'DIVERGED';
-        status.dataset.state = replayOkay ? 'pass' : 'fail';
-      }
-      setText('[data-runtime-replay-hash]', result.replayHash, lab);
-      setText('[data-runtime-trace-hash]', result.traceHash, lab);
-      setText('[data-runtime-trace-count]', `${result.trace.length} stages`, lab);
-      const golden = $('[data-runtime-golden-hash]');
-      if (golden) golden.textContent = `${result.replayHash.slice(0, 8)}…`;
-
-      const traceList = $('[data-runtime-trace]', lab);
-      if (traceList) {
-        traceList.replaceChildren(...result.trace.map(record => {
-          const li = document.createElement('li');
-          const seq = document.createElement('span');
-          const copy = document.createElement('div');
-          const name = document.createElement('b');
-          const detail = document.createElement('small');
-          seq.textContent = String(record.sequence).padStart(2, '0');
-          name.textContent = record.stage.replaceAll('_', ' ');
-          detail.textContent = `tick ${record.tick} · ${Object.keys(record.payload || {}).slice(0, 3).join(' · ') || 'no payload'}`;
-          copy.append(name, detail);
-          li.append(seq, copy);
-          return li;
-        }));
-      }
-
-      const eventList = $('[data-runtime-events]', lab);
-      if (eventList) {
-        eventList.replaceChildren(...result.outbox.map((event, index) => {
-          const li = document.createElement('li');
-          const seq = document.createElement('span');
-          const copy = document.createElement('div');
-          const name = document.createElement('b');
-          const detail = document.createElement('small');
-          seq.textContent = String(index + 1).padStart(2, '0');
-          name.textContent = event.type;
-          detail.textContent = `tick ${event.occurredTick} · ${event.eventId.slice(-8)}`;
-          copy.append(name, detail);
-          li.append(seq, copy);
-          return li;
-        }));
-      }
-      setText('[data-runtime-plan]', json({ decisions: result.resolution.decisions, outcome, plan: result.resolution.plan }), lab);
-      setText('[data-runtime-state]', json(result.finalState), lab);
-    }
-
-    function runReplay() {
-      try {
-        const input = inputFromForm();
-        const result = G.runFireballScenario(input);
-        const replay = G.verifyReplay(input);
-        renderReplay(result, replay);
-      } catch (error) {
-        const status = $('[data-runtime-replay-status]', lab);
-        if (status) {
-          status.textContent = error.code || 'ERROR';
-          status.dataset.state = 'fail';
-        }
-        setText('[data-runtime-plan]', json(error.toJSON ? error.toJSON() : { message: String(error) }), lab);
-      }
-    }
-
-    const form = $('[data-runtime-form]', lab);
-    form?.addEventListener('submit', event => {
-      event.preventDefault();
-      runReplay();
-    });
-    form?.addEventListener('reset', () => requestAnimationFrame(runReplay));
-
-    const probes = {
-      duplicate: () => {
-        const result = G.demonstrateDuplicateCommand(inputFromForm());
-        return { pass: result.duplicateDetected && result.stateUnchanged, code: result.error?.code, evidence: result.stateUnchanged ? 'state hash unchanged' : 'state changed' };
-      },
-      conflict: () => {
-        const result = G.demonstrateVersionConflict(inputFromForm());
-        return { pass: result.rejected && result.noPartialMutation, code: result.error?.code, evidence: result.noPartialMutation ? 'no partial mutation' : 'state changed' };
-      },
-      rollback: () => {
-        const result = G.demonstrateAtomicRollback(inputFromForm());
-        return { pass: result.rolledBack, code: result.error?.code, evidence: result.rolledBack ? 'working copy discarded' : 'partial state detected' };
-      }
-    };
-    $$('[data-runtime-check]', document).forEach(button => {
-      button.addEventListener('click', () => {
-        const key = button.dataset.runtimeCheck;
-        const output = $(`[data-runtime-check-output="${key}"]`);
-        try {
-          const result = probes[key]();
-          if (output) {
-            output.textContent = `${result.pass ? 'PASS' : 'FAIL'} · ${result.code} · ${result.evidence}`;
-            output.dataset.state = result.pass ? 'pass' : 'fail';
-          }
-        } catch (error) {
-          if (output) {
-            output.textContent = `ERROR · ${error.code || error.message}`;
-            output.dataset.state = 'fail';
-          }
-        }
-      });
-    });
-
-    function runCacheProbe() {
-      const root = $('[data-runtime-cache-probe]');
-      if (!root) return;
-      const cache = new G.ContextualStatCache({ maxEntries: 8 });
-      let computes = 0;
-      const evaluate = context => cache.evaluate({
-        entityId: 'entity.caster',
-        statId: 'stat.fire-damage',
-        ownerVersion: 7,
-        dependencies: ['target.id', 'target.tags', 'distanceBand'],
-        context,
-        compute: () => {
-          computes += 1;
-          return 100 + (context.target.tags.includes('status.burning') ? 30 : 0) + (context.distanceBand === 'far' ? 20 : 0);
-        }
-      });
-      const firstContext = { target: { id: 'entity.target-a', tags: ['status.burning'] }, distanceBand: 'far' };
-      const first = evaluate(firstContext);
-      const repeated = evaluate({ distanceBand: 'far', target: { tags: ['status.burning'], id: 'entity.target-a' } });
-      const other = evaluate({ target: { id: 'entity.target-b', tags: [] }, distanceBand: 'near' });
-      const pattern = [first, repeated, other].map(item => item.cacheHit ? 'HIT' : 'MISS').join(' → ');
-      setText('[data-runtime-cache-status]', pattern === 'MISS → HIT → MISS' ? 'PASS' : 'FAIL', root);
-      const status = $('[data-runtime-cache-status]', root);
-      if (status) status.dataset.state = pattern === 'MISS → HIT → MISS' ? 'pass' : 'fail';
-      setText('[data-runtime-cache-pattern]', pattern, root);
-      setText('[data-runtime-cache-computes]', computes, root);
-      setText('[data-runtime-cache-values]', [first.value, repeated.value, other.value].join(' · '), root);
-      setText('[data-runtime-cache-fingerprint]', first.fingerprint.hash, root);
-      setText('[data-runtime-cache-details]', json({ dependencies: first.fingerprint.dependencies, first: { cacheHit: first.cacheHit, cacheKey: first.cacheKey, value: first.value }, repeated: { cacheHit: repeated.cacheHit, cacheKey: repeated.cacheKey, value: repeated.value }, otherTarget: { cacheHit: other.cacheHit, cacheKey: other.cacheKey, value: other.value }, cache: cache.stats() }), root);
-    }
-    $('[data-runtime-cache-run]')?.addEventListener('click', runCacheProbe);
-
-    function runMigrationProbe() {
-      const root = $('[data-runtime-migration-probe]');
-      if (!root) return;
-      const source = { schemaVersion: 1, playerId: 'player.demo', profile: { displayName: 'Aria' }, resources: { health: 420, mana: 95 }, inventory: ['item.ember-ring'] };
-      const registry = new G.SchemaMigrationRegistry({ currentVersion: 3, minimumSupportedVersion: 1 });
-      registry.register({ migrationId: 'migration.player.v1-v2', fromVersion: 1, toVersion: 2, migrate: document => ({ ...document, schemaVersion: 2, resources: { hp: document.resources.health, mana: document.resources.mana } }) });
-      registry.register({ migrationId: 'migration.player.v2-v3', fromVersion: 2, toVersion: 3, migrate: document => ({ schemaVersion: 3, playerId: document.playerId, profile: document.profile, resources: document.resources, inventory: document.inventory, migratedAtPolicy: 'logical-version-only' }) });
-      try {
-        const before = G.canonicalStringify(source);
-        const result = registry.migrate(source);
-        const sourceUnchanged = before === G.canonicalStringify(source);
-        setText('[data-runtime-migration-status]', sourceUnchanged && result.appliedMigrations.length === 2 ? 'PASS' : 'FAIL', root);
-        const status = $('[data-runtime-migration-status]', root);
-        if (status) status.dataset.state = sourceUnchanged ? 'pass' : 'fail';
-        setText('[data-runtime-migration-before]', json(source), root);
-        setText('[data-runtime-migration-after]', json(result.document), root);
-        const list = $('[data-runtime-migration-audit]', root);
-        if (list) list.replaceChildren(...result.appliedMigrations.map(step => {
-          const li = document.createElement('li');
-          const title = document.createElement('b');
-          const hashes = document.createElement('code');
-          title.textContent = `${step.migrationId} · v${step.fromVersion} → v${step.toVersion}`;
-          hashes.textContent = `${step.beforeHash} → ${step.afterHash}`;
-          li.append(title, hashes);
-          return li;
-        }));
-      } catch (error) {
-        setText('[data-runtime-migration-status]', error.code || 'ERROR', root);
-      }
-    }
-    $('[data-runtime-migration-run]')?.addEventListener('click', runMigrationProbe);
-
-    runReplay();
-    runCacheProbe();
-    runMigrationProbe();
+  function synchronizeMobileToc() {
+    const source = $('.page-toc');
+    const target = $('[data-toc-dialog] nav');
+    if (source && target) target.innerHTML = source.innerHTML;
   }
 
-  initialiseDialogs();
-  initialiseTheme();
-  initialiseFocusMode();
-  initialiseScrollProgress();
-  initialiseReadingTime();
-  initialiseHeadingAnchors();
-  initialiseTocSpy();
-  initialiseCodeBlocks();
-  initialiseArchitectureLens();
-  initialiseFilters();
-  initialiseCommandPalette();
-  initialiseDiagramViewer();
-  initialiseCalculator();
-  initialiseSteppers();
-  initialisePrintAndImages();
-  initialiseCurrentNavigation();
-  initialiseRuntimeReference();
+  function applyLearningCorrections() {
+    replaceText(document.body, 'Release 2부터 Effect System은', '현재 구조에서 Effect System은');
+    replaceText(
+      document.body,
+      'SkillRequest와 seed만으로 주요 전투 결과를 재현할 수 있어야 한다.',
+      '입력 스냅샷, Definition·공식·수치 정책 버전, 대상 정렬 규칙과 seed를 묶은 replay envelope로 주요 결과를 재현할 수 있어야 한다.'
+    );
+    replaceText(
+      document.body,
+      '전투 로그 재현, 리플레이, 시뮬레이션 테스트를 생각하면 EffectContext에 randomSeed를 포함하는 편이 좋다. 그래야 같은 입력으로 같은 결과를 재현할 수 있다.',
+      '전투 로그 재현, 리플레이, 시뮬레이션 테스트를 위해서는 randomSeed뿐 아니라 Definition·공식·입력 스냅샷·대상 정렬·수치 정책 버전을 함께 묶은 replay envelope를 기록해야 한다.'
+    );
+  }
+
+  function postCoreLocalization() {
+    const metricLabels = new Map([
+      ['Decision', '판정'],
+      ['Resolved', '저항 적용 피해'],
+      ['Shield', '보호막'],
+      ['HP damage', 'HP 피해'],
+      ['Burn', '화상'],
+      ['Final HP', '최종 HP']
+    ]);
+    $$('.runtime-metrics > div > span').forEach(span => {
+      const key = span.textContent.trim();
+      if (metricLabels.has(key)) span.textContent = metricLabels.get(key);
+    });
+
+    const calculatorLabels = {
+      'calc-base': '기본값',
+      'calc-flat': '고정 가산',
+      'calc-inc': '증가 %',
+      'calc-more': '독립 배율 %',
+      'calc-clamp': '최대 제한'
+    };
+    Object.entries(calculatorLabels).forEach(([id, label]) => {
+      const input = document.getElementById(id);
+      const node = input ? document.querySelector(`label[for="${id}"]`) : null;
+      if (node) node.textContent = label;
+    });
+    const result = $('.calc .result');
+    if (result) result.textContent = result.textContent.replace('Final Value', '최종값');
+  }
+
+  filterSearchData();
+  pruneNavigation();
+  const sanitized = sanitizeExcludedPage();
+
+  if (!sanitized) {
+    if (currentFile === 'index.html') curateHome();
+    if (currentFile === 'modules/runtime-reference.html') curateRuntime();
+    applyLearningCorrections();
+  }
+
+  removeBrokenHashLinks();
+  synchronizeMobileToc();
+
+  const core = document.createElement('script');
+  core.src = `${prefix}assets/js/app-core.js`;
+  core.async = false;
+  core.onload = postCoreLocalization;
+  core.onerror = () => console.error('GSF core interaction script could not be loaded.');
+  document.body.appendChild(core);
 })();
