@@ -34,6 +34,20 @@ SCRIPT_MAP={
 }
 PIXEL='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700"%3E%3Crect width="1200" height="700" fill="%23f3f4f6"/%3E%3C/svg%3E'
 EXCLUDED=('phase3-readiness.html','implementation-roadmap.html','skill-combat-next.html','quality-audit.html')
+EXCLUDED_ENTRY_KEYS={
+    'index.html|#이번-2차-확장-범위',
+    'index.html|#새로-추가된-문서',
+    'index.html|#함께-보강된-문서',
+    'index.html|#다음-확장-방향',
+    'index.html|#equipment-item-system',
+    'index.html|#progression-reward-system',
+    'modules/runtime-reference.html|#source-contracts',
+    'modules/runtime-reference.html|#다음-생산-구현',
+    'modules/runtime-reference.html|#p3e-adapter',
+    'modules/runtime-reference.html|#p3e-authority',
+    'modules/runtime-reference.html|#p3e-multitarget',
+    'modules/runtime-reference.html|#p3f-equipment',
+}
 
 
 def inline_page(file):
@@ -111,6 +125,10 @@ with sync_playwright() as p:
 
     learning_pages=page.evaluate("window.__GSF_SITE__.pages.map(item => item.file)")
     check(not any(any(name in file for name in EXCLUDED) for file in learning_pages),'global-search:no-excluded-pages')
+    learning_entry_keys=set(page.evaluate("window.__GSF_SITE__.entries.map(item => `${item.file}|${item.anchor || ''}`)"))
+    check(not (learning_entry_keys & EXCLUDED_ENTRY_KEYS),'global-search:no-excluded-sections')
+    check('modules/runtime-reference.html|#학습-정리' in learning_entry_keys,'global-search:learning-summary-indexed')
+
     page.locator('[data-search-open]').first.click()
     check(page.locator('[data-command-palette]').evaluate('el => el.open'),'global-search:dialog-open')
     page.locator('#command-input').fill('런타임 아키텍처')
