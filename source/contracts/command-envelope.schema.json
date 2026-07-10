@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gsf.example/contracts/command-envelope.schema.json",
+  "title": "GSF Command Envelope",
+  "description": "상태 변경 의도를 전달하는 불변 command 계약.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "commandId", "actorId", "requestedTick", "correlationId", "causationId", "dataVersion", "payload"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "commandId": { "$ref": "#/$defs/namespacedId" },
+    "actorId": { "$ref": "#/$defs/namespacedId" },
+    "requestedTick": { "type": "integer", "minimum": 0 },
+    "correlationId": { "$ref": "#/$defs/namespacedId" },
+    "causationId": { "anyOf": [{ "$ref": "#/$defs/namespacedId" }, { "type": "null" }] },
+    "dataVersion": { "type": "string", "minLength": 1 },
+    "payload": { "$ref": "#/$defs/jsonValue" }
+  },
+  "$defs": {
+    "namespacedId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[A-Za-z0-9_-]+)+$" },
+    "jsonValue": {
+      "anyOf": [
+        { "type": "null" }, { "type": "boolean" }, { "type": "number" }, { "type": "string" },
+        { "type": "array", "items": { "$ref": "#/$defs/jsonValue" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/jsonValue" } }
+      ]
+    }
+  }
+}

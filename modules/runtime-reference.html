@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+
+<html data-theme="system" lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
+<title>Phase 3 Runtime Reference · GSF System Atlas</title>
+<meta content="결정론적 Fireball 실행, 원자적 commit, bounded reaction, contextual cache, schema migration을 직접 실행하는 Phase 3 기준 구현" name="description"/>
+<meta content="#f7f8fb" name="theme-color"/>
+<script>
+   (function(){try{var m=localStorage.getItem('gsf-theme')||'system';document.documentElement.dataset.theme=m;if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()
+  </script>
+<link href="../assets/css/site.css" rel="stylesheet"/>
+</head>
+<body class="page-runtime-reference" data-accent="violet" data-page="runtime-reference" data-page-file="modules/runtime-reference.html" data-prefix="../">
+<a class="skip-link" href="#main-content">
+   본문으로 건너뛰기
+  </a>
+<div aria-hidden="true" class="ambient">
+</div>
+<div aria-hidden="true" class="scroll-progress">
+<span>
+</span>
+</div>
+<header class="topbar">
+<div class="topbar-inner">
+<a aria-label="Game System Framework 홈" class="brand" href="../index.html">
+<span class="brand-mark">
+<i>
+</i>
+<b>
+       GSF
+      </b>
+</span>
+<span class="brand-copy">
+<b>
+       System Atlas
+      </b>
+<small>
+       Game architecture knowledgebase
+      </small>
+</span>
+</a>
+<nav aria-label="주요 탐색" class="top-nav">
+<a href="../index.html">
+      Atlas
+     </a>
+<a href="../modules/integration-map.html">
+      Architecture
+     </a>
+<a href="../modules/fireball-case-study.html">
+      Case study
+     </a>
+<a data-runtime-nav="" href="../modules/runtime-reference.html">Runtime</a><a href="../modules/implementation-roadmap.html">
+      Build plan
+     </a>
+</nav>
+<div class="top-actions">
+<button aria-haspopup="dialog" class="command-trigger" data-search-open="" type="button">
+<span>
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<circle cx="11" cy="11" r="6.5">
+</circle>
+<path d="m16 16 4 4">
+</path>
+</svg>
+       문서와 섹션 검색
+      </span>
+<kbd>
+       ⌘ K
+      </kbd>
+</button>
+<button aria-label="집중 모드 전환" aria-pressed="false" class="icon-button" data-focus-toggle="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5">
+</path>
+</svg>
+</button>
+<button aria-label="테마 전환" class="icon-button" data-theme-toggle="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M12 3a9 9 0 1 0 9 9c0-.5 0-1-.1-1.5A7 7 0 0 1 12 3Z">
+</path>
+</svg>
+<span class="sr-only" data-theme-label="">
+       시스템 테마
+      </span>
+</button>
+<button aria-haspopup="dialog" aria-label="전체 문서 열기" class="icon-button menu-button" data-menu-open="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M4 7h16M4 12h16M4 17h16">
+</path>
+</svg>
+</button>
+</div>
+</div>
+</header>
+<nav aria-label="핵심 시스템" class="system-dock">
+<div class="system-dock-inner">
+<a aria-label="Atlas 홈" class="system-dock-home" href="../index.html">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m3 11 9-8 9 8">
+</path>
+<path d="M5 10v10h14V10M9 20v-6h6v6">
+</path>
+</svg>
+</a>
+<div class="system-dock-track">
+<a class="system-dock-link" data-system="core" href="../modules/core-runtime.html">
+<span>
+       00
+      </span>
+<b>
+       Core
+      </b>
+</a>
+<a class="system-dock-link" data-system="stat" href="../modules/stat-system.html">
+<span>
+       Σ
+      </span>
+<b>
+       Stat
+      </b>
+</a>
+<a class="system-dock-link" data-system="effect" href="../modules/effect-system.html">
+<span>
+       ƒ
+      </span>
+<b>
+       Effect
+      </b>
+</a>
+<a class="system-dock-link" data-system="skill" href="../modules/skill-action-system.html">
+<span>
+       ▶
+      </span>
+<b>
+       Skill
+      </b>
+</a>
+<a class="system-dock-link" data-system="combat" href="../modules/combat-resolution-system.html">
+<span>
+       ◆
+      </span>
+<b>
+       Combat
+      </b>
+</a>
+<a class="system-dock-link" data-system="status" href="../modules/status-system.html">
+<span>
+       ✦
+      </span>
+<b>
+       Status
+      </b>
+</a>
+</div>
+<a class="system-dock-map" href="../modules/integration-map.html">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m4 6 5-2 6 2 5-2v14l-5 2-6-2-5 2Z">
+</path>
+<path d="M9 4v14M15 6v14">
+</path>
+</svg>
+<b>
+      Map
+     </b>
+</a>
+<button class="system-dock-all" data-menu-open="" type="button">
+     All docs
+    </button>
+</div>
+</nav>
+<div class="page-shell">
+<main class="doc-main" id="main-content" tabindex="-1">
+<div class="doc-topline">
+<div class="breadcrumb"><a href="../index.html">Atlas</a><span>/</span><span>Implementation</span><span>/</span><b>Runtime Reference</b></div>
+<div class="doc-meta">
+<span>Executable Reference</span>
+<span data-reading-time="">
+       읽는 시간 계산 중
+      </span>
+<button data-toc-open="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M9 6h11M9 12h11M9 18h11">
+</path>
+<circle cx="4" cy="6" r="1">
+</circle>
+<circle cx="4" cy="12" r="1">
+</circle>
+<circle cx="4" cy="18" r="1">
+</circle>
+</svg>
+       목차
+      </button>
+</div>
+</div>
+<article class="content-area doc-article runtime-reference" id="article-content">
+<section class="hero runtime-hero" data-accent="violet">
+<div class="runtime-hero-status"><span class="pulse-dot"></span><b>Reference kernel online</b><code>v3.2.0-reference</code></div>
+<span class="eyebrow">Executable Architecture</span>
+<h1>Phase 3 Runtime<br/>Reference</h1>
+<p class="lead">설계 문장의 의미를 실행 가능한 계약으로 고정한다. 같은 JavaScript 커널을 브라우저 Workbench와 Node 회귀 테스트가 공유하며, Fireball의 resolve·commit·reaction·status tick을 한 trace에서 검증한다.</p>
+<div class="badges"><span class="badge">21 regression tests</span><span class="badge">4 JSON schemas</span><span class="badge">5 ADRs</span><span class="badge">Zero dependencies</span></div>
+<div class="hero-actions"><a class="button primary" href="#fireball-workbench">Workbench 실행</a><a class="button secondary" href="../source/runtime/runtime-kernel.js">Kernel source</a><a class="button text" href="../source/runtime/tests/runtime-kernel.test.cjs">Test source →</a></div>
+</section>
+<section aria-label="구현 상태" class="runtime-release-band">
+<div><span>Contract</span><strong>P3-A</strong><small>Command / Event / Version</small></div>
+<div><span>Commit</span><strong>P3-B</strong><small>Pure resolve / Atomic write</small></div>
+<div><span>Reaction</span><strong>P3-C</strong><small>Order / Depth / Budget</small></div>
+<div><span>Hardening</span><strong>P3-D</strong><small>Cache / Tick / Migration</small></div>
+<div><span>Regression</span><strong>P3-E</strong><small>Fireball golden slice</small></div>
+</section>
+<h2 id="구현-결론">설계 위험을 실행 계약으로 바꾼 결과</h2>
+<div class="runtime-kpi-grid">
+<article><span>Tests</span><strong>21 / 21</strong><p>결정론, idempotency, rollback, ordering, cache, migration을 자동 검증한다.</p></article>
+<article><span>Golden replay</span><strong data-runtime-golden-hash="">62b744…</strong><p>입력·버전·seed·정책이 같으면 final state와 trace hash가 같다.</p></article>
+<article><span>Numeric policy</span><strong>Integer BPS</strong><p>10,000 basis points와 반올림 위치를 versioned policy로 고정했다.</p></article>
+<article><span>Commit owner</span><strong>One boundary</strong><p>working copy 검증 후 state와 outbox를 함께 publish한다.</p></article>
+</div>
+<div class="callout good"><b>현재 판정.</b> P3-A~D는 엔진 비종속 기준 구현으로 고정됐고, P3-E Fireball 단일 대상 회귀 슬라이스가 동작한다. 생산 적용 전에는 DB transaction·durable outbox·authoritative server·engine adapter가 필요하다.</div>
+<h2 id="실행-아키텍처">실행 아키텍처</h2>
+<p>runtime kernel 안의 규칙은 UI나 저장소를 직접 알지 않는다. 외부 시스템은 command, snapshot, committed result, observation event 포트로만 연결한다.</p>
+<div class="diagram runtime-diagram">
+<div class="dh"><div><span class="section-kicker">Ports &amp; adapters</span><strong>Kernel을 제품 인프라와 분리하는 경계</strong></div><div class="da"><a href="../assets/diagrams/39_runtime_ports_and_adapters.svg" rel="noopener" target="_blank">SVG</a><a href="../source/diagrams/39_runtime_ports_and_adapters.dot">DOT</a></div></div>
+<img alt="입력, 저장소, 엔진, 관찰 adapter와 runtime kernel의 port 구조" class="zoomable" loading="lazy" src="../assets/diagrams/39_runtime_ports_and_adapters.svg"/>
+</div>
+<div class="grid cols2 runtime-principles">
+<article class="card"><span class="section-kicker">Resolve</span><h3 id="pure-resolve">읽고 계산하되 바꾸지 않는다</h3><p>고정 snapshot, version envelope, keyed RNG만으로 immutable outcome과 operation plan을 만든다. target이나 caster 객체는 변경하지 않는다.</p><code>snapshot + command + policies → plan</code></article>
+<article class="card"><span class="section-kicker">Commit</span><h3 id="atomic-commit">전부 성공하거나 아무것도 바꾸지 않는다</h3><p>idempotency와 entity version을 먼저 확인하고 working copy에서 모든 operation과 resource invariant를 검증한 뒤 state를 한 번 교체한다.</p><code>plan + preconditions → state + outbox</code></article>
+<article class="card"><span class="section-kicker">Reaction</span><h3 id="bounded-reaction">상태 변경 반응은 queue로 직렬화한다</h3><p>priority, stableOrderKey, reactionId로 정렬하고 depth·개수·budget·idempotency 상한을 강제한다.</p><code>event → bounded reaction → new command</code></article>
+<article class="card"><span class="section-kicker">Status time</span><h3 id="tick-semantics">마지막 tick 후 같은 시각에 만료한다</h3><p>Burn은 +2, +4, +6에 tick하고 +6 tick을 commit한 뒤 expire한다. 프레임 지연 catch-up에는 instance별 budget이 있다.</p><code>tick ≤ expire → tick, then expire</code></article>
+</div>
+<div class="diagram runtime-diagram">
+<div class="dh"><div><span class="section-kicker">Resolve to reaction</span><strong>실패 시 mutation과 event가 모두 남지 않는 흐름</strong></div><div class="da"><a href="../assets/diagrams/40_resolve_commit_reaction_sequence.svg" rel="noopener" target="_blank">SVG</a><a href="../source/diagrams/40_resolve_commit_reaction_sequence.dot">DOT</a></div></div>
+<img alt="command에서 pure resolve, atomic commit, outbox, reaction, status tick으로 이어지는 흐름" class="zoomable" loading="lazy" src="../assets/diagrams/40_resolve_commit_reaction_sequence.svg"/>
+</div>
+<h2 id="fireball-workbench">Fireball Replay Workbench</h2>
+<p>아래 입력은 실제 kernel에 전달된다. 같은 입력을 반복 실행하면 replay hash와 trace hash가 유지되고, seed나 전투 수치를 바꾸면 첫 divergent decision부터 결과가 달라진다.</p>
+<section class="runtime-lab" data-runtime-lab="">
+<header class="runtime-lab-head">
+<div><span class="section-kicker">Shared browser / Node kernel</span><h3>Deterministic Fireball</h3></div>
+<div class="runtime-live"><span></span>LIVE</div>
+</header>
+<form class="runtime-form" data-runtime-form="">
+<fieldset><legend>Replay identity</legend>
+<label>Root seed<input data-runtime-key="rootSeed" max="4294967295" min="0" type="number" value="61710"/></label>
+<label>Spell power<input data-runtime-key="spellPower" min="0" type="number" value="120"/></label>
+</fieldset>
+<fieldset><legend>Target snapshot</legend>
+<label>HP<input data-runtime-key="targetHp" min="1" type="number" value="500"/></label>
+<label>Shield<input data-runtime-key="shield" min="0" type="number" value="40"/></label>
+<label>Fire resist %<input data-runtime-key="resistancePercent" max="100" min="0" step="1" type="number" value="20"/></label>
+</fieldset>
+<fieldset><legend>Decision policy</legend>
+<label>Hit chance %<input data-runtime-key="hitChancePercent" max="100" min="0" step="1" type="number" value="92"/></label>
+<label>Crit chance %<input data-runtime-key="critChancePercent" max="100" min="0" step="1" type="number" value="28"/></label>
+<label>Burn ratio %<input data-runtime-key="burnRatioPercent" max="100" min="0" step="1" type="number" value="12"/></label>
+</fieldset>
+<label class="runtime-check"><input checked="" data-runtime-key="simulateStatusTicks" type="checkbox"/> Burn의 +2/+4/+6 tick까지 실행</label>
+<div class="runtime-form-actions"><button class="button primary" type="submit">Replay 실행</button><button class="button secondary" type="reset">기본값 복원</button></div>
+</form>
+<div class="runtime-replay-strip">
+<div><span>Replay</span><strong data-runtime-replay-status="">Ready</strong></div>
+<div><span>Replay hash</span><code data-runtime-replay-hash="">—</code></div>
+<div><span>Trace hash</span><code data-runtime-trace-hash="">—</code></div>
+</div>
+<div aria-live="polite" class="runtime-metrics" data-runtime-metrics=""></div>
+<div class="runtime-output-grid">
+<section><header><span>Decision trace</span><small data-runtime-trace-count="">0 stages</small></header><ol class="runtime-trace" data-runtime-trace=""></ol></section>
+<section><header><span>Committed events</span><small>post-commit only</small></header><ol class="runtime-events" data-runtime-events=""></ol></section>
+</div>
+<details class="runtime-json"><summary>Immutable outcome / plan JSON</summary><pre><code data-runtime-plan="">{}</code></pre></details>
+<details class="runtime-json"><summary>Final state JSON</summary><pre><code data-runtime-state="">{}</code></pre></details>
+</section>
+<h2 id="failure-probes">Hardening Probes</h2>
+<p>happy path만 보여주지 않고 실제로 가장 위험한 세 실패를 같은 kernel에서 재현한다. 실패 전후 state hash가 같아야 probe를 통과한다.</p>
+<div class="probe-grid">
+<article class="probe-card"><span>01 · Idempotency</span><h3>Duplicate command</h3><p>이미 처리한 commandId를 다시 commit한다.</p><button data-runtime-check="duplicate" type="button">중복 commit 시도</button><output data-runtime-check-output="duplicate">실행 전</output></article>
+<article class="probe-card"><span>02 · Concurrency</span><h3>Version conflict</h3><p>resolve 뒤 shield version을 외부 command로 바꾼다.</p><button data-runtime-check="conflict" type="button">stale plan 시도</button><output data-runtime-check-output="conflict">실행 전</output></article>
+<article class="probe-card"><span>03 · Transaction</span><h3>Atomic rollback</h3><p>첫 operation 뒤 invalid resource operation을 넣는다.</p><button data-runtime-check="rollback" type="button">부분 실패 시도</button><output data-runtime-check-output="rollback">실행 전</output></article>
+</div>
+<h2 id="context-cache-lab">Contextual Stat Cache Lab</h2>
+<p>owner 하나에 최종값 하나를 캐시하지 않는다. 실제 Modifier가 읽는 context path를 선언하고 target·tag·거리 값으로 fingerprint를 만든다.</p>
+<section class="runtime-mini-lab" data-runtime-cache-probe="">
+<header><div><span class="section-kicker">P3-D · Cache correctness</span><h3>같은 질의는 hit, 다른 context는 miss</h3></div><button class="button secondary" data-runtime-cache-run="" type="button">패턴 다시 실행</button></header>
+<div class="mini-lab-status"><strong data-runtime-cache-status="">Ready</strong><span data-runtime-cache-pattern="">MISS → HIT → MISS</span></div>
+<div class="mini-lab-grid"><div><span>Compute calls</span><strong data-runtime-cache-computes="">—</strong></div><div><span>Returned values</span><strong data-runtime-cache-values="">—</strong></div><div><span>Fingerprint</span><code data-runtime-cache-fingerprint="">—</code></div></div>
+<pre><code data-runtime-cache-details="">{}</code></pre>
+</section>
+<h2 id="migration-lab">Schema Migration Lab</h2>
+<p>저장 문서는 임의 버전으로 바로 뛰지 않고 vN→vN+1 edge를 순서대로 통과한다. 각 단계는 source를 변경하지 않으며 before/after hash를 audit trail에 남긴다.</p>
+<section class="runtime-mini-lab" data-runtime-migration-probe="">
+<header><div><span class="section-kicker">P3-D · N−2 compatibility</span><h3>Player save v1 → v2 → v3</h3></div><button class="button secondary" data-runtime-migration-run="" type="button">Migration 실행</button></header>
+<div class="mini-lab-status"><strong data-runtime-migration-status="">Ready</strong><span data-runtime-migration-path="">v1 → v2 → v3</span></div>
+<div class="migration-columns"><div><span>Source v1</span><pre><code data-runtime-migration-before="">{}</code></pre></div><div><span>Current v3</span><pre><code data-runtime-migration-after="">{}</code></pre></div></div>
+<ol class="migration-audit" data-runtime-migration-audit=""></ol>
+</section>
+<h2 id="deterministic-envelope">결정론 envelope</h2>
+<div class="diagram runtime-diagram">
+<div class="dh"><div><span class="section-kicker">Replay contract</span><strong>seed 하나가 아니라 실행 의미 전체를 versioning한다</strong></div><div class="da"><a href="../assets/diagrams/41_deterministic_replay_envelope.svg" rel="noopener" target="_blank">SVG</a><a href="../source/diagrams/41_deterministic_replay_envelope.dot">DOT</a></div></div>
+<img alt="입력, 버전, 정렬 의미를 포함한 결정론적 replay envelope" class="zoomable" loading="lazy" src="../assets/diagrams/41_deterministic_replay_envelope.svg"/>
+</div>
+<div class="table-scroll"><table class="data-table"><thead><tr><th>Envelope field</th><th>고정하는 의미</th><th>변경 시 처리</th></tr></thead><tbody>
+<tr><td><code>runtimeVersion</code></td><td>커널 구현의 semantics</td><td>golden fixture 재승인</td></tr>
+<tr><td><code>rngAlgorithmVersion</code></td><td>key hash와 sample 생성 방식</td><td>별도 replay lane 또는 migration</td></tr>
+<tr><td><code>numericPolicyVersion</code></td><td>BPS 단위와 반올림 위치</td><td>formula version과 함께 승격</td></tr>
+<tr><td><code>definitionVersion</code></td><td>Fireball·Burn 정적 데이터</td><td>과거 definition snapshot 보관</td></tr>
+<tr><td><code>formulaVersion</code></td><td>피해 단계와 계산식</td><td>live balance와 replay 분리</td></tr>
+<tr><td><code>rootSeed</code></td><td>keyed decision sample의 root</td><td>같은 실행 안에서 불변</td></tr>
+</tbody></table></div>
+<h2 id="source-contracts">소스와 계약 산출물</h2>
+<div class="source-card-grid">
+<a href="../source/runtime/runtime-kernel.js"><span>Runtime</span><b>runtime-kernel.js</b><small>브라우저·Node 공유 UMD kernel</small></a>
+<a href="../source/runtime/runtime-kernel.d.ts"><span>Types</span><b>runtime-kernel.d.ts</b><small>외부 adapter가 참조할 TypeScript 선언</small></a>
+<a href="../source/runtime/tests/runtime-kernel.test.cjs"><span>Tests</span><b>21 regression tests</b><small>golden, property sweep, failure probes</small></a>
+<a href="../source/runtime/fixtures/fireball-golden-v1.json"><span>Fixture</span><b>Fireball golden replay</b><small>input, expected state, event, hash</small></a>
+<a href="../source/contracts/command-envelope.schema.json"><span>Schema</span><b>4 JSON contracts</b><small>command, event, replay, versioned document</small></a>
+<a href="../source/adr/ADR-001-deterministic-numeric-and-rng.md"><span>Decision</span><b>5 architecture ADRs</b><small>숫자, commit, reaction, cache, migration</small></a>
+</div>
+<h2 id="다음-생산-구현">다음 생산 구현</h2>
+<div class="timeline runtime-next">
+<div class="ti"><h3 id="p3e-adapter">P3-E1 · Runtime Port Interface</h3><p>in-memory StateStore를 대체할 transaction port, durable outbox port, clock port, definition registry port를 interface로 분리한다.</p><small>Acceptance: 동일 golden fixture를 memory adapter와 production adapter가 함께 통과</small></div>
+<div class="ti"><h3 id="p3e-authority">P3-E2 · Authoritative Server Slice</h3><p>client request의 command identity, validation, server tick, retry, reconciliation 결과를 계약에 추가한다.</p><small>Acceptance: duplicate packet과 out-of-order packet이 상태를 두 번 바꾸지 않음</small></div>
+<div class="ti"><h3 id="p3e-multitarget">P3-E3 · Multi-target / AoE</h3><p>target 후보를 stable ID로 정렬하고 대상별 RNG key와 전체 commit 원자성 정책을 결정한다.</p><small>Acceptance: 입력 순서가 달라도 target별 outcome과 replay hash가 동일</small></div>
+<div class="ti"><h3 id="p3f-equipment">P3-F · Equipment MVP</h3><p>ItemInstance sourceRef, Affix→StatModifier, TriggeredEffect→ReactionQueue, equip/unequip idempotency를 첫 외부 콘텐츠로 붙인다.</p><small>Acceptance: 해제 시 해당 item source의 변경만 제거</small></div>
+</div>
+<div class="callout warn"><b>생산 경계.</b> 이 페이지의 결과는 아키텍처 계약을 검증하는 reference implementation이다. 실제 엔진·서버에 넣기 전 load/fuzz test, 저장 장애 복구, schema rollout, browser/engine별 numeric conformance를 추가한다.</div>
+</article>
+<nav aria-label="이전 및 다음 문서" class="doc-pager"><a class="prev" href="../modules/phase3-readiness.html"><span>← 이전</span><b>Phase 3 준비</b><small>설계 위험과 구현 게이트</small></a><a class="next" href="../modules/implementation-roadmap.html"><span>다음 →</span><b>로드맵</b><small>생산 adapter와 Equipment 확장</small></a></nav>
+</main>
+<aside aria-label="페이지 보조 탐색" class="context-rail">
+<section class="context-card toc-card"><div class="context-title"><span>On this page</span><button data-print-page="" type="button">Print</button></div><nav class="page-toc">
+<a href="#구현-결론">구현 결론</a><a href="#실행-아키텍처">실행 아키텍처</a><a href="#fireball-workbench">Fireball Workbench</a><a href="#failure-probes">Hardening Probes</a><a href="#context-cache-lab">Context Cache</a><a href="#migration-lab">Schema Migration</a><a href="#source-contracts">소스와 계약</a><a href="#다음-생산-구현">다음 생산 구현</a>
+</nav></section>
+<section class="context-card"><div class="context-title"><span>Build status</span></div><div class="runtime-side-status"><div><span>Kernel</span><b>3.2.0 ref</b></div><div><span>Tests</span><b>21 / 21</b></div><div><span>Schemas</span><b>4</b></div><div><span>ADRs</span><b>5</b></div></div></section>
+<section class="context-card"><div class="context-title"><span>Related paths</span></div><div class="related-links"><a href="../modules/phase3-readiness.html"><span>Gate</span><b>Phase 3 준비</b></a><a href="../modules/fireball-case-study.html"><span>Case</span><b>Fireball 예제</b></a><a href="../modules/implementation-roadmap.html"><span>Build</span><b>로드맵</b></a></div></section>
+<a class="readiness-card runtime-side-cta" href="#fireball-workbench"><span>Executable proof</span><b>Replay를 직접 실행</b><small>같은 kernel · 같은 hash</small><i>↓</i></a>
+</aside>
+</div>
+<footer class="site-footer">
+<div>
+<b>
+     Game System Framework
+    </b>
+<span>Offline-first · Executable reference · Release 3.2</span>
+</div>
+<a href="../modules/quality-audit.html">
+    Quality audit
+   </a>
+</footer>
+<nav aria-label="모바일 빠른 탐색" class="mobile-bar">
+<a href="../index.html">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m3 11 9-8 9 8">
+</path>
+<path d="M5 10v10h14V10M9 20v-6h6v6">
+</path>
+</svg>
+<span>
+     Atlas
+    </span>
+</a>
+<a href="../modules/integration-map.html">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m4 6 5-2 6 2 5-2v14l-5 2-6-2-5 2Z">
+</path>
+<path d="M9 4v14M15 6v14">
+</path>
+</svg>
+<span>
+     Map
+    </span>
+</a>
+<button data-search-open="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<circle cx="11" cy="11" r="6.5">
+</circle>
+<path d="m16 16 4 4">
+</path>
+</svg>
+<span>
+     Search
+    </span>
+</button>
+<button data-menu-open="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M4 7h16M4 12h16M4 17h16">
+</path>
+</svg>
+<span>
+     Docs
+    </span>
+</button>
+</nav>
+<dialog aria-labelledby="drawer-title" class="site-drawer" data-site-drawer="">
+<div class="drawer-shell">
+<header>
+<div>
+<span class="section-kicker">
+       Knowledge map
+      </span>
+<h2 id="drawer-title">
+       전체 문서
+      </h2>
+</div>
+<button aria-label="닫기" class="icon-button" data-dialog-close="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m6 6 12 12M18 6 6 18">
+</path>
+</svg>
+</button>
+</header>
+<div class="drawer-search">
+<button data-search-open="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<circle cx="11" cy="11" r="6.5">
+</circle>
+<path d="m16 16 4 4">
+</path>
+</svg>
+      문서와 섹션을 바로 검색
+      <kbd>
+       ⌘K
+      </kbd>
+</button>
+</div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section><section class="drawer-group"><h3>Implementation</h3><div><a href="../modules/phase3-readiness.html"><span>Readiness</span><b>Phase 3 준비</b><small>설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준</small></a><a aria-current="page" class="is-active" href="../modules/runtime-reference.html"><span>Executable</span><b>Runtime Reference</b><small>결정론적 Fireball, atomic commit, bounded reaction, contextual cache, schema migration의 실행 가능한 기준 구현</small></a><a href="../modules/implementation-roadmap.html"><span>Build Plan</span><b>로드맵</b><small>MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서</small></a><a href="../modules/skill-combat-next.html"><span>Next</span><b>다음 확장</b><small>다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안</small></a></div></section><section class="drawer-group"><h3>Maintenance</h3><div><a href="../modules/quality-audit.html"><span>QA</span><b>품질 점검</b><small>UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준</small></a></div></section></div>
+</div>
+</dialog>
+<dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
+<div class="command-shell">
+<header>
+<div>
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<circle cx="11" cy="11" r="6.5">
+</circle>
+<path d="m16 16 4 4">
+</path>
+</svg>
+<label for="command-input" id="command-title">
+       Search the system atlas
+      </label>
+</div>
+<button class="key-close" data-dialog-close="" type="button">
+      ESC
+     </button>
+</header>
+<input aria-controls="command-results" autocomplete="off" class="command-input" id="command-input" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
+<div class="command-hints">
+<span>
+      ↑↓ 이동
+     </span>
+<span>
+      ↵ 열기
+     </span>
+<span>
+      페이지 제목과 본문 섹션까지 검색
+     </span>
+</div>
+<div class="command-results" id="command-results" role="listbox">
+</div>
+</div>
+</dialog>
+<dialog aria-labelledby="toc-dialog-title" class="toc-dialog" data-toc-dialog="">
+<div class="toc-dialog-shell">
+<header>
+<h2 id="toc-dialog-title">
+      이 페이지의 섹션
+     </h2>
+<button aria-label="닫기" class="icon-button" data-dialog-close="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m6 6 12 12M18 6 6 18">
+</path>
+</svg>
+</button>
+</header>
+<nav><a href="#구현-결론">구현 결론</a><a href="#실행-아키텍처">실행 아키텍처</a><a href="#fireball-workbench">Fireball Workbench</a><a href="#failure-probes">Hardening Probes</a><a href="#context-cache-lab">Context Cache</a><a href="#migration-lab">Schema Migration</a><a href="#source-contracts">소스와 계약</a><a href="#다음-생산-구현">다음 생산 구현</a></nav>
+</div>
+</dialog>
+<dialog aria-labelledby="diagram-modal-title" class="diagram-modal" data-diagram-modal="">
+<div class="diagram-window">
+<header class="diagram-toolbar">
+<div>
+<span class="section-kicker">
+       Diagram focus
+      </span>
+<b id="diagram-modal-title">
+       Diagram
+      </b>
+</div>
+<div>
+<button aria-label="축소" data-zoom-out="" type="button">
+       −
+      </button>
+<button data-zoom-reset="" type="button">
+       100%
+      </button>
+<button aria-label="확대" data-zoom-in="" type="button">
+       ＋
+      </button>
+<a data-open-original="" rel="noopener" target="_blank">
+       원본
+      </a>
+<button aria-label="닫기" data-dialog-close="" type="button">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="m6 6 12 12M18 6 6 18">
+</path>
+</svg>
+</button>
+</div>
+</header>
+<div class="diagram-canvas" data-diagram-canvas="">
+<img alt=""/>
+</div>
+</div>
+</dialog>
+<script src="../assets/js/search-index.js">
+</script>
+<script src="../assets/js/runtime-kernel.js"></script><script src="../assets/js/app.js">
+</script>
+</body>
+</html>

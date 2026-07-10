@@ -108,6 +108,15 @@
     "level": "Readiness"
   },
   {
+    "file": "modules/runtime-reference.html",
+    "short": "Runtime Reference",
+    "title": "Phase 3 Runtime Reference",
+    "desc": "결정론적 Fireball, atomic commit, bounded reaction, contextual cache, schema migration의 실행 가능한 기준 구현",
+    "key": "runtime reference deterministic replay atomic commit reaction cache migration fireball",
+    "group": "Implementation",
+    "level": "Executable"
+  },
+  {
     "file": "modules/implementation-roadmap.html",
     "short": "로드맵",
     "title": "Implementation Roadmap",

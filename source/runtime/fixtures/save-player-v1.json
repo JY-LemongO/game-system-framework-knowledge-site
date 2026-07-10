@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "playerId": "player.demo",
+  "profile": {
+    "displayName": "Aria"
+  },
+  "resources": {
+    "health": 420,
+    "mana": 95
+  },
+  "inventory": [
+    "item.ember-ring"
+  ]
+}

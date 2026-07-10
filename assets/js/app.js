@@ -827,6 +827,247 @@
     });
   }
 
+  function initialiseRuntimeReference() {
+    const lab = $('[data-runtime-lab]');
+    const G = window.GSFRuntime;
+    if (!lab || !G) return;
+
+    const format = value => new Intl.NumberFormat('ko-KR').format(value);
+    const json = value => JSON.stringify(value, null, 2);
+    const setText = (selector, value, root = document) => {
+      const node = $(selector, root);
+      if (node) node.textContent = String(value);
+    };
+    const numberValue = key => {
+      const input = $(`[data-runtime-key="${key}"]`, lab);
+      const value = Number(input?.value);
+      return Number.isFinite(value) ? Math.trunc(value) : 0;
+    };
+    const percentBps = key => Math.max(0, Math.min(100, numberValue(key))) * 100;
+
+    function inputFromForm() {
+      const hp = Math.max(1, numberValue('targetHp'));
+      const shield = Math.max(0, numberValue('shield'));
+      return {
+        rootSeed: Math.max(0, Math.min(0xffffffff, numberValue('rootSeed'))),
+        caster: { spellPower: Math.max(0, numberValue('spellPower')) },
+        target: {
+          hp,
+          maxHp: hp,
+          shield,
+          maxShield: Math.max(200, shield),
+          fireResistanceBps: percentBps('resistancePercent')
+        },
+        skill: {
+          hitChanceBps: percentBps('hitChancePercent'),
+          critChanceBps: percentBps('critChancePercent')
+        },
+        burn: { ratioBps: percentBps('burnRatioPercent') },
+        simulateStatusTicks: Boolean($('[data-runtime-key="simulateStatusTicks"]', lab)?.checked)
+      };
+    }
+
+    function metric(label, value, detail = '') {
+      const div = document.createElement('div');
+      const span = document.createElement('span');
+      const strong = document.createElement('strong');
+      const small = document.createElement('small');
+      span.textContent = label;
+      strong.textContent = String(value);
+      small.textContent = detail;
+      div.append(span, strong, small);
+      return div;
+    }
+
+    function renderReplay(result, replay) {
+      const outcome = result.resolution.outcome;
+      const target = result.finalState.entities[result.input.target.id];
+      const metrics = $('[data-runtime-metrics]', lab);
+      if (metrics) {
+        metrics.replaceChildren(
+          metric('Decision', outcome.hit ? (outcome.critical ? 'CRITICAL' : 'HIT') : 'MISS', `roll ${result.resolution.decisions.hitRollBps} / ${result.resolution.decisions.critRollBps}`),
+          metric('Resolved', format(outcome.resolvedDamage), `raw ${format(outcome.rawDamage)}`),
+          metric('Shield', format(outcome.shieldAbsorbed), `remaining ${format(target.resources.shield)}`),
+          metric('HP damage', format(outcome.hpDamage), `impact HP ${format(outcome.targetHpAfter)}`),
+          metric('Burn', format(result.outbox.filter(event => event.type === 'StatusTicked').reduce((sum, event) => sum + event.payload.hpDamage, 0)), `${result.statusAdvance.tickCount} committed ticks`),
+          metric('Final HP', format(target.resources.hp), `${Object.keys(target.statuses).length} active status`)
+        );
+      }
+
+      const replayOkay = replay.match && replay.traceMatch && replay.finalStateMatch;
+      const status = $('[data-runtime-replay-status]', lab);
+      if (status) {
+        status.textContent = replayOkay ? 'MATCH' : 'DIVERGED';
+        status.dataset.state = replayOkay ? 'pass' : 'fail';
+      }
+      setText('[data-runtime-replay-hash]', result.replayHash, lab);
+      setText('[data-runtime-trace-hash]', result.traceHash, lab);
+      setText('[data-runtime-trace-count]', `${result.trace.length} stages`, lab);
+      const golden = $('[data-runtime-golden-hash]');
+      if (golden) golden.textContent = `${result.replayHash.slice(0, 8)}…`;
+
+      const traceList = $('[data-runtime-trace]', lab);
+      if (traceList) {
+        traceList.replaceChildren(...result.trace.map(record => {
+          const li = document.createElement('li');
+          const seq = document.createElement('span');
+          const copy = document.createElement('div');
+          const name = document.createElement('b');
+          const detail = document.createElement('small');
+          seq.textContent = String(record.sequence).padStart(2, '0');
+          name.textContent = record.stage.replaceAll('_', ' ');
+          detail.textContent = `tick ${record.tick} · ${Object.keys(record.payload || {}).slice(0, 3).join(' · ') || 'no payload'}`;
+          copy.append(name, detail);
+          li.append(seq, copy);
+          return li;
+        }));
+      }
+
+      const eventList = $('[data-runtime-events]', lab);
+      if (eventList) {
+        eventList.replaceChildren(...result.outbox.map((event, index) => {
+          const li = document.createElement('li');
+          const seq = document.createElement('span');
+          const copy = document.createElement('div');
+          const name = document.createElement('b');
+          const detail = document.createElement('small');
+          seq.textContent = String(index + 1).padStart(2, '0');
+          name.textContent = event.type;
+          detail.textContent = `tick ${event.occurredTick} · ${event.eventId.slice(-8)}`;
+          copy.append(name, detail);
+          li.append(seq, copy);
+          return li;
+        }));
+      }
+      setText('[data-runtime-plan]', json({ decisions: result.resolution.decisions, outcome, plan: result.resolution.plan }), lab);
+      setText('[data-runtime-state]', json(result.finalState), lab);
+    }
+
+    function runReplay() {
+      try {
+        const input = inputFromForm();
+        const result = G.runFireballScenario(input);
+        const replay = G.verifyReplay(input);
+        renderReplay(result, replay);
+      } catch (error) {
+        const status = $('[data-runtime-replay-status]', lab);
+        if (status) {
+          status.textContent = error.code || 'ERROR';
+          status.dataset.state = 'fail';
+        }
+        setText('[data-runtime-plan]', json(error.toJSON ? error.toJSON() : { message: String(error) }), lab);
+      }
+    }
+
+    const form = $('[data-runtime-form]', lab);
+    form?.addEventListener('submit', event => {
+      event.preventDefault();
+      runReplay();
+    });
+    form?.addEventListener('reset', () => requestAnimationFrame(runReplay));
+
+    const probes = {
+      duplicate: () => {
+        const result = G.demonstrateDuplicateCommand(inputFromForm());
+        return { pass: result.duplicateDetected && result.stateUnchanged, code: result.error?.code, evidence: result.stateUnchanged ? 'state hash unchanged' : 'state changed' };
+      },
+      conflict: () => {
+        const result = G.demonstrateVersionConflict(inputFromForm());
+        return { pass: result.rejected && result.noPartialMutation, code: result.error?.code, evidence: result.noPartialMutation ? 'no partial mutation' : 'state changed' };
+      },
+      rollback: () => {
+        const result = G.demonstrateAtomicRollback(inputFromForm());
+        return { pass: result.rolledBack, code: result.error?.code, evidence: result.rolledBack ? 'working copy discarded' : 'partial state detected' };
+      }
+    };
+    $$('[data-runtime-check]', document).forEach(button => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.runtimeCheck;
+        const output = $(`[data-runtime-check-output="${key}"]`);
+        try {
+          const result = probes[key]();
+          if (output) {
+            output.textContent = `${result.pass ? 'PASS' : 'FAIL'} · ${result.code} · ${result.evidence}`;
+            output.dataset.state = result.pass ? 'pass' : 'fail';
+          }
+        } catch (error) {
+          if (output) {
+            output.textContent = `ERROR · ${error.code || error.message}`;
+            output.dataset.state = 'fail';
+          }
+        }
+      });
+    });
+
+    function runCacheProbe() {
+      const root = $('[data-runtime-cache-probe]');
+      if (!root) return;
+      const cache = new G.ContextualStatCache({ maxEntries: 8 });
+      let computes = 0;
+      const evaluate = context => cache.evaluate({
+        entityId: 'entity.caster',
+        statId: 'stat.fire-damage',
+        ownerVersion: 7,
+        dependencies: ['target.id', 'target.tags', 'distanceBand'],
+        context,
+        compute: () => {
+          computes += 1;
+          return 100 + (context.target.tags.includes('status.burning') ? 30 : 0) + (context.distanceBand === 'far' ? 20 : 0);
+        }
+      });
+      const firstContext = { target: { id: 'entity.target-a', tags: ['status.burning'] }, distanceBand: 'far' };
+      const first = evaluate(firstContext);
+      const repeated = evaluate({ distanceBand: 'far', target: { tags: ['status.burning'], id: 'entity.target-a' } });
+      const other = evaluate({ target: { id: 'entity.target-b', tags: [] }, distanceBand: 'near' });
+      const pattern = [first, repeated, other].map(item => item.cacheHit ? 'HIT' : 'MISS').join(' → ');
+      setText('[data-runtime-cache-status]', pattern === 'MISS → HIT → MISS' ? 'PASS' : 'FAIL', root);
+      const status = $('[data-runtime-cache-status]', root);
+      if (status) status.dataset.state = pattern === 'MISS → HIT → MISS' ? 'pass' : 'fail';
+      setText('[data-runtime-cache-pattern]', pattern, root);
+      setText('[data-runtime-cache-computes]', computes, root);
+      setText('[data-runtime-cache-values]', [first.value, repeated.value, other.value].join(' · '), root);
+      setText('[data-runtime-cache-fingerprint]', first.fingerprint.hash, root);
+      setText('[data-runtime-cache-details]', json({ dependencies: first.fingerprint.dependencies, first: { cacheHit: first.cacheHit, cacheKey: first.cacheKey, value: first.value }, repeated: { cacheHit: repeated.cacheHit, cacheKey: repeated.cacheKey, value: repeated.value }, otherTarget: { cacheHit: other.cacheHit, cacheKey: other.cacheKey, value: other.value }, cache: cache.stats() }), root);
+    }
+    $('[data-runtime-cache-run]')?.addEventListener('click', runCacheProbe);
+
+    function runMigrationProbe() {
+      const root = $('[data-runtime-migration-probe]');
+      if (!root) return;
+      const source = { schemaVersion: 1, playerId: 'player.demo', profile: { displayName: 'Aria' }, resources: { health: 420, mana: 95 }, inventory: ['item.ember-ring'] };
+      const registry = new G.SchemaMigrationRegistry({ currentVersion: 3, minimumSupportedVersion: 1 });
+      registry.register({ migrationId: 'migration.player.v1-v2', fromVersion: 1, toVersion: 2, migrate: document => ({ ...document, schemaVersion: 2, resources: { hp: document.resources.health, mana: document.resources.mana } }) });
+      registry.register({ migrationId: 'migration.player.v2-v3', fromVersion: 2, toVersion: 3, migrate: document => ({ schemaVersion: 3, playerId: document.playerId, profile: document.profile, resources: document.resources, inventory: document.inventory, migratedAtPolicy: 'logical-version-only' }) });
+      try {
+        const before = G.canonicalStringify(source);
+        const result = registry.migrate(source);
+        const sourceUnchanged = before === G.canonicalStringify(source);
+        setText('[data-runtime-migration-status]', sourceUnchanged && result.appliedMigrations.length === 2 ? 'PASS' : 'FAIL', root);
+        const status = $('[data-runtime-migration-status]', root);
+        if (status) status.dataset.state = sourceUnchanged ? 'pass' : 'fail';
+        setText('[data-runtime-migration-before]', json(source), root);
+        setText('[data-runtime-migration-after]', json(result.document), root);
+        const list = $('[data-runtime-migration-audit]', root);
+        if (list) list.replaceChildren(...result.appliedMigrations.map(step => {
+          const li = document.createElement('li');
+          const title = document.createElement('b');
+          const hashes = document.createElement('code');
+          title.textContent = `${step.migrationId} · v${step.fromVersion} → v${step.toVersion}`;
+          hashes.textContent = `${step.beforeHash} → ${step.afterHash}`;
+          li.append(title, hashes);
+          return li;
+        }));
+      } catch (error) {
+        setText('[data-runtime-migration-status]', error.code || 'ERROR', root);
+      }
+    }
+    $('[data-runtime-migration-run]')?.addEventListener('click', runMigrationProbe);
+
+    runReplay();
+    runCacheProbe();
+    runMigrationProbe();
+  }
+
   initialiseDialogs();
   initialiseTheme();
   initialiseFocusMode();
@@ -843,4 +1084,5 @@
   initialiseSteppers();
   initialisePrintAndImages();
   initialiseCurrentNavigation();
+  initialiseRuntimeReference();
 })();

@@ -51,7 +51,7 @@
 <a href="../modules/fireball-case-study.html">
       Case study
      </a>
-<a href="../modules/implementation-roadmap.html">
+<a data-runtime-nav="" href="../modules/runtime-reference.html">Runtime</a><a href="../modules/implementation-roadmap.html">
       Build plan
      </a>
 </nav>
@@ -1147,16 +1147,10 @@
 </a>
 </div>
 </section>
-<a class="readiness-card" href="../modules/phase3-readiness.html">
-<span>
-      Phase 3 gate
-     </span>
-<b>
-      설계 준비도와 다음 구현
-     </b>
-<small>
-      핵심 계약 6개 · 수용 기준 7개
-     </small>
+<a class="readiness-card" href="../modules/runtime-reference.html">
+<span>Runtime reference</span>
+<b>실행 가능한 Phase 3 기준 구현</b>
+<small>21 tests · Replay · Failure probes</small>
 <i>
       →
      </i>
@@ -1168,9 +1162,7 @@
 <b>
      Game System Framework
     </b>
-<span>
-     Offline-first · No external CDN · Release 2 redesign
-    </span>
+<span>Offline-first · Executable reference · Release 3.2</span>
 </div>
 <a href="../modules/quality-audit.html">
     Quality audit
@@ -1252,229 +1244,7 @@
       </kbd>
 </button>
 </div>
-<div class="drawer-groups">
-<section class="drawer-group">
-<h3>
-       시작
-      </h3>
-<div>
-<a href="../index.html">
-<span>
-         Overview
-        </span>
-<b>
-         홈
-        </b>
-<small>
-         Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Foundation
-      </h3>
-<div>
-<a href="../modules/core-runtime.html">
-<span>
-         Foundation
-        </span>
-<b>
-         Core Runtime
-        </b>
-<small>
-         Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Core Systems
-      </h3>
-<div>
-<a href="../modules/stat-system.html">
-<span>
-         Core
-        </span>
-<b>
-         Stat System
-        </b>
-<small>
-         스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조
-        </small>
-</a>
-<a aria-current="page" class="is-active" href="../modules/effect-system.html">
-<span>
-         Bridge
-        </span>
-<b>
-         Effect System
-        </b>
-<small>
-         EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계
-        </small>
-</a>
-<a href="../modules/skill-action-system.html">
-<span>
-         Action
-        </span>
-<b>
-         Skill / Action
-        </b>
-<small>
-         비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조
-        </small>
-</a>
-<a href="../modules/combat-resolution-system.html">
-<span>
-         Resolution
-        </span>
-<b>
-         Combat
-        </b>
-<small>
-         명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조
-        </small>
-</a>
-<a href="../modules/status-system.html">
-<span>
-         Runtime
-        </span>
-<b>
-         Status
-        </b>
-<small>
-         버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Architecture
-      </h3>
-<div>
-<a href="../modules/integration-map.html">
-<span>
-         Architecture
-        </span>
-<b>
-         통합 구조
-        </b>
-<small>
-         Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Practice
-      </h3>
-<div>
-<a href="../modules/fireball-case-study.html">
-<span>
-         Case Study
-        </span>
-<b>
-         Fireball 예제
-        </b>
-<small>
-         하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Reference
-      </h3>
-<div>
-<a href="../modules/diagram-gallery.html">
-<span>
-         Reference
-        </span>
-<b>
-         다이어그램
-        </b>
-<small>
-         전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리
-        </small>
-</a>
-<a href="../modules/glossary.html">
-<span>
-         Reference
-        </span>
-<b>
-         용어집
-        </b>
-<small>
-         반복되는 시스템 설계 용어와 UML 기초 문법
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Implementation
-      </h3>
-<div>
-<a href="../modules/phase3-readiness.html">
-<span>
-         Readiness
-        </span>
-<b>
-         Phase 3 준비
-        </b>
-<small>
-         설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준
-        </small>
-</a>
-<a href="../modules/implementation-roadmap.html">
-<span>
-         Build Plan
-        </span>
-<b>
-         로드맵
-        </b>
-<small>
-         MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서
-        </small>
-</a>
-<a href="../modules/skill-combat-next.html">
-<span>
-         Next
-        </span>
-<b>
-         다음 확장
-        </b>
-<small>
-         다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Maintenance
-      </h3>
-<div>
-<a href="../modules/quality-audit.html">
-<span>
-         QA
-        </span>
-<b>
-         품질 점검
-        </b>
-<small>
-         UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준
-        </small>
-</a>
-</div>
-</section>
-</div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a aria-current="page" class="is-active" href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section><section class="drawer-group"><h3>Implementation</h3><div><a href="../modules/phase3-readiness.html"><span>Readiness</span><b>Phase 3 준비</b><small>설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준</small></a><a href="../modules/runtime-reference.html"><span>Executable</span><b>Runtime Reference</b><small>결정론적 Fireball, atomic commit, bounded reaction, contextual cache, schema migration의 실행 가능한 기준 구현</small></a><a href="../modules/implementation-roadmap.html"><span>Build Plan</span><b>로드맵</b><small>MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서</small></a><a href="../modules/skill-combat-next.html"><span>Next</span><b>다음 확장</b><small>다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안</small></a></div></section><section class="drawer-group"><h3>Maintenance</h3><div><a href="../modules/quality-audit.html"><span>QA</span><b>품질 점검</b><small>UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

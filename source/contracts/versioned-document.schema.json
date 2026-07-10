@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gsf.example/contracts/versioned-document.schema.json",
+  "title": "GSF Versioned Document",
+  "description": "순차 migration registry가 처리하는 최소 저장 문서 계약.",
+  "type": "object",
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "documentId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[A-Za-z0-9_-]+)+$" },
+    "dataVersion": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": true
+}

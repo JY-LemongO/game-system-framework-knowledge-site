@@ -1,0 +1,40 @@
+{
+  "version": "3.2.0-reference",
+  "executedAt": "2026-07-10",
+  "status": "pass",
+  "runtimeTests": {
+    "passed": 21,
+    "total": 21,
+    "durationMs": 225
+  },
+  "staticValidation": {
+    "status": "pass",
+    "htmlPages": 16,
+    "searchEntries": 325,
+    "diagrams": {
+      "dot": 34,
+      "svg": 34,
+      "png": 34
+    },
+    "contractSchemas": 4,
+    "architectureDecisionRecords": 5,
+    "errors": 0,
+    "warnings": 0
+  },
+  "browserSmoke": {
+    "engine": "Chromium 144",
+    "viewports": [
+      "1440x1000",
+      "390x844"
+    ],
+    "passed": 109,
+    "total": 109,
+    "errors": 0
+  },
+  "goldenReplay": {
+    "replayHash": "62b74418205d61ea",
+    "traceHash": "a41533f05cc6dc53",
+    "eventCount": 7,
+    "traceStages": 18
+  }
+}

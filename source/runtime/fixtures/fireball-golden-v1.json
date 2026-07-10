@@ -1,0 +1,130 @@
+{
+  "fixtureVersion": 1,
+  "name": "default-fireball-golden",
+  "runtimeVersion": "3.2.0-reference",
+  "input": {
+    "rootSeed": 61710,
+    "tick": 18240,
+    "dataVersion": "data.2026.07",
+    "definitionVersion": "definitions.fireball.v3",
+    "formulaVersion": "combat.fire.v2",
+    "caster": {
+      "id": "entity.caster",
+      "hp": 600,
+      "maxHp": 600,
+      "mana": 100,
+      "maxMana": 100,
+      "spellPower": 120
+    },
+    "target": {
+      "id": "entity.target",
+      "hp": 500,
+      "maxHp": 500,
+      "shield": 40,
+      "maxShield": 200,
+      "fireResistanceBps": 2000
+    },
+    "skill": {
+      "definitionId": "skill.fireball",
+      "baseDamage": 24,
+      "coefficientBps": 12000,
+      "hitChanceBps": 9200,
+      "critChanceBps": 2800,
+      "critMultiplierBps": 15000,
+      "manaCost": 20,
+      "cooldownTicks": 60
+    },
+    "burn": {
+      "definitionId": "status.burn",
+      "ratioBps": 1200,
+      "durationTicks": 6,
+      "intervalTicks": 2,
+      "maxCatchUpTicks": 8
+    },
+    "simulateStatusTicks": true
+  },
+  "expected": {
+    "replayHash": "62b74418205d61ea",
+    "traceHash": "a41533f05cc6dc53",
+    "finalState": {
+      "tick": 18246,
+      "entities": {
+        "entity.caster": {
+          "id": "entity.caster",
+          "version": 2,
+          "resources": {
+            "hp": 600,
+            "maxHp": 600,
+            "mana": 80,
+            "maxMana": 100,
+            "shield": 0,
+            "maxShield": 0
+          },
+          "stats": {
+            "spellPower": 120,
+            "fireResistanceBps": 0
+          },
+          "cooldowns": {
+            "skill.fireball": 18300
+          },
+          "statuses": {}
+        },
+        "entity.target": {
+          "id": "entity.target",
+          "version": 6,
+          "resources": {
+            "hp": 281,
+            "maxHp": 500,
+            "mana": 0,
+            "maxMana": 0,
+            "shield": 0,
+            "maxShield": 200
+          },
+          "stats": {
+            "spellPower": 0,
+            "fireResistanceBps": 2000
+          },
+          "cooldowns": {},
+          "statuses": {}
+        }
+      }
+    },
+    "outcome": {
+      "sourceId": "entity.caster",
+      "targetId": "entity.target",
+      "skillDefinitionId": "skill.fireball",
+      "damageType": "fire",
+      "hit": true,
+      "critical": true,
+      "rawDamage": 252,
+      "resolvedDamage": 202,
+      "shieldAbsorbed": 40,
+      "hpDamage": 162,
+      "overkill": 0,
+      "targetHpAfter": 338,
+      "burn": {
+        "definitionId": "status.burn",
+        "tickDamage": 19,
+        "durationTicks": 6,
+        "intervalTicks": 2,
+        "applyWhenTargetAlive": true
+      }
+    },
+    "eventTypes": [
+      "SkillCommitted",
+      "DamageCommitted",
+      "StatusApplied",
+      "StatusTicked",
+      "StatusTicked",
+      "StatusTicked",
+      "StatusExpired"
+    ],
+    "traceCount": 18,
+    "invariants": {
+      "nonNegativeResources": true,
+      "damageConservation": true,
+      "conservationGap": 0,
+      "statusRemovedAfterExpiry": true
+    }
+  }
+}

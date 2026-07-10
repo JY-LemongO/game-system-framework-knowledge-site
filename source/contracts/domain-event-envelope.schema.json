@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gsf.example/contracts/domain-event-envelope.schema.json",
+  "title": "GSF Domain Event Envelope",
+  "description": "commit이 성공한 뒤 발행되는 관찰 가능한 사실의 계약.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "eventId", "type", "correlationId", "causationId", "occurredTick", "payload"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "eventId": { "$ref": "#/$defs/namespacedId" },
+    "type": { "type": "string", "minLength": 1 },
+    "correlationId": { "$ref": "#/$defs/namespacedId" },
+    "causationId": { "$ref": "#/$defs/namespacedId" },
+    "occurredTick": { "type": "integer", "minimum": 0 },
+    "payload": { "$ref": "#/$defs/jsonValue" }
+  },
+  "$defs": {
+    "namespacedId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[A-Za-z0-9_-]+)+$" },
+    "jsonValue": {
+      "anyOf": [
+        { "type": "null" }, { "type": "boolean" }, { "type": "number" }, { "type": "string" },
+        { "type": "array", "items": { "$ref": "#/$defs/jsonValue" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/jsonValue" } }
+      ]
+    }
+  }
+}
