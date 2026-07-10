@@ -1,0 +1,44 @@
+digraph G {
+  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.30, ranksep=0.75, nodesep=0.55, splines=true];
+  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.5, fillcolor="#ffffff", fontcolor="#182033", margin="0.16,0.11"];
+  edge [fontname="Noto Sans CJK KR", color="#59687e", arrowsize=0.8, penwidth=1.4];
+  rankdir=TB;
+
+  Core [shape=component, fillcolor="#eefbf6", label="Core Runtime\nEntity · Tag · SourceId\nEvent · Time · Random"];
+  Stat [shape=component, fillcolor="#eaf0ff", label="Stat System\nFinal Value · Modifier\nResource · Debug"];
+  Effect [shape=component, fillcolor="#fff7e6", label="Effect System\nTarget · Value · Operation\nEffectResult"];
+  Skill [shape=component, fillcolor="#f3eefc", label="Skill / Action\nCost · Cooldown · Timeline\nEffectBundle"];
+  Combat [shape=component, fillcolor="#fff0f3", label="Combat Resolution\nHit · Critical · Armor\nResistance · Shield"];
+  Status [shape=component, fillcolor="#e9fbff", label="Status System\nDuration · Stack · Tick\nModifier · PeriodicEffect"];
+  Equipment [shape=component, style="rounded,dashed,filled", fillcolor="#f8fafc", label="Future: Equipment / Item\nModifier Provider\nTriggeredEffect"];
+  Progression [shape=component, style="rounded,dashed,filled", fillcolor="#f8fafc", label="Future: Progression / Reward\nUnlock · Talent\nSkillMutation"];
+  Fireball [shape=note, fillcolor="#ffffff", label="Fireball Vertical Slice\nSkill → Effect → Combat\nStatus → EventLog"];
+
+  { rank=same; Stat; Effect; Skill; }
+  { rank=same; Combat; Status; }
+  { rank=same; Equipment; Progression; }
+
+  Core -> Stat;
+  Core -> Effect;
+  Core -> Skill;
+  Core -> Combat;
+  Core -> Status;
+
+  Stat -> Effect;
+  Skill -> Effect;
+  Effect -> Combat;
+  Effect -> Status;
+  Combat -> Stat [style=dashed, label="read"];
+  Status -> Stat [style=dashed, label="modifier"];
+  Status -> Effect [style=dashed, label="periodic"];
+
+  Equipment -> Stat [style=dashed];
+  Equipment -> Effect [style=dashed];
+  Progression -> Skill [style=dashed];
+  Progression -> Stat [style=dashed];
+
+  Skill -> Fireball [style=dotted];
+  Effect -> Fireball [style=dotted];
+  Combat -> Fireball [style=dotted];
+  Status -> Fireball [style=dotted];
+}

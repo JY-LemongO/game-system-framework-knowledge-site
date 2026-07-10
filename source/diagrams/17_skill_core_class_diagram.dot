@@ -1,0 +1,84 @@
+
+digraph G {
+  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.70, nodesep=0.50];
+  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
+  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+  rankdir=LR;
+  splines=ortho;
+
+  SkillDefinition [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e0ad4e">
+<TR><TD BGCOLOR="#fff7e6"><B><FONT POINT-SIZE="16">SkillDefinition</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ skillId</TD></TR><TR><TD ALIGN="LEFT">+ tags: Tag[]</TD></TR><TR><TD ALIGN="LEFT">+ costs[]</TD></TR><TR><TD ALIGN="LEFT">+ cooldown</TD></TR><TR><TD ALIGN="LEFT">+ targeting</TD></TR><TR><TD ALIGN="LEFT">+ timeline</TD></TR><TR><TD ALIGN="LEFT">+ effectBundle</TD></TR>
+</TABLE>>];
+  SkillRuntime [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#8292f7">
+<TR><TD BGCOLOR="#eaf0ff"><B><FONT POINT-SIZE="16">SkillRuntime</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ cooldownRemaining</TD></TR><TR><TD ALIGN="LEFT">+ charges</TD></TR><TR><TD ALIGN="LEFT">+ currentCast?</TD></TR><TR><TD ALIGN="LEFT">+ lastUsedTime</TD></TR>
+</TABLE>>];
+  SkillBook [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#8292f7">
+<TR><TD BGCOLOR="#eaf0ff"><B><FONT POINT-SIZE="16">SkillBook</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ owner: EntityId</TD></TR><TR><TD ALIGN="LEFT">+ learnedSkills</TD></TR><TR><TD ALIGN="LEFT">+ getRuntime()</TD></TR>
+</TABLE>>];
+  SkillRequest [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a">
+<TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">SkillRequest</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ caster</TD></TR><TR><TD ALIGN="LEFT">+ skillId</TD></TR><TR><TD ALIGN="LEFT">+ targetRef?</TD></TR><TR><TD ALIGN="LEFT">+ aimPosition?</TD></TR><TR><TD ALIGN="LEFT">+ seed</TD></TR>
+</TABLE>>];
+  SkillValidator [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0">
+<TR><TD BGCOLOR="#f3eefc"><B><FONT POINT-SIZE="16">SkillValidator</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ validateLearned()</TD></TR><TR><TD ALIGN="LEFT">+ validateCost()</TD></TR><TR><TD ALIGN="LEFT">+ validateCooldown()</TD></TR><TR><TD ALIGN="LEFT">+ validateTarget()</TD></TR><TR><TD ALIGN="LEFT">+ validateState()</TD></TR>
+</TABLE>>];
+  CostPolicy [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e07b91">
+<TR><TD BGCOLOR="#fff0f3"><B><FONT POINT-SIZE="16">CostPolicy</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ resource</TD></TR><TR><TD ALIGN="LEFT">+ amount</TD></TR><TR><TD ALIGN="LEFT">+ payTiming</TD></TR><TR><TD ALIGN="LEFT">+ refundPolicy</TD></TR>
+</TABLE>>];
+  CooldownPolicy [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e07b91">
+<TR><TD BGCOLOR="#fff0f3"><B><FONT POINT-SIZE="16">CooldownPolicy</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ duration</TD></TR><TR><TD ALIGN="LEFT">+ group?</TD></TR><TR><TD ALIGN="LEFT">+ charges?</TD></TR><TR><TD ALIGN="LEFT">+ startsAt</TD></TR>
+</TABLE>>];
+  TargetingSpec [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#54b7cf">
+<TR><TD BGCOLOR="#e9fbff"><B><FONT POINT-SIZE="16">TargetingSpec</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ type</TD></TR><TR><TD ALIGN="LEFT">+ range</TD></TR><TR><TD ALIGN="LEFT">+ lineOfSight</TD></TR><TR><TD ALIGN="LEFT">+ previewShape?</TD></TR>
+</TABLE>>];
+  ActionTimeline [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#54b7cf">
+<TR><TD BGCOLOR="#e9fbff"><B><FONT POINT-SIZE="16">ActionTimeline</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ phases[]</TD></TR><TR><TD ALIGN="LEFT">+ markers[]</TD></TR><TR><TD ALIGN="LEFT">+ cancelWindows[]</TD></TR><TR><TD ALIGN="LEFT">+ interruptRules</TD></TR>
+</TABLE>>];
+  EffectBundle [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e0ad4e">
+<TR><TD BGCOLOR="#fff7e6"><B><FONT POINT-SIZE="16">EffectBundle</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ effects[]</TD></TR><TR><TD ALIGN="LEFT">+ executionPolicy</TD></TR><TR><TD ALIGN="LEFT">+ stopPolicy</TD></TR>
+</TABLE>>];
+  SkillExecutor [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#99a8bd">
+<TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">SkillExecutor</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ execute(request)</TD></TR><TR><TD ALIGN="LEFT">+ startTimeline()</TD></TR><TR><TD ALIGN="LEFT">+ buildEffectContext()</TD></TR><TR><TD ALIGN="LEFT">+ publishEvents()</TD></TR>
+</TABLE>>];
+  SkillResult [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#99a8bd">
+<TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">SkillResult</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ status</TD></TR><TR><TD ALIGN="LEFT">+ failureReason?</TD></TR><TR><TD ALIGN="LEFT">+ effectResults[]</TD></TR><TR><TD ALIGN="LEFT">+ debugTrace</TD></TR>
+</TABLE>>];
+  SkillBook -> SkillRuntime [label="owns 0..*"];
+  SkillDefinition -> CostPolicy [label="has"];
+  SkillDefinition -> CooldownPolicy [label="has"];
+  SkillDefinition -> TargetingSpec [label="has"];
+  SkillDefinition -> ActionTimeline [label="has"];
+  SkillDefinition -> EffectBundle [label="executes"];
+  SkillRequest -> SkillExecutor [label="input"];
+  SkillExecutor -> SkillValidator [label="validate"];
+  SkillExecutor -> SkillRuntime [label="read/write"];
+  SkillValidator -> CostPolicy [label="cost"];
+  SkillValidator -> CooldownPolicy [label="cooldown"];
+  SkillValidator -> TargetingSpec [label="target"];
+  SkillExecutor -> ActionTimeline [label="advance"];
+  SkillExecutor -> EffectBundle [label="on marker"];
+  SkillExecutor -> SkillResult [label="returns"];
+}

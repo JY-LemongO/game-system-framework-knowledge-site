@@ -1,0 +1,45 @@
+
+digraph G {
+
+  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.65, nodesep=0.48];
+  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
+  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+
+  rankdir=TB;
+  splines=ortho;
+  node [shape=box, style="rounded,filled", width=2.7, height=0.48];
+  start [shape=circle, label="", width=0.22, fillcolor="#182033", color="#182033"];
+  Build [label="EffectContext 준비
+source, position, skill, tags", fillcolor="#eaf0ff", color="#8292f7"];
+  Selector [shape=diamond, label="selectorType?", fillcolor="#fff7e6", color="#e0ad4e", width=1.55, height=0.8];
+  Self [label="Self / Owner
+자기 자신 선택", fillcolor="#f7f9fc"];
+  Single [label="Single Target
+명시 대상 검증", fillcolor="#f7f9fc"];
+  Area [label="Area / Cone / Line
+공간 후보 수집", fillcolor="#f7f9fc"];
+  Chain [label="Chain / Random
+반복 선택·중복 정책", fillcolor="#f7f9fc"];
+  Candidate [label="CandidateSet 생성
+거리·팀·시야·충돌 기준", fillcolor="#eaf0ff", color="#8292f7"];
+  Filter [label="TargetCondition 필터
+alive, enemy, boss, status, tag", fillcolor="#f3eefc", color="#ab8fe0"];
+  SortLimit [label="정렬/제한
+nearest, lowestHP, maxTargets", fillcolor="#f3eefc", color="#ab8fe0"];
+  Empty [shape=diamond, label="empty?", fillcolor="#fff7e6", color="#e0ad4e", width=1.2, height=0.7];
+  Fail [label="NoValidTarget
+실패 또는 skip", fillcolor="#fff0f3", color="#e07b91"];
+  Return [label="TargetSet 반환
+child context 생성", fillcolor="#eefbf6", color="#61b99a"];
+  end [shape=doublecircle, label="", width=0.28, fillcolor="#ffffff", color="#182033"];
+  start -> Build -> Selector;
+  Selector -> Self [label="Self"];
+  Selector -> Single [label="Single"];
+  Selector -> Area [label="Area"];
+  Selector -> Chain [label="Chain"];
+  Self -> Candidate; Single -> Candidate; Area -> Candidate; Chain -> Candidate;
+  Candidate -> Filter -> SortLimit -> Empty;
+  Empty -> Fail [label="yes"];
+  Empty -> Return [label="no"];
+  Fail -> end; Return -> end;
+}

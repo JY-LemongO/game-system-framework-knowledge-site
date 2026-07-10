@@ -1,0 +1,49 @@
+digraph ComponentDiagram {
+	graph [bgcolor=white fontname="Noto Sans CJK KR" fontsize=18 label="UML Component Diagram - Reusable Stat Framework Boundary" labelloc=t nodesep=0.55 rankdir=TB ranksep=0.85 splines=ortho]
+	node [color="#425466" fontname="Noto Sans CJK KR" fontsize=11 shape=box style="rounded,filled"]
+	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans CJK KR" fontsize=10]
+	subgraph cluster_content {
+		color="#D0D7DE" fontname="Noto Sans CJK KR" label="Content / Data Layer" style=rounded
+		StatDefs [label="StatDefinition Data
+(JSON / CSV / ScriptableObject)" fillcolor="#FFF3CD"]
+		ModifierDefs [label="Modifier / Status / Item Data" fillcolor="#FFF3CD"]
+		FormulaDefs [label="Derived Stat Formula Data" fillcolor="#FFF3CD"]
+	}
+	subgraph cluster_stat {
+		color="#8AA4F5" fontname="Noto Sans CJK KR" label="Reusable Stat Framework" style="rounded,bold"
+		Repo [label="Definition Repository" fillcolor="#E8F0FE"]
+		Block [label="StatBlock + StatInstance" fillcolor="#E8F0FE"]
+		ModReg [label="Modifier Registry
+Stack / Source / Duration" fillcolor="#DFF7E4"]
+		Pipeline [label="Calculation Pipeline
+Operation Order + Clamp" fillcolor="#E0F7FA"]
+		Events [label="Stat Event Bus" fillcolor="#E0F7FA"]
+		Debug [label="Debug Breakdown + Logs" fillcolor="#F3E5F5"]
+		Save [label="Snapshot / Save Adapter" fillcolor="#F1F8E9"]
+	}
+	subgraph cluster_game {
+		color="#D0D7DE" fontname="Noto Sans CJK KR" label="Game-Specific Systems" style=rounded
+		Skill [label="Skill / Effect System" fillcolor="#FCE8E6"]
+		Combat [label="Combat Formula
+Damage / Hit / Crit" fillcolor="#FCE8E6"]
+		Equip [label="Equipment System" fillcolor="#FCE8E6"]
+		Status [label="Status / Buff System" fillcolor="#FCE8E6"]
+		UI [label="UI / HUD / Tooltip" fillcolor="#FCE8E6"]
+		AI [label="AI / Decision System" fillcolor="#FCE8E6"]
+	}
+	StatDefs -> Repo
+	ModifierDefs -> ModReg
+	FormulaDefs -> Pipeline
+	Repo -> Block
+	ModReg -> Block
+	Block -> Pipeline
+	Pipeline -> Debug
+	Pipeline -> Events
+	Block -> Save
+	Skill -> Block [label="query / apply"]
+	Equip -> ModReg [label="add/remove by source"]
+	Status -> ModReg [label="duration + stack"]
+	Combat -> Block [label="read final values"]
+	UI -> Events [label=subscribe]
+	AI -> Block [label="query context"]
+}

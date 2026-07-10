@@ -1,0 +1,128 @@
+[
+  {
+    "file": "index.html",
+    "short": "홈",
+    "title": "Game System Framework",
+    "desc": "Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스",
+    "key": "home",
+    "group": "시작",
+    "level": "Overview"
+  },
+  {
+    "file": "modules/core-runtime.html",
+    "short": "Core Runtime",
+    "title": "Core Runtime / System Contract",
+    "desc": "Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약",
+    "key": "core",
+    "group": "Foundation",
+    "level": "Foundation"
+  },
+  {
+    "file": "modules/stat-system.html",
+    "short": "Stat System",
+    "title": "Stat System",
+    "desc": "스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조",
+    "key": "stat",
+    "group": "Core Systems",
+    "level": "Core"
+  },
+  {
+    "file": "modules/effect-system.html",
+    "short": "Effect System",
+    "title": "Effect System",
+    "desc": "EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계",
+    "key": "effect damage status",
+    "group": "Core Systems",
+    "level": "Bridge"
+  },
+  {
+    "file": "modules/skill-action-system.html",
+    "short": "Skill / Action",
+    "title": "Skill / Action System",
+    "desc": "비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조",
+    "key": "skill action cooldown targeting timeline",
+    "group": "Core Systems",
+    "level": "Action"
+  },
+  {
+    "file": "modules/combat-resolution-system.html",
+    "short": "Combat",
+    "title": "Combat Resolution System",
+    "desc": "명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조",
+    "key": "combat damage hit critical armor resistance shield",
+    "group": "Core Systems",
+    "level": "Resolution"
+  },
+  {
+    "file": "modules/status-system.html",
+    "short": "Status",
+    "title": "Status System",
+    "desc": "버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조",
+    "key": "status buff debuff stack duration tick burn rage",
+    "group": "Core Systems",
+    "level": "Runtime"
+  },
+  {
+    "file": "modules/integration-map.html",
+    "short": "통합 구조",
+    "title": "Integration Map",
+    "desc": "Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약",
+    "key": "integration dependency contract",
+    "group": "Architecture",
+    "level": "Architecture"
+  },
+  {
+    "file": "modules/fireball-case-study.html",
+    "short": "Fireball 예제",
+    "title": "Fireball Case Study",
+    "desc": "하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름",
+    "key": "case fireball burn damage",
+    "group": "Practice",
+    "level": "Case Study"
+  },
+  {
+    "file": "modules/diagram-gallery.html",
+    "short": "다이어그램",
+    "title": "Diagram Gallery",
+    "desc": "전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리",
+    "key": "diagrams uml class sequence activity state",
+    "group": "Reference",
+    "level": "Reference"
+  },
+  {
+    "file": "modules/glossary.html",
+    "short": "용어집",
+    "title": "Glossary",
+    "desc": "반복되는 시스템 설계 용어와 UML 기초 문법",
+    "key": "glossary terms",
+    "group": "Reference",
+    "level": "Reference"
+  },
+  {
+    "file": "modules/implementation-roadmap.html",
+    "short": "로드맵",
+    "title": "Implementation Roadmap",
+    "desc": "MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서",
+    "key": "roadmap implementation mvp",
+    "group": "Implementation",
+    "level": "Build Plan"
+  },
+  {
+    "file": "modules/skill-combat-next.html",
+    "short": "다음 확장",
+    "title": "Equipment / Progression 확장안",
+    "desc": "다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안",
+    "key": "next equipment item progression reward",
+    "group": "Implementation",
+    "level": "Next"
+  },
+  {
+    "file": "modules/quality-audit.html",
+    "short": "품질 점검",
+    "title": "문서 품질 점검",
+    "desc": "UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준",
+    "key": "audit quality review check",
+    "group": "Maintenance",
+    "level": "QA"
+  }
+]

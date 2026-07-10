@@ -1,0 +1,35 @@
+digraph ModifierStateDiagram {
+	graph [bgcolor=white fontname="Noto Sans CJK KR" fontsize=18 label="UML State Diagram - StatModifier Lifecycle" labelloc=t nodesep=0.55 rankdir=LR ranksep=0.75 splines=ortho]
+	node [color="#425466" fontname="Noto Sans CJK KR" fontsize=11 shape=box style="rounded,filled"]
+	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans CJK KR" fontsize=10]
+	created [label="Created
+데이터에서 생성됨" fillcolor="#FFF3CD"]
+	pending [label="Pending
+조건/대상 검증 대기" fillcolor="#E8F0FE"]
+	active [label="Active
+계산 대상에 포함" fillcolor="#DFF7E4"]
+	suspended [label="Suspended
+조건 불충족, 보존됨" fillcolor="#F3E5F5"]
+	stacked [label="Stacked / Refreshed
+중첩 규칙 적용" fillcolor="#E0F7FA"]
+	expired [label="Expired
+시간/횟수 종료" fillcolor="#FCE8E6"]
+	removed [label="Removed
+source 제거/장비 해제" fillcolor="#FCE8E6"]
+	serialized [label="Serialized
+저장 가능한 상태" fillcolor="#F1F8E9"]
+	final [label=Final fillcolor="#111827" fontcolor=white shape=doublecircle]
+	created -> pending [label="attach(owner)"]
+	pending -> active [label="valid target + condition true"]
+	pending -> removed [label="invalid target"]
+	active -> suspended [label="condition false"]
+	suspended -> active [label="condition true"]
+	active -> stacked [label="same source/id reapplied"]
+	stacked -> active [label="merge/refresh/recalculate"]
+	active -> expired [label="duration <= 0 or uses = 0"]
+	active -> removed [label="removeBySource / dispel"]
+	active -> serialized [label="save snapshot"]
+	serialized -> active [label="load snapshot"]
+	expired -> final
+	removed -> final
+}

@@ -1,0 +1,65 @@
+
+digraph G {
+
+  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.65, nodesep=0.48];
+  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
+  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+
+  rankdir=LR;
+  splines=ortho;
+  node [shape=box, style="rounded,filled", width=2.2, height=0.55];
+  subgraph cluster_core {
+    label="Core Layer: 재사용성이 가장 높은 계층"; color="#dfe5ee"; style="rounded,dashed"; fontname="Noto Sans CJK KR"; fontsize=18; fontcolor="#607086";
+    Entity [label="Entity / Owner
+플레이어·몬스터·소환수", fillcolor="#edf5ff", color="#7aa7df"];
+    Stat [label="Stat System
+값·Modifier·Resource", fillcolor="#eaf0ff", color="#8292f7"];
+    Event [label="Event Bus
+OnHit·OnKill·OnStatChanged", fillcolor="#eefbf6", color="#61b99a"];
+    Condition [label="Condition / Context
+조건·문맥 검사", fillcolor="#fff7e6", color="#e0ad4e"];
+    Tag [label="Tag System
+fire·melee·boss·skill", fillcolor="#f3eefc", color="#ab8fe0"];
+  }
+  subgraph cluster_bridge {
+    label="Bridge Layer: 시스템을 연결하는 효과 계층"; color="#dfe5ee"; style="rounded,dashed"; fontname="Noto Sans CJK KR"; fontsize=18; fontcolor="#607086";
+    Effect [label="Effect System
+대상·값·결과 적용", fillcolor="#fff0f3", color="#e07b91", penwidth=2.2];
+  }
+  subgraph cluster_game {
+    label="Game Layer: 장르/프로젝트별 규칙"; color="#dfe5ee"; style="rounded,dashed"; fontname="Noto Sans CJK KR"; fontsize=18; fontcolor="#607086";
+    Skill [label="Skill / Action
+비용·타임라인·입력", fillcolor="#f7f9fc"];
+    Combat [label="Combat Resolution
+명중·치명타·피해", fillcolor="#f7f9fc"];
+    Status [label="Status System
+버프·디버프·틱", fillcolor="#f7f9fc"];
+    Equipment [label="Equipment / Item
+장비·Affix·Set", fillcolor="#f7f9fc"];
+    Progression [label="Progression
+레벨·성장·해금", fillcolor="#f7f9fc"];
+    Reward [label="Reward / Roguelite
+선택지·업그레이드", fillcolor="#f7f9fc"];
+  }
+  Debug [label="Debug / Balance Tools
+Breakdown·CombatLog·Simulator", fillcolor="#f0f3f9", color="#99a8bd"];
+
+  Entity -> Stat [label="owns"];
+  Stat -> Effect [label="값 조회"];
+  Event -> Effect [label="트리거"];
+  Condition -> Effect [label="검증"];
+  Tag -> Effect [label="분류"];
+  Skill -> Effect [label="효과 묶음 실행"];
+  Effect -> Combat [label="DamageRequest"];
+  Effect -> Status [label="ApplyStatus"];
+  Status -> Stat [label="Modifier 제공"];
+  Equipment -> Stat [label="Modifier source"];
+  Progression -> Stat [label="base 변경"];
+  Reward -> Effect [label="Effect/Reaction 제공"];
+  Reward -> Stat [label="런 중 Modifier"];
+  Effect -> Event [label="EffectApplied"];
+  Stat -> Event [label="StatChanged"];
+  Stat -> Debug [label="Breakdown"];
+  Effect -> Debug [label="EffectLog"];
+  Combat -> Debug [label="CombatLog"];
+}

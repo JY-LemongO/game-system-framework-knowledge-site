@@ -1,0 +1,61 @@
+digraph DataModelDiagram {
+	graph [bgcolor=white fontname="Noto Sans CJK KR" fontsize=18 label="UML Data Model Diagram - Definition Data and Runtime State" labelloc=t nodesep=0.55 rankdir=LR ranksep=0.85 splines=ortho]
+	node [fontname="Noto Sans CJK KR" shape=plain]
+	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans CJK KR" fontsize=10]
+	StatDefinitionData [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
+<TR><TD BGCOLOR="#FFF3CD"><FONT POINT-SIZE="12"><B>StatDefinitionData</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">statId PK</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">name</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">default/min/max</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">valueType</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">displayFormat</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10"> </FONT></TD></TR>
+</TABLE>
+>]
+	DerivedFormulaData [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
+<TR><TD BGCOLOR="#FFF3CD"><FONT POINT-SIZE="12"><B>DerivedFormulaData</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">statId FK</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">formulaId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">dependencyStatIds[]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">cachePolicy</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10"> </FONT></TD></TR>
+</TABLE>
+>]
+	ModifierDefinitionData [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
+<TR><TD BGCOLOR="#DFF7E4"><FONT POINT-SIZE="12"><B>ModifierDefinitionData</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">modifierId PK</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">targetStatId FK</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">operation</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">valueExpression</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">stackRule</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">conditionIds[]</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10"> </FONT></TD></TR>
+</TABLE>
+>]
+	StatusDefinitionData [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
+<TR><TD BGCOLOR="#FCE8E6"><FONT POINT-SIZE="12"><B>StatusDefinitionData</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">statusId PK</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">duration</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">tickPolicy</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">modifierIds[]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">periodicEffectIds[]</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10"> </FONT></TD></TR>
+</TABLE>
+>]
+	ItemDefinitionData [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
+<TR><TD BGCOLOR="#FCE8E6"><FONT POINT-SIZE="12"><B>ItemDefinitionData</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">itemId PK</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">slot</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">modifierIds[]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">tags[]</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10"> </FONT></TD></TR>
+</TABLE>
+>]
+	StatRuntimeState [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
+<TR><TD BGCOLOR="#E8F0FE"><FONT POINT-SIZE="12"><B>StatRuntimeState</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">ownerId PK</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">baseValues</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">currentResources</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">activeModifierStates[]</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10"> </FONT></TD></TR>
+</TABLE>
+>]
+	ModifierRuntimeState [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
+<TR><TD BGCOLOR="#E8F0FE"><FONT POINT-SIZE="12"><B>ModifierRuntimeState</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">modifierId FK</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">sourceId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">remainingDuration</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">stackCount</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">enabled</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10"> </FONT></TD></TR>
+</TABLE>
+>]
+	DerivedFormulaData -> StatDefinitionData [label="extends stat definition"]
+	ModifierDefinitionData -> StatDefinitionData [label=targets]
+	StatusDefinitionData -> ModifierDefinitionData [label="contains 0..*"]
+	ItemDefinitionData -> ModifierDefinitionData [label="grants 0..*"]
+	StatRuntimeState -> StatDefinitionData [label="references values"]
+	StatRuntimeState -> ModifierRuntimeState [label="contains states"]
+	ModifierRuntimeState -> ModifierDefinitionData [label=definition]
+}

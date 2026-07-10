@@ -1,0 +1,53 @@
+
+digraph G {
+  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.70, nodesep=0.50];
+  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
+  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+  rankdir=LR;
+  splines=ortho;
+
+  subgraph cluster_definition {
+    label="Definition Data: 패치와 밸런싱 대상"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
+    SkillDef [label="SkillDefinition
+id, tags, display", fillcolor="#fff7e6", color="#e0ad4e"];
+    CostDef [label="CostDefinition
+resource, amount, timing", fillcolor="#fff0f3", color="#e07b91"];
+    CooldownDef [label="CooldownDefinition
+duration, group, charges", fillcolor="#fff0f3", color="#e07b91"];
+    TargetDef [label="TargetingSpec
+type, range, los", fillcolor="#e9fbff", color="#54b7cf"];
+    TimelineDef [label="TimelineDefinition
+phases, markers, cancels", fillcolor="#e9fbff", color="#54b7cf"];
+    BundleRef [label="EffectBundleRef
+effect ids + policy", fillcolor="#fff7e6", color="#e0ad4e"];
+  }
+  subgraph cluster_runtime {
+    label="Runtime State: 저장/로드와 현재 전투 상태"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
+    SkillBook [label="SkillBook
+learned skill ids", fillcolor="#eaf0ff", color="#8292f7"];
+    SkillRuntime [label="SkillRuntime
+cooldown, charges", fillcolor="#eaf0ff", color="#8292f7"];
+    CastState [label="CurrentCastState
+phase, elapsed, marker", fillcolor="#eaf0ff", color="#8292f7"];
+  }
+  subgraph cluster_log {
+    label="Execution Log: 디버그와 리플레이"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
+    SkillRequest [label="SkillRequest
+caster, target, seed", fillcolor="#eefbf6", color="#61b99a"];
+    SkillResult [label="SkillResult
+status, effectResults", fillcolor="#f0f3f9", color="#99a8bd"];
+    SkillTrace [label="SkillTrace
+steps, costs, events", fillcolor="#f0f3f9", color="#99a8bd"];
+  }
+  SkillDef -> CostDef [label="has"];
+  SkillDef -> CooldownDef [label="has"];
+  SkillDef -> TargetDef [label="has"];
+  SkillDef -> TimelineDef [label="has"];
+  SkillDef -> BundleRef [label="has"];
+  SkillBook -> SkillRuntime [label="owns"];
+  SkillRuntime -> SkillDef [label="definition id"];
+  SkillRuntime -> CastState [label="current cast"];
+  SkillRequest -> SkillDef [label="lookup"];
+  SkillRequest -> SkillResult [label="executes"];
+  SkillResult -> SkillTrace [label="debug"];
+}

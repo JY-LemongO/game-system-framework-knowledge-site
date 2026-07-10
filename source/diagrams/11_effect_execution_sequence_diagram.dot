@@ -1,0 +1,46 @@
+
+digraph G {
+
+  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.65, nodesep=0.48];
+  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
+  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+
+  rankdir=TB;
+  splines=ortho;
+  node [shape=box, style="rounded,filled", width=2.6, height=0.45];
+  start [shape=circle, label="", width=0.22, fillcolor="#182033", color="#182033"];
+  Skill [label="1. SkillSystem
+EffectBundle 실행 요청", fillcolor="#f7f9fc"];
+  Request [label="2. EffectPipeline
+EffectRequest + Context 생성", fillcolor="#eaf0ff", color="#8292f7"];
+  Validate [label="3. Condition 검증
+쿨다운/태그/상태/자원", fillcolor="#fff7e6", color="#e0ad4e"];
+  Target [label="4. TargetResolver
+후보 수집→필터→정렬", fillcolor="#f3eefc", color="#ab8fe0"];
+  Value [label="5. ValueResolver
+StatSystem.getValue(ctx)", fillcolor="#eefbf6", color="#61b99a"];
+  Dispatch [label="6. Executor Dispatch
+Damage/Heal/ApplyStatus/...", fillcolor="#eaf0ff", color="#8292f7"];
+  Combat [label="7A. CombatSystem
+명중·치명타·방어·저항", fillcolor="#fff0f3", color="#e07b91"];
+  Status [label="7B. StatusSystem
+상태·Modifier 부착", fillcolor="#fff0f3", color="#e07b91"];
+  Stat [label="7C. StatSystem
+Resource/Modifier 변경", fillcolor="#fff0f3", color="#e07b91"];
+  Result [label="8. EffectResult 병합
+성공/실패/부분 성공", fillcolor="#eaf0ff", color="#8292f7"];
+  Event [label="9. EventBus publish
+EffectApplied, DamageDealt", fillcolor="#eefbf6", color="#61b99a"];
+  Log [label="10. EffectLog / CombatLog
+디버그·리플레이 근거", fillcolor="#f0f3f9", color="#99a8bd"];
+  end [shape=doublecircle, label="", width=0.28, fillcolor="#ffffff", color="#182033"];
+
+  start -> Skill -> Request -> Validate -> Target -> Value -> Dispatch;
+  Dispatch -> Combat [label="DamageEffect"];
+  Dispatch -> Status [label="ApplyStatus"];
+  Dispatch -> Stat [label="ModifyResource/AddModifier"];
+  Combat -> Result;
+  Status -> Result;
+  Stat -> Result;
+  Result -> Event -> Log -> end;
+}
