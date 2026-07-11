@@ -14,7 +14,12 @@ digraph G {
   SkillRuntime [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#8292f7">
 <TR><TD BGCOLOR="#eaf0ff"><B><FONT POINT-SIZE="16">SkillRuntime</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ CooldownRemaining</TD></TR><TR><TD ALIGN="LEFT">+ Charges</TD></TR><TR><TD ALIGN="LEFT">+ CurrentCast?</TD></TR><TR><TD ALIGN="LEFT">+ LastUsedTime</TD></TR>
+<TR><TD ALIGN="LEFT">+ CooldownRemaining</TD></TR><TR><TD ALIGN="LEFT">+ Charges</TD></TR><TR><TD ALIGN="LEFT">+ LearnedLevel</TD></TR><TR><TD ALIGN="LEFT">+ LastUsedTime</TD></TR>
+</TABLE>>];
+  SkillExecution [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#54b7cf">
+<TR><TD BGCOLOR="#e9fbff"><B><FONT POINT-SIZE="16">&lt;&lt;internal project model&gt;&gt; SkillExecution</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ ExecutionId</TD></TR><TR><TD ALIGN="LEFT">+ Phase</TD></TR><TR><TD ALIGN="LEFT">+ ReleaseMarker?</TD></TR><TR><TD ALIGN="LEFT">+ CancelState</TD></TR>
 </TABLE>>];
   SkillBook [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#8292f7">
@@ -23,13 +28,18 @@ digraph G {
 </TABLE>>];
   SkillRequest [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a">
-<TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">SkillRequest</FONT></B></TD></TR>
+<TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">&lt;&lt;public contract&gt;&gt; SkillRequest</FONT></B></TD></TR>
 <TR><TD ALIGN="LEFT">+ CasterId</TD></TR><TR><TD ALIGN="LEFT">+ SkillId</TD></TR><TR><TD ALIGN="LEFT">+ TargetId?</TD></TR><TR><TD ALIGN="LEFT">+ RequestedTick</TD></TR><TR><TD ALIGN="LEFT">+ RootSeed</TD></TR>
 </TABLE>>];
   SkillValidator [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0">
-<TR><TD BGCOLOR="#f3eefc"><B><FONT POINT-SIZE="16">SkillValidator</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ ValidateLearned()</TD></TR><TR><TD ALIGN="LEFT">+ ValidateCost()</TD></TR><TR><TD ALIGN="LEFT">+ ValidateCooldown()</TD></TR><TR><TD ALIGN="LEFT">+ ValidateTarget()</TD></TR><TR><TD ALIGN="LEFT">+ ValidateState()</TD></TR>
+<TR><TD BGCOLOR="#f3eefc"><B><FONT POINT-SIZE="16">&lt;&lt;public interface&gt;&gt; ISkillRequestValidator</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ Validate(SkillRequest): SkillDecision</TD></TR>
+</TABLE>>];
+  SkillDecision [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0">
+<TR><TD BGCOLOR="#f3eefc"><B><FONT POINT-SIZE="16">&lt;&lt;public contract&gt;&gt; SkillDecision</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ CanExecute</TD></TR><TR><TD ALIGN="LEFT">+ FailureReason?</TD></TR><TR><TD ALIGN="LEFT">+ Accepted() / Rejected(reason)</TD></TR>
 </TABLE>>];
   CostPolicy [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e07b91">
@@ -53,17 +63,17 @@ digraph G {
 </TABLE>>];
   EffectBundle [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e0ad4e">
-<TR><TD BGCOLOR="#fff7e6"><B><FONT POINT-SIZE="16">EffectBundle</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ Effects[]</TD></TR><TR><TD ALIGN="LEFT">+ ExecutionPolicy</TD></TR><TR><TD ALIGN="LEFT">+ StopPolicy</TD></TR>
+<TR><TD BGCOLOR="#fff7e6"><B><FONT POINT-SIZE="16">&lt;&lt;public Effect contract&gt;&gt; EffectBundle</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ BundleId</TD></TR><TR><TD ALIGN="LEFT">+ Effects: EffectOperation[]</TD></TR><TR><TD ALIGN="LEFT">+ Reactions: ReactionRule[]</TD></TR><TR><TD ALIGN="LEFT">+ Policy: CommitThenReact</TD></TR>
 </TABLE>>];
-  ISkillService [shape=plain, label=<
+  Coordinator [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#99a8bd">
-<TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">&lt;&lt;interface&gt;&gt; ISkillService</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ Begin(request)</TD></TR><TR><TD ALIGN="LEFT">+ CommitRelease(execution)</TD></TR><TR><TD ALIGN="LEFT">+ Interrupt(execution)</TD></TR>
+<TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">&lt;&lt;internal project-specific coordinator&gt;&gt;<BR/>SkillExecutionCoordinator</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ Begin(request): SkillExecution</TD></TR><TR><TD ALIGN="LEFT">+ PrepareRelease(execution): &lt;&lt;internal&gt;&gt; SkillReleasePlan</TD></TR><TR><TD ALIGN="LEFT">+ Interrupt(execution): SkillResult</TD></TR>
 </TABLE>>];
   SkillResult [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#99a8bd">
-<TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">SkillResult</FONT></B></TD></TR>
+<TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">&lt;&lt;public contract&gt;&gt; SkillResult</FONT></B></TD></TR>
 <TR><TD ALIGN="LEFT">+ Succeeded</TD></TR><TR><TD ALIGN="LEFT">+ FailureReason?</TD></TR><TR><TD ALIGN="LEFT">+ Effects: IReadOnlyList&lt;EffectResult&gt;</TD></TR>
 </TABLE>>];
   SkillBook -> SkillRuntime [label="owns 0..*"];
@@ -72,13 +82,16 @@ digraph G {
   SkillDefinition -> TargetingSpec [label="has"];
   SkillDefinition -> ActionTimeline [label="has"];
   SkillDefinition -> EffectBundle [label="executes"];
-  SkillRequest -> ISkillService [label="input"];
-  ISkillService -> SkillValidator [label="validate"];
-  ISkillService -> SkillRuntime [label="read/write"];
+  SkillRequest -> SkillValidator [label="Validate"];
+  SkillRequest -> Coordinator [label="request data"];
+  SkillValidator -> SkillDecision [label="returns"];
+  SkillDecision -> Coordinator [label="accepted request"];
+  Coordinator -> SkillRuntime [label="read snapshot / plan mutation"];
+  Coordinator -> SkillExecution [label="creates"];
   SkillValidator -> CostPolicy [label="cost"];
   SkillValidator -> CooldownPolicy [label="cooldown"];
   SkillValidator -> TargetingSpec [label="target"];
-  ISkillService -> ActionTimeline [label="advance"];
-  ISkillService -> EffectBundle [label="on marker"];
-  ISkillService -> SkillResult [label="returns"];
+  SkillExecution -> ActionTimeline [label="advances"];
+  Coordinator -> EffectBundle [label="passes to public IEffectPlanner.Prepare"];
+  Coordinator -> SkillResult [label="returns"];
 }

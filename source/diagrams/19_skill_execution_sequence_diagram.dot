@@ -4,18 +4,20 @@ digraph G {
   edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
   rankdir=TB;
 
-  A [fillcolor="#eaf0ff", color="#8292f7", label="1. Player Input / AI\nSkillRequest 생성"];
-  B [fillcolor="#f0f3f9", color="#99a8bd", label="2. SkillController\nSkillDefinition + SkillRuntime 조회"];
-  C [fillcolor="#f3eefc", color="#ab8fe0", label="3. SkillValidator\n비용 · 쿨다운 · 상태 · 사거리 검증"];
-  D [fillcolor="#fff7e6", color="#e0ad4e", label="4. CostPolicy\n비용 예약 또는 선지불"];
-  E [fillcolor="#e9fbff", color="#54b7cf", label="5. ActionTimeline\nwindup → release marker"];
-  F [fillcolor="#eefbf6", color="#61b99a", label="6. EffectContext 생성\nCasterId · InitialTargetId · Source · RandomSeed"];
-  G [fillcolor="#fff0f3", color="#e07b91", label="7. EffectService\nEffectBundle 실행"];
-  H [fillcolor="#fff0f3", color="#e07b91", label="8. EffectResult 수집\nDamage / Status 결과 포함"];
-  I [fillcolor="#f0f3f9", color="#99a8bd", label="9. SkillResult 작성\nSucceeded · FailureReason · Effects"];
-  J [fillcolor="#eefbf6", color="#61b99a", label="10. commit 이후 EventBus\nSkillCommitted / SkillInterrupted"];
+  A [fillcolor="#eaf0ff", color="#8292f7", label="1. Player Input / AI\npublic SkillRequest"];
+  B [fillcolor="#f0f3f9", color="#99a8bd", label="2. <<internal project coordinator>>\nSkillExecutionCoordinator.Begin\nDefinition + SkillRuntime 조회"];
+  C [fillcolor="#f3eefc", color="#ab8fe0", label="3. <<public>> ISkillRequestValidator.Validate\nSkillDecision accepted / rejected"];
+  D [fillcolor="#e9fbff", color="#54b7cf", label="4. <<internal project model>> SkillExecution\nwindup → release marker"];
+  E [fillcolor="#eefbf6", color="#61b99a", label="5. <<internal project model>> SkillReleasePlan\n비용 · 쿨다운 mutation 준비"];
+  F [fillcolor="#fff7e6", color="#e0ad4e", label="6. <<public>> IEffectPlanner.Prepare\nEffectBundlePlan: operations + reactions"];
+  G [fillcolor="#fff0f3", color="#e07b91", label="7. <<internal transaction composition>>\nSkillReleasePlan + EffectBundlePlan"];
+  H [fillcolor="#eefbf6", color="#61b99a", label="8. RuntimeCommitter\nstate + outbox 원자적 commit"];
+  I [fillcolor="#e9fbff", color="#54b7cf", label="9. Committed facts\nSkillCommitted · DamageCommitted"];
+  J [fillcolor="#f3eefc", color="#ab8fe0", label="10. ReactionQueue\nBurn 등 상태 변경 반응 enqueue"];
+  K [fillcolor="#f0f3f9", color="#99a8bd", label="11. <<public contract>> SkillResult\nSucceeded · FailureReason · Effects"];
 
-  A -> B -> C -> D -> E -> F -> G -> H -> I -> J;
-  C -> I [label="validation failed", style=dashed, color="#dc2626", fontcolor="#dc2626"];
-  E -> I [label="interrupted / cancelled", style=dashed, color="#dc2626", fontcolor="#dc2626"];
+  A -> B -> C -> D -> E -> F -> G -> H -> I -> J -> K;
+  C -> K [label="canonical failure reason", style=dashed, color="#dc2626", fontcolor="#dc2626"];
+  D -> K [label="Interrupted policy", style=dashed, color="#dc2626", fontcolor="#dc2626"];
+  H -> K [label="commit rejected: no mutation/event", style=dashed, color="#dc2626", fontcolor="#dc2626"];
 }

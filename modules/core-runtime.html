@@ -224,7 +224,7 @@
         TagSet
        </span>
 <span class="badge">
-        SourceId
+	        SourceRef
        </span>
 <span class="badge">
         EventBus
@@ -268,7 +268,7 @@
 </tr>
 <tr>
 <td>
-         EntityId, EntityRef, SourceId 같은 공통 식별자 규칙
+	         EntityId, EntityRef, SourceRef 같은 공통 식별자 규칙
         </td>
 <td>
          피해량 공식이나 명중/치명타 판정
@@ -348,15 +348,11 @@
        </p>
 </div>
 <div class="card">
-<h3 id="sourceid-sourceref">
-        SourceId / SourceRef
+<h3 id="source-identity-sourceref">
+	        Source identity / SourceRef
        </h3>
 <p>
-        Modifier, Effect, Status, Equipment, Reward가 어디서 왔는지 추적한다. 장비 해제나 상태 제거 시
-        <code>
-         SourceId
-        </code>
-         기준으로 관련 Modifier를 안전하게 제거할 수 있다. 공개 계약의 ID는 <code>namespace.segment</code> 형태로 통일하고, SourceRef는 Kind, DefinitionId, InstanceId를 분리한다.
+	        Modifier, Effect, Status가 어디서 왔는지 나타내는 개념이 source identity다. 공개 C# 계약은 이를 별도 문자열 ID가 아니라 <code>SourceRef</code>로 표현하고 Kind, DefinitionId, InstanceId를 분리한다. 제거와 추적에는 등록할 때 보존한 동일한 SourceRef를 사용한다.
        </p>
 </div>
 <div class="card">
@@ -449,7 +445,7 @@
          StatInstance, SkillRuntime, StatusInstance, ItemInstance
         </td>
 <td>
-         특정 Entity나 세션에 종속되는 현재 상태다. 저장/로드 대상이며 InstanceId와 원천 SourceId를 분리해 추적한다.
+	         특정 Entity나 세션에 종속되는 현재 상태다. 저장/로드 대상이며 자체 InstanceId와 원천 SourceRef를 분리해 추적한다.
         </td>
 </tr>
 <tr>
@@ -478,17 +474,16 @@
 </div>
 <p>다음 JSON은 C# 런타임 객체를 저장·리플레이 경계에서 직렬화한 데이터 예시다.</p>
 <pre><code class="language-json">{
-  "entityId": "entity.player_001",
+  "entityId": "entity.player.001",
   "source": {
-    "sourceId": "status-instance.burn.8231",
-    "kind": "status-instance",
+    "kind": "status",
     "definitionId": "status.burn",
     "instanceId": "status-instance.burn.8231"
   },
   "context": {
     "time": 42.75,
     "tags": ["fire", "dot", "skill"],
-    "randomStream": "random.combat.cast_904"
+    "randomStream": "random.combat.cast.0904"
   }
 }</code></pre>
 <h2 id="시스템-계약-api">
@@ -540,7 +535,7 @@
          Publish&lt;TEvent&gt;(TEvent), Subscribe&lt;TEvent&gt;(Action&lt;TEvent&gt;)
         </td>
 <td>
-         장비의 TriggeredEffect가 DamageCommitted(hit=true)에 반응한다.
+         장비의 TriggeredEffect가 DamageCommitted(outcome=Hit)에 반응한다.
         </td>
 </tr>
 <tr>
@@ -579,38 +574,83 @@
 </table>
 </div>
 <h3 id="csharp-core-contracts">C# 계약 예제</h3>
-<p>식별자는 문자열을 그대로 전달하지 않고 값 타입으로 감싸며, 시간·랜덤·이벤트는 소비자가 필요한 최소 인터페이스로 주입한다.</p>
-<pre><code class="language-csharp">public readonly struct EntityId : IEquatable&lt;EntityId&gt;
+<p>식별자는 문자열을 그대로 전달하지 않고 값 타입으로 감싼다. 이 예제는 <code>entity.caster</code>처럼 소문자 namespace와 local ID가 점으로 구분된 형식만 허용한다. 시간·랜덤·이벤트는 소비자가 필요한 최소 인터페이스로 주입한다.</p>
+<pre><code class="language-csharp">using System.Text.RegularExpressions;
+
+public readonly record struct EntityId : IComparable&lt;EntityId&gt;
 {
+    private static readonly Regex IdPattern = new(
+        @"^[a-z][a-z0-9-]*(?:\.[a-z0-9][a-z0-9_-]*)+$",
+        RegexOptions.CultureInvariant);
+
     public string Value { get; }
 
     public EntityId(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-            throw new ArgumentException("EntityId is required.", nameof(value));
+        if (!TryValidate(value))
+            throw new ArgumentException("Use a canonical namespaced ID.", nameof(value));
 
         Value = value;
     }
 
-    public bool Equals(EntityId other) =&gt;
-        string.Equals(Value, other.Value, StringComparison.Ordinal);
-    public override bool Equals(object obj) =&gt; obj is EntityId other &amp;&amp; Equals(other);
-    public override int GetHashCode() =&gt;
-        StringComparer.Ordinal.GetHashCode(Value ?? string.Empty);
+    public static bool TryCreate(string value, out EntityId id)
+    {
+        if (!TryValidate(value))
+        {
+            id = default;
+            return false;
+        }
+
+        id = new EntityId(value);
+        return true;
+    }
+
+    public int CompareTo(EntityId other) =&gt;
+        StringComparer.Ordinal.Compare(Value, other.Value);
+
+    private static bool TryValidate(string value) =&gt;
+        !string.IsNullOrWhiteSpace(value) &amp;&amp; IdPattern.IsMatch(value);
 }
 
-public sealed class SourceRef
+public enum SourceKind
 {
-    public string Kind { get; }
-    public string DefinitionId { get; }
-    public string InstanceId { get; }
+    SkillExecution,
+    Status,
+    System
+}
 
-    public SourceRef(string kind, string definitionId, string instanceId)
+public readonly record struct SourceRef
+{
+    public SourceKind Kind { get; }
+    public EntityId DefinitionId { get; }
+    public EntityId? InstanceId { get; }
+
+    public SourceRef(
+        SourceKind kind,
+        EntityId definitionId,
+        EntityId? instanceId = null)
     {
+        if ((kind is SourceKind.SkillExecution or SourceKind.Status) &amp;&amp;
+            instanceId is null)
+            throw new ArgumentException("Execution sources require an instance ID.");
+
         Kind = kind;
         DefinitionId = definitionId;
         InstanceId = instanceId;
     }
+
+    public static SourceRef SkillExecution(
+        EntityId skillDefinitionId,
+        EntityId commandId) =&gt;
+        new(SourceKind.SkillExecution, skillDefinitionId, commandId);
+
+    public static SourceRef Status(
+        EntityId statusDefinitionId,
+        EntityId statusInstanceId) =&gt;
+        new(SourceKind.Status, statusDefinitionId, statusInstanceId);
+
+    public static SourceRef System(EntityId systemId) =&gt;
+        new(SourceKind.System, systemId);
 }
 
 public interface IGameClock
@@ -630,26 +670,22 @@ public interface IEventBus
     void Publish&lt;TEvent&gt;(TEvent gameEvent);
     IDisposable Subscribe&lt;TEvent&gt;(Action&lt;TEvent&gt; handler);
 }</code></pre>
-<h2 id="sourceid와-추적성">
-      SourceId와 추적성
+<h2 id="sourceref와-추적성">
+	      SourceRef와 추적성
      </h2>
 <p>
-      SourceId는 단순한 디버그용 문자열이 아니다. Modifier 제거, 중첩 판정, 이벤트 원인 분석, 저장/로드 복원에 직접 관여한다.
+	      SourceRef는 원천 종류와 정의, 실행 인스턴스를 함께 보존한다. Modifier 제거, 중첩 판정, 이벤트 원인 분석, 저장/로드 복원은 이 구조화된 값에 의존한다. 로그나 JavaScript 실습에 표시되는 <code>sourceId</code>는 검색 편의를 위해 <code>SourceRef.InstanceId</code>를 평탄화한 보조 필드이며, 독립적인 원천 계약이 아니다.
      </p>
 <div class="grid cols3">
 <div class="card">
 <span class="tag">
-        Equipment
+	        System
        </span>
-<h3 id="장비-source">
-        장비 Source
+<h3 id="시스템-source">
+	        시스템 Source
        </h3>
 <p>
-        검을 장착하면
-        <code>
-         ItemInstanceId
-        </code>
-        를 SourceId로 하는 공격력 Modifier가 등록된다. 해제할 때 같은 SourceId로 모두 제거한다.
+	        던전 규칙이나 난이도 보정처럼 실행 인스턴스가 필수가 아닌 원천은 <code>SourceRef.System(ruleDefinitionId)</code>으로 표현한다. 임시 규칙 인스턴스를 구분해야 한다면 InstanceId까지 보존한다.
        </p>
 </div>
 <div class="card">
@@ -660,11 +696,7 @@ public interface IEventBus
         상태 Source
        </h3>
 <p>
-        Burn을 누가 걸었는지는 skill execution SourceId로 남기고, Burn의 tick 예약이나 Rage/Freeze가 제공하는 Modifier는
-        <code>
-         StatusInstanceId
-        </code>
-        를 SourceId로 가진다.
+	        Burn 적용 원인은 <code>SourceRef.SkillExecution(skillDefinitionId, commandId)</code>로 남긴다. Burn tick이나 Rage/Freeze Modifier 자체의 원천은 <code>SourceRef.Status(statusDefinitionId, statusInstanceId)</code>로 구분한다.
        </p>
 </div>
 <div class="card">
@@ -675,11 +707,7 @@ public interface IEventBus
         스킬 Source
        </h3>
 <p>
-        Fireball의 DamageEffect와 ApplyStatusEffect(effect.apply-burn)는
-        <code>
-         command.fireball.cast_771
-        </code>
-        를 원천으로 남겨 CombatLog와 EffectLog를 연결한다.
+	        Fireball의 DamageEffect와 ApplyStatusEffect(effect.apply-burn)는 <code>SourceRef.SkillExecution(skill.fireball, command.fireball.cast.0001)</code>을 공유해 CombatLog와 EffectLog를 연결한다.
        </p>
 </div>
 </div>
@@ -720,7 +748,7 @@ public interface IEventBus
          Source 제거
         </td>
 <td>
-         상태나 장비 제거 시 해당 SourceId의 Modifier만 제거되어야 한다.
+	         상태나 시스템 규칙 제거 시 등록 때 보존한 SourceRef와 일치하는 Modifier만 제거되어야 한다.
         </td>
 </tr>
 <tr>
@@ -830,7 +858,7 @@ public interface IEventBus
         문자열 Source 난립
        </h3>
 <p>
-        SourceId가 임의 문자열이면 제거와 추적이 불안정하다. Kind, DefinitionId, InstanceId를 가진 구조화된 SourceRef를 사용한다.
+	        별도 문자열 source ID를 원천 계약으로 사용하면 제거와 추적이 불안정하다. Kind, DefinitionId, InstanceId를 가진 구조화된 SourceRef를 사용한다.
        </p>
 </div>
 <div class="card">
@@ -857,7 +885,7 @@ public interface IEventBus
      </h2>
 <ul class="checklist">
 <li>
-       EntityId, SourceId, TagSet, GameContext의 직렬화 형식이 정해져 있다.
+	       EntityId, SourceRef, TagSet, GameContext의 직렬화 형식이 정해져 있다.
       </li>
 <li>
        Definition Data와 Runtime State가 분리되어 있고 원본 정의를 직접 수정하지 않는다.
@@ -866,18 +894,18 @@ public interface IEventBus
        IEventBus 이벤트 이름과 Payload 최소 규격이 문서화되어 있다.
       </li>
 <li>
-       IRandomStream이 Seed 기반으로 재현 가능하게 동작한다.
+       IRandomStream이 Seed를 replay envelope의 버전·입력·정렬·시간·수치 정책과 함께 사용해 재현 가능하게 동작한다.
       </li>
 <li>
        DebugTrace가 Skill, Effect, Stat, Combat 로그를 하나의 원인 체인으로 묶을 수 있다.
       </li>
 <li>
-       장비, 상태, 보상 제거 시 SourceId 기준으로 관련 런타임 변경을 되돌릴 수 있다.
+	       상태나 시스템 규칙 제거 시 SourceRef 기준으로 관련 런타임 변경을 되돌릴 수 있다.
       </li>
 </ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../index.html"><span>← 이전</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a>
+<a class="prev" href="../index.html"><span>← 이전</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a>
 <a class="next" href="../modules/stat-system.html"><span>다음 →</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a>
 </nav>
 </main>
@@ -907,8 +935,8 @@ public interface IEventBus
 <a href="#시스템-계약-api">
        시스템 계약 API
       </a>
-<a href="#sourceid와-추적성">
-       SourceId와 추적성
+<a href="#sourceref와-추적성">
+	       SourceRef와 추적성
       </a>
 <a href="#결정론과-테스트">
        결정론과 테스트
@@ -1036,7 +1064,7 @@ public interface IEventBus
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a aria-current="page" class="is-active" href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache, migration을 JavaScript 시뮬레이터로 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a aria-current="page" class="is-active" href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
@@ -1057,7 +1085,7 @@ public interface IEventBus
       ESC
      </button>
 </header>
-<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
+<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceRef…" spellcheck="false" type="search"/>
 <div class="command-hints">
 <span>
       ↑↓ 이동
@@ -1102,8 +1130,8 @@ public interface IEventBus
 <a href="#시스템-계약-api">
       시스템 계약 API
      </a>
-<a href="#sourceid와-추적성">
-      SourceId와 추적성
+<a href="#sourceref와-추적성">
+	      SourceRef와 추적성
      </a>
 <a href="#결정론과-테스트">
       결정론과 테스트

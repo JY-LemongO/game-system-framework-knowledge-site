@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>C# 게임 시스템 설계 지식 베이스 · GSF System Atlas</title>
-<meta content="C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트" name="description"/>
+<meta content="C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <script>
    (function(){try{var m=localStorage.getItem('gsf-theme')||'system';document.documentElement.dataset.theme=m;if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()
@@ -250,12 +250,12 @@
 <section aria-labelledby="학습-진행-title" class="learning-progress-panel" data-learning-progress="" hidden>
 <div class="learning-progress-copy">
 <span class="section-kicker">Learning progress</span>
-<h2 id="학습-진행-title">핵심 학습 이어가기</h2>
-<p>Core부터 Status까지 완료한 단원을 이 브라우저에만 저장하고 다음 학습으로 이어간다.</p>
+<h2 id="학습-진행-title">학습 경로 이어가기</h2>
+<p>Core부터 Runtime Lab까지 읽은 단원을 이 브라우저에만 저장하고 다음 학습으로 이어간다.</p>
 </div>
 <div class="learning-progress-meter">
-<div><strong data-learning-progress-count="">0 / 6</strong><span>핵심 단원 완료</span></div>
-<progress aria-label="핵심 학습 완료율" data-learning-progress-meter="" max="6" value="0">0%</progress>
+<div><strong data-learning-progress-count="">0 / 9</strong><span>학습 단원 읽기 완료</span></div>
+<progress aria-label="학습 경로 읽기 완료율" data-learning-progress-meter="" max="9" value="0">0%</progress>
 </div>
 <div class="learning-progress-actions">
 <a class="button primary" data-learning-resume="" href="modules/core-runtime.html">Core부터 시작</a>
@@ -283,7 +283,7 @@
         Core Runtime
        </h3>
 <p>
-        Entity, Tag, SourceId, EventBus, Context, Time, RandomSeed 같은 공통 계약을 먼저 정리한다.
+	        Entity, Tag, SourceRef, EventBus, Context, Time, RandomSeed 같은 공통 계약을 먼저 정리한다.
        </p>
 </a>
 <a class="system-card" href="modules/stat-system.html">
@@ -327,7 +327,7 @@
         Combat Resolution
        </h3>
 <p>
-        DamageEffect가 만든 DamageRequest를 명중, 치명타, 방어, 저항, 보호막 계산으로 해석한다.
+	        DamageEffect가 만든 DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막 계산으로 해석한다.
        </p>
 </a>
 <a class="system-card" href="modules/status-system.html">
@@ -457,6 +457,48 @@
           </b>
 <span>
            지속 상태
+          </span>
+</a>
+<i>
+          →
+         </i>
+<a class="system-node core" href="modules/integration-map.html">
+<small>
+           07
+          </small>
+<b>
+           Integration
+          </b>
+<span>
+           계약 연결
+          </span>
+</a>
+<i>
+          →
+         </i>
+<a class="system-node combat" href="modules/fireball-case-study.html">
+<small>
+           08
+          </small>
+<b>
+           Fireball
+          </b>
+<span>
+           전체 추적
+          </span>
+</a>
+<i>
+          →
+         </i>
+<a class="system-node skill" href="modules/runtime-reference.html">
+<small>
+           09
+          </small>
+<b>
+           Runtime
+          </b>
+<span>
+           실행 검증
           </span>
 </a>
 </div>
@@ -601,7 +643,7 @@
 </section>
 <h2 id="학습-방식-선택">학습 방식 선택</h2>
 <div class="grid cols3">
-<a class="card" href="modules/core-runtime.html"><span class="tag">Learning path</span><h3 id="순차-학습">Core부터 순차 학습</h3><p>공통 계약에서 시작해 Stat, Effect, Skill, Combat, Status 순서로 책임과 연결을 익힌다.</p></a>
+<a class="card" href="modules/core-runtime.html"><span class="tag">Learning path</span><h3 id="순차-학습">Core부터 순차 학습</h3><p>Core, Stat, Effect, Skill, Combat, Status의 책임을 익힌 뒤 Integration, Fireball, Runtime Lab에서 연결과 실행을 확인한다.</p></a>
 <a class="card" href="modules/diagram-gallery.html"><span class="tag">Reference</span><h3 id="개념-비교">다이어그램과 용어 비교</h3><p>구조를 한눈에 비교하려면 Diagram Gallery를, 낯선 용어는 Glossary를 함께 활용한다.</p></a>
 <a class="card" href="modules/runtime-reference.html"><span class="tag">Runtime lab</span><h3 id="실행-실습">계약을 직접 관찰</h3><p>JavaScript 브라우저 시뮬레이터로 C# 구현이 보장해야 할 replay, commit, cache, migration 의미를 확인한다.</p></a>
 </div>
@@ -751,7 +793,7 @@
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a aria-current="page" class="is-active" href="index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache, migration을 JavaScript 시뮬레이터로 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a aria-current="page" class="is-active" href="index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
@@ -772,7 +814,7 @@
       ESC
      </button>
 </header>
-<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
+<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceRef…" spellcheck="false" type="search"/>
 <div class="command-hints">
 <span>
       ↑↓ 이동

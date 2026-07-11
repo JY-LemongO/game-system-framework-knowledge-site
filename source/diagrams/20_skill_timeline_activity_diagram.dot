@@ -1,34 +1,45 @@
-
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.70, nodesep=0.50];
+  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.66, nodesep=0.50];
   node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
   edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
   rankdir=TB;
   splines=ortho;
+  node [shape=box, style="rounded,filled", width=2.9, height=0.55];
 
-  node [shape=box, style="rounded,filled", width=2.6, height=0.55];
   Start [shape=circle, label="", width=0.28, fillcolor="#182033", color="#182033"];
-  Request [label="SkillRequest 수신", fillcolor="#eaf0ff", color="#8292f7"];
-  Validate [shape=diamond, label="사용 가능?", fillcolor="#f3eefc", color="#ab8fe0"];
-  Fail [label="SkillFailed
-비용/쿨다운 없음", fillcolor="#fff0f3", color="#e07b91"];
-  Pay [label="비용 예약 또는 선지불", fillcolor="#fff7e6", color="#e0ad4e"];
-  Windup [label="Windup / Cast 진행", fillcolor="#e9fbff", color="#54b7cf"];
-  Interrupt [shape=diamond, label="중단됨?", fillcolor="#f3eefc", color="#ab8fe0"];
-  Refund [label="환불/실패 쿨다운 정책", fillcolor="#fff0f3", color="#e07b91"];
-  Marker [label="Hit Frame Marker 도달", fillcolor="#fff7e6", color="#e0ad4e"];
-  Context [label="EffectContext 생성", fillcolor="#eefbf6", color="#61b99a"];
-  Bundle [label="EffectBundle 실행", fillcolor="#fff0f3", color="#e07b91"];
-  Recovery [label="Recovery / 후딜", fillcolor="#e9fbff", color="#54b7cf"];
-  Cooldown [label="쿨다운 시작/차지 소모", fillcolor="#f0f3f9", color="#99a8bd"];
+  Request [label="<<public contract>> SkillRequest", fillcolor="#eaf0ff", color="#8292f7"];
+  Validate [shape=diamond, label="<<public>> ISkillRequestValidator.Validate\nSkillDecision.CanExecute?", fillcolor="#f3eefc", color="#ab8fe0"];
+  Fail [label="<<public contract>> SkillResult(FailureReason)\nno execution mutation / event", fillcolor="#fff0f3", color="#e07b91"];
+  PayTiming [shape=diamond, label="CostPolicy.PayTiming?", fillcolor="#fff7e6", color="#e0ad4e"];
+  Reserve [label="Reserve logically\ninclude cost in internal SkillReleasePlan", fillcolor="#fff7e6", color="#e0ad4e"];
+  Prepay [label="Optional prepay policy\nseparate RuntimeCommitter commit", fillcolor="#fff7e6", color="#e0ad4e"];
+  Windup [label="<<internal project model>> SkillExecution\nwindup / cast", fillcolor="#e9fbff", color="#54b7cf"];
+  Interrupt [shape=diamond, label="interrupted before release?", fillcolor="#f3eefc", color="#ab8fe0"];
+  Refund [label="Discard reservation or enqueue\nexplicit prepay compensation policy", fillcolor="#fff0f3", color="#e07b91"];
+  Marker [label="Release marker reached", fillcolor="#fff7e6", color="#e0ad4e"];
+  Context [label="Public EffectBundle + EffectContext", fillcolor="#eefbf6", color="#61b99a"];
+  Prepare [label="Internal coordinator: SkillReleasePlan\n+ public IEffectPlanner.Prepare: EffectBundlePlan", fillcolor="#eaf0ff", color="#8292f7"];
+  Combine [label="Compose one CommitPlan\nmutations + planned outbox", fillcolor="#fff7e6", color="#e0ad4e"];
+  Commit [label="RuntimeCommitter\nstate + outbox atomic", fillcolor="#eefbf6", color="#61b99a"];
+  Committed [label="Committed facts\nSkillCommitted · DamageCommitted", fillcolor="#e9fbff", color="#54b7cf"];
+  Reaction [label="ReactionQueue\nBurn and other state-changing commands", fillcolor="#f3eefc", color="#ab8fe0"];
+  Recovery [label="Recovery / visual follow-through", fillcolor="#e9fbff", color="#54b7cf"];
   End [shape=doublecircle, label="", width=0.35, fillcolor="#ffffff", color="#182033"];
+
   Start -> Request -> Validate;
-  Validate -> Fail [label="No"];
+  Validate -> Fail [label="no"];
   Fail -> End;
-  Validate -> Pay [label="Yes"];
-  Pay -> Windup -> Interrupt;
-  Interrupt -> Refund [label="Yes"];
-  Refund -> Cooldown;
-  Interrupt -> Marker [label="No"];
-  Marker -> Context -> Bundle -> Recovery -> Cooldown -> End;
+  Validate -> PayTiming [label="yes"];
+  PayTiming -> Reserve [label="release"];
+  PayTiming -> Prepay [label="prepay"];
+  Reserve -> Windup;
+  Prepay -> Windup;
+  Windup -> Interrupt;
+  Interrupt -> Refund [label="yes"];
+  Refund -> End;
+  Interrupt -> Marker [label="no"];
+  Marker -> Context -> Prepare -> Combine -> Commit;
+  Commit -> Fail [label="version / invariant fail"];
+  Commit -> Committed [label="success"];
+  Committed -> Reaction -> Recovery -> End;
 }

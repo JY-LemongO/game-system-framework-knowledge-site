@@ -118,7 +118,7 @@ test('miss에서도 비용과 cooldown은 commit되지만 damage/status는 없�
   const result = G.runFireballScenario({ rootSeed: 1, skill: { hitChanceBps: 0 }, simulateStatusTicks: true });
   const caster = result.finalState.entities[result.input.caster.id];
   const target = result.finalState.entities[result.input.target.id];
-  assert.equal(result.resolution.outcome.hit, false);
+  assert.equal(result.resolution.outcome.hitOutcome, 'Miss');
   assert.equal(caster.resources.mana, result.input.caster.mana - result.input.skill.manaCost);
   assert.equal(caster.cooldowns[result.input.skill.definitionId], result.input.tick + result.input.skill.cooldownTicks);
   assert.equal(target.resources.hp, result.input.target.hp);
@@ -240,8 +240,8 @@ test('Burn applies on a surviving hit even when impact damage is fully absorbed 
     skill: { hitChanceBps: 10_000, critChanceBps: 0 },
     simulateStatusTicks: false,
   });
-  assert.equal(result.resolution.outcome.hit, true);
-  assert.equal(result.resolution.outcome.hpDamage, 0);
+  assert.equal(result.resolution.outcome.hitOutcome, 'Hit');
+  assert.equal(result.resolution.outcome.finalHpDamage, 0);
   assert.equal(result.resolution.outcome.burn.rawTickDamage, 20);
   assert.equal(result.resolution.outcome.burn.applyWhenTargetAlive, true);
   assert.ok(result.outbox.some(event => event.type === 'StatusApplied'));
@@ -266,10 +266,10 @@ test('Burn tick resolves resistance and shield before committing DamageCommitted
     assert.equal(damage.payload.resolvedDamage, 16);
     if (tick === ticks[0]) {
       assert.equal(damage.payload.shieldAbsorbed, 16);
-      assert.equal(tick.payload.hpDamage, 0);
+      assert.equal(tick.payload.finalHpDamage, 0);
     } else {
       assert.equal(damage.payload.shieldAbsorbed, 0);
-      assert.equal(tick.payload.hpDamage, 16);
+      assert.equal(tick.payload.finalHpDamage, 16);
     }
   }
 });
@@ -382,6 +382,26 @@ test('SourceRef keeps dot-separated IDs canonical and rejects colon-separated ID
     instanceId: 'command.fireball.cast.0001',
     debugLabel: 'unsupported',
   })), 'INVALID_SOURCE_REF');
+  assert.deepEqual(G.createSourceRef({
+    kind: 'system',
+    definitionId: 'system.combat',
+  }), {
+    kind: 'system',
+    definitionId: 'system.combat',
+  });
+  assert.equal(errorCode(() => G.createSourceRef({
+    kind: 'status',
+    definitionId: 'status.burn',
+  })), 'INVALID_STRING');
+  assert.deepEqual(G.createSourceRef({
+    kind: 'system',
+    definitionId: 'system.combat',
+    instanceId: 'runtime.combat.0001',
+  }), {
+    kind: 'system',
+    definitionId: 'system.combat',
+    instanceId: 'runtime.combat.0001',
+  });
 });
 
 test('dead targets are rejected before mana, cooldown, or events can commit', () => {
@@ -501,7 +521,7 @@ test('damage conservation covers impact and every periodic DamageCommitted event
   const damageEvents = result.outbox.filter(event => event.type === 'DamageCommitted');
   assert.equal(damageEvents.length, 4);
   for (const event of damageEvents) {
-    assert.equal(event.payload.resolvedDamage, event.payload.shieldAbsorbed + event.payload.hpDamage + event.payload.overkill);
+    assert.equal(event.payload.resolvedDamage, event.payload.shieldAbsorbed + event.payload.finalHpDamage + event.payload.overkill);
   }
   assert.equal(result.invariants.damageConservation, true);
   assert.equal(result.invariants.conservationGap, 0);

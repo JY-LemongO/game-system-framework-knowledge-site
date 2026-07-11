@@ -1,36 +1,46 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.30, ranksep=0.75, nodesep=0.55, splines=true];
+  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.30, ranksep=0.68, nodesep=0.58, splines=polyline, newrank=true, outputorder=edgesfirst];
   node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.5, fillcolor="#ffffff", fontcolor="#182033", margin="0.16,0.11"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", arrowsize=0.8, penwidth=1.4];
+  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.4];
   rankdir=TB;
 
-  Core [shape=component, fillcolor="#eefbf6", label="Core Runtime\nEntity · Tag · SourceId\nEvent · Time · Random"];
-  Stat [shape=component, fillcolor="#eaf0ff", label="Stat System\nFinal Value · Modifier\nResource · Debug"];
-  Effect [shape=component, fillcolor="#fff7e6", label="Effect System\nTarget · Value · Operation\nEffectResult"];
-  Skill [shape=component, fillcolor="#f3eefc", label="Skill / Action\nCost · Cooldown · Timeline\nEffectBundle"];
-  Combat [shape=component, fillcolor="#fff0f3", label="Combat Resolution\nHit · Critical · Armor\nResistance · Shield"];
-  Status [shape=component, fillcolor="#e9fbff", label="Status System\nDuration · Stack · Tick\nModifier · PeriodicEffect"];
-  Fireball [shape=note, fillcolor="#ffffff", label="Fireball Vertical Slice\nSkill → Effect → Combat\nStatus → EventLog"];
+  Core [shape=component, fillcolor="#eefbf6", label="Core Runtime Foundation\nshared identity · event · time\ncontracts used by every system"];
+  Stat [shape=component, group="left", fillcolor="#eaf0ff", label="Stat System\nread provider for Effect · Combat\nmodifier plans from Status"];
+  Effect [shape=component, group="main", fillcolor="#fff7e6", label="Effect System\nTarget · Value · Operation\nEffectResult"];
+  Skill [shape=component, group="main", fillcolor="#f3eefc", label="Skill / Action\nCost · Cooldown · Timeline\nEffectBundle"];
+  Combat [shape=component, group="main", fillcolor="#fff0f3", label="Combat Resolution\nHit · Critical · Armor\nResistance · Shield"];
+  Status [shape=component, group="main", fillcolor="#e9fbff", label="Status System\nDuration · Stack · Tick\nModifier · PeriodicEffect"];
+  Commit [shape=component, group="main", fillcolor="#eefbf6", label="RuntimeCommitter\nSkill / Effect / Damage plans\nstate + outbox atomic"];
+  Reaction [shape=component, group="main", fillcolor="#f3eefc", label="ReactionQueue\npriority · stable key\ndepth / budget"];
+  Observation [shape=component, group="right", fillcolor="#f0f3f9", label="Outbox Observation\nUI · log · analytics\nreads committed facts"];
+  Modifier [shape=box, group="left", fillcolor="#eaf0ff", label="modifier plan\nto Stat"];
+  Periodic [shape=box, group="right", fillcolor="#fff7e6", label="PeriodicEffect\ncommand to Effect"];
+  CoreConsumers [shape=box, fillcolor="#f7f9fc", label="Skill · Effect · Stat · Combat · Status · RuntimeCommitter\nread shared contracts"];
+  Legend [shape=note, fillcolor="#ffffff", label="Line meaning\nsolid arrow: command / plan / committed fact\ndashed arrow: read-only dependency / query\ndotted line: case-study participation\nquery arrow: consumer → provider"];
+  Fireball [shape=note, fillcolor="#ffffff", label="Fireball Vertical Slice\nSkill · Effect · Combat · Commit\nReaction · Status participate"];
 
-  { rank=same; Stat; Effect; Skill; }
-  { rank=same; Combat; Status; }
+  { rank=same; Combat; Stat; }
+  { rank=same; Commit; Observation; }
+  { rank=same; Modifier; Status; Periodic; }
 
-  Core -> Stat;
-  Core -> Effect;
-  Core -> Skill;
-  Core -> Combat;
-  Core -> Status;
+  // The central execution path reads from top to bottom.
+  Fireball -> Skill [style=dotted, color="#a78b53", dir=none];
+  Skill -> Effect [label="prepare bundle"];
+  Effect -> Combat [label="DamageRequest"];
+  Combat -> Commit [label="DamageResult + plans"];
+  Commit -> Reaction [label="committed facts"];
+  Reaction -> Status [label="ApplyStatus command"];
 
-  Stat -> Effect;
-  Skill -> Effect;
-  Effect -> Combat;
-  Effect -> Status;
-  Combat -> Stat [style=dashed, label="read"];
-  Status -> Stat [style=dashed, label="modifier"];
-  Status -> Effect [style=dashed, label="periodic"];
+  // Side ports carry secondary dependencies without crossing the main labels.
+  Effect:e -> Stat:n [style=dashed, color="#8292a8", constraint=false];
+  Combat:w -> Stat:e [style=dashed, color="#8292a8", constraint=false];
+  Status:w -> Modifier:e [constraint=false];
+  Modifier:n -> Stat:s [constraint=false];
+  Commit:e -> Observation:w [constraint=false];
+  Status:w -> Periodic:e [constraint=false];
+  Periodic:w -> Effect:w [constraint=false];
 
-  Skill -> Fireball [style=dotted];
-  Effect -> Fireball [style=dotted];
-  Combat -> Fireball [style=dotted];
-  Status -> Fireball [style=dotted];
+  Status -> CoreConsumers [style=invis, weight=8];
+  CoreConsumers -> Core [style=dashed, color="#8292a8", label="shared contract dependency"];
+  Core -> Legend [style=invis, weight=8];
 }

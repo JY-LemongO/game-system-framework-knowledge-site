@@ -233,8 +233,8 @@
     const diagramMinutes = $$('.diagram', article).length * 0.75;
     const minutes = Math.max(1, Math.ceil(proseMinutes + tableMinutes + codeMinutes + diagramMinutes));
 
-    output.textContent = `학습 약 ${minutes}분`;
-    output.title = '본문, 코드, 표, 다이어그램을 포함한 예상 학습 시간';
+    output.textContent = `읽기 약 ${minutes}분 · 실습 별도`;
+    output.title = '본문, 코드, 표, 다이어그램을 읽는 예상 시간이며 실습 시간은 포함하지 않습니다.';
   }
 
   function initialiseHeadingAnchors() {
@@ -953,6 +953,92 @@
     });
   }
 
+  function initialiseHorizontalScrollHints() {
+    const article = $('#article-content');
+    if (!article) return;
+
+    const records = [];
+    let printing = false;
+
+    function descriptionTokens(node) {
+      return (node.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+    }
+
+    function describe(node, id, enabled) {
+      const tokens = descriptionTokens(node).filter(token => token !== id);
+      if (enabled) tokens.push(id);
+      if (tokens.length) node.setAttribute('aria-describedby', tokens.join(' '));
+      else node.removeAttribute('aria-describedby');
+    }
+
+    function register(scroller, hint) {
+      if (!scroller || !hint) return;
+      scroller.dataset.horizontalScrollManaged = '';
+      records.push({ scroller, hint });
+    }
+
+    $$('.codewrap', article).forEach((wrapper, index) => {
+      const scroller = $('pre', wrapper);
+      const label = $('.code-head > span', wrapper);
+      if (!scroller || !label) return;
+
+      let hint = $('[data-horizontal-scroll-hint="code"]', wrapper);
+      if (!hint) {
+        hint = document.createElement('small');
+        hint.dataset.horizontalScrollHint = 'code';
+        hint.id = `code-scroll-hint-${index + 1}`;
+        hint.textContent = ' · 좌우로 스크롤';
+        label.appendChild(hint);
+      }
+      register(scroller, hint);
+    });
+
+    $$('.table-scroll', article).forEach((wrapper, index) => {
+      let hint = $('[data-horizontal-scroll-hint="table"]', wrapper);
+      if (!hint) {
+        hint = document.createElement('p');
+        hint.dataset.horizontalScrollHint = 'table';
+        hint.id = `table-scroll-hint-${index + 1}`;
+        hint.textContent = '표 전체를 보려면 좌우로 스크롤하세요.';
+        wrapper.prepend(hint);
+      }
+      register(wrapper, hint);
+    });
+
+    function update() {
+      records.forEach(({ scroller, hint }) => {
+        const overflow = scroller.scrollWidth > scroller.clientWidth + 1;
+        const available = overflow && !printing;
+        hint.hidden = !available;
+        describe(scroller, hint.id, available);
+        if (available) scroller.tabIndex = 0;
+        else if (scroller.dataset.horizontalScrollManaged !== undefined) scroller.removeAttribute('tabindex');
+      });
+    }
+
+    let scheduled = false;
+    function requestUpdate() {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        update();
+      });
+    }
+
+    addEventListener('resize', requestUpdate, { passive: true });
+    addEventListener('beforeprint', () => {
+      printing = true;
+      update();
+    });
+    addEventListener('afterprint', () => {
+      printing = false;
+      requestUpdate();
+    });
+    new MutationObserver(requestUpdate).observe(article, { childList: true, characterData: true, subtree: true });
+    requestUpdate();
+  }
+
   function initialisePrintAndImages() {
     $$('[data-print], [data-print-page], .print-page').forEach(button => button.addEventListener('click', () => print()));
     $$('#article-content img').forEach((image, index) => {
@@ -992,7 +1078,7 @@
   function initialiseLearningProgress() {
     const storageKey = 'gsf-learning-progress-v1';
     const learningPages = (window.__GSF_SITE__?.pages || [])
-      .filter(page => page.learningTrack === 'core' && Number.isInteger(page.learningOrder))
+      .filter(page => Number.isInteger(page.learningOrder))
       .sort((left, right) => left.learningOrder - right.learningOrder);
     if (!learningPages.length) return;
 
@@ -1036,7 +1122,7 @@
     function nextLearningTarget() {
       const complete = new Set(state.completed);
       if (complete.size === learningPages.length) {
-        return { file: 'modules/integration-map.html', short: '통합 구조로 이어가기' };
+        return { file: 'modules/diagram-gallery.html', short: '다이어그램으로 복습하기' };
       }
 
       const lastIndex = learningPages.findIndex(page => page.file === state.lastVisited);
@@ -1059,11 +1145,11 @@
       completionSection.innerHTML = `
         <div>
           <span class="section-kicker">Learning progress</span>
-          <h2 id="learning-completion-title">이 단원을 다 학습했나요?</h2>
-          <p><b data-learning-completion-name></b> 완료 표시는 현재 브라우저에만 저장됩니다.</p>
+          <h2 id="learning-completion-title">이 단원을 끝까지 읽었나요?</h2>
+          <p><b data-learning-completion-name></b> 읽기 완료 표시는 현재 브라우저에만 저장되며 정답 여부나 숙달도를 뜻하지 않습니다.</p>
         </div>
         <div class="learning-completion-actions">
-          <button aria-describedby="learning-completion-note" aria-pressed="false" class="button primary" data-learning-complete data-learning-toggle type="button">학습 완료</button>
+          <button aria-describedby="learning-completion-note" aria-pressed="false" class="button primary" data-learning-complete data-learning-toggle type="button">읽기 완료</button>
           <p aria-atomic="true" aria-live="polite" data-learning-status id="learning-completion-note" role="status"></p>
         </div>`;
       $('[data-learning-completion-name]', completionSection).textContent = currentLesson.short;
@@ -1078,15 +1164,18 @@
       const complete = state.completed.includes(currentLesson.file);
       completionSection.dataset.state = complete ? 'complete' : 'incomplete';
       completionButton.setAttribute('aria-pressed', String(complete));
-      completionButton.textContent = '학습 완료';
+      completionButton.textContent = complete ? '읽기 완료 취소' : '읽기 완료';
+      completionButton.setAttribute('aria-label', complete
+        ? `${currentLesson.short} 읽기 완료 표시 취소`
+        : `${currentLesson.short} 읽기 완료 표시`);
       completionButton.classList.toggle('primary', !complete);
       completionButton.classList.toggle('ghost', complete);
       if (!completionStatus.textContent) {
         completionStatus.textContent = storageAvailable
           ? complete
-            ? `${currentLesson.short} 학습 완료가 이 브라우저에 저장되어 있습니다.`
-            : '완료 여부는 정답 공개와 별개로 직접 선택할 수 있습니다.'
-          : '이 환경에서는 학습 진행도를 저장할 수 없습니다.';
+            ? `${currentLesson.short} 읽기 완료 표시가 이 브라우저에 저장되어 있습니다. 정답 여부나 숙달도와는 별개입니다.`
+            : '읽기 완료 표시는 정답 공개와 별개로 직접 선택할 수 있으며 숙달도를 판정하지 않습니다.'
+          : '이 환경에서는 읽기 진행 기록을 저장할 수 없습니다.';
       }
     }
 
@@ -1097,13 +1186,13 @@
         : [...state.completed, currentLesson.file];
       const nextState = { ...state, completed, lastVisited: currentLesson.file };
       if (!writeState(nextState)) {
-        completionStatus.textContent = '이 환경에서는 학습 진행도를 저장할 수 없습니다.';
+        completionStatus.textContent = '이 환경에서는 읽기 진행 기록을 저장할 수 없습니다.';
         return;
       }
       state = nextState;
       completionStatus.textContent = complete
-        ? `${currentLesson.short} 완료 표시를 취소했습니다.`
-        : `${currentLesson.short} 학습 완료를 이 브라우저에 저장했습니다.`;
+        ? `${currentLesson.short} 읽기 완료 표시를 취소했습니다.`
+        : `${currentLesson.short} 읽기 완료 표시를 이 브라우저에 저장했습니다. 정답 여부나 숙달도와는 별개입니다.`;
       renderCompletion();
     });
 
@@ -1122,32 +1211,32 @@
       progressMeter.max = learningPages.length;
       progressMeter.value = completedCount;
       progressMeter.textContent = `${Math.round((completedCount / learningPages.length) * 100)}%`;
-      progressMeter.setAttribute('aria-valuetext', `${learningPages.length}개 중 ${completedCount}개 완료`);
+      progressMeter.setAttribute('aria-valuetext', `${learningPages.length}개 중 ${completedCount}개 읽기 완료`);
       progressCount.textContent = `${completedCount} / ${learningPages.length}`;
       resumeLink.href = `${prefix}${target.file}`;
       resumeLink.textContent = completedCount === learningPages.length
         ? target.short
         : state.completed.length || state.lastVisited ? `${target.short} 이어보기` : 'Core부터 시작';
       resetButton.disabled = completedCount === 0 && !state.lastVisited;
-      if (!storageAvailable) progressStatus.textContent = '이 환경에서는 학습 진행도를 저장할 수 없습니다.';
+      if (!storageAvailable) progressStatus.textContent = '이 환경에서는 읽기 진행 기록을 저장할 수 없습니다.';
     }
 
     resetButton?.addEventListener('click', () => {
-      if (!confirm('이 브라우저에 저장된 핵심 학습 진행 기록을 초기화할까요?')) return;
+      if (!confirm('이 브라우저에 저장된 학습 경로 읽기 기록을 초기화할까요?')) return;
       if (!safeStorage.remove(storageKey)) {
-        progressStatus.textContent = '이 환경에서는 학습 진행도를 초기화할 수 없습니다.';
+        progressStatus.textContent = '이 환경에서는 읽기 진행 기록을 초기화할 수 없습니다.';
         return;
       }
       state = emptyState();
-      progressStatus.textContent = '핵심 학습 진행 기록을 초기화했습니다.';
+      progressStatus.textContent = '학습 경로 읽기 기록을 초기화했습니다.';
       renderProgress();
     });
 
     addEventListener('storage', event => {
       if (event.key !== storageKey) return;
       state = readState();
-      if (completionStatus) completionStatus.textContent = '다른 탭에서 변경된 학습 진행도를 반영했습니다.';
-      if (progressStatus) progressStatus.textContent = '다른 탭에서 변경된 학습 진행도를 반영했습니다.';
+      if (completionStatus) completionStatus.textContent = '다른 탭에서 변경된 읽기 완료 표시를 반영했습니다.';
+      if (progressStatus) progressStatus.textContent = '다른 탭에서 변경된 읽기 진행 기록을 반영했습니다.';
       renderCompletion();
       renderProgress();
     });
@@ -1214,11 +1303,11 @@
       const metrics = $('[data-runtime-metrics]', lab);
       if (metrics) {
         metrics.replaceChildren(
-          metric('Decision', outcome.hit ? (outcome.critical ? 'CRITICAL' : 'HIT') : 'MISS', `roll ${result.resolution.decisions.hitRollBps} / ${result.resolution.decisions.critRollBps}`),
+          metric('Decision', outcome.hitOutcome === 'Hit' ? (outcome.critical ? 'CRITICAL' : 'HIT') : outcome.hitOutcome.toUpperCase(), `roll ${result.resolution.decisions.hitRollBps} / ${result.resolution.decisions.critRollBps}`),
           metric('Resolved', format(outcome.resolvedDamage), `raw ${format(outcome.rawDamage)}`),
           metric('Shield', format(outcome.shieldAbsorbed), `remaining ${format(target.resources.shield)}`),
-          metric('HP damage', format(outcome.hpDamage), `impact HP ${format(outcome.targetHpAfter)}`),
-          metric('Burn', format(result.outbox.filter(event => event.type === 'StatusTicked').reduce((sum, event) => sum + event.payload.hpDamage, 0)), `${result.statusAdvance.tickCount} committed ticks`),
+          metric('HP damage', format(outcome.finalHpDamage), `impact HP ${format(outcome.targetHpAfter)}`),
+          metric('Burn', format(result.outbox.filter(event => event.type === 'StatusTicked').reduce((sum, event) => sum + event.payload.finalHpDamage, 0)), `${result.statusAdvance.tickCount} committed ticks`),
           metric('Final HP', format(target.resources.hp), `${Object.keys(target.statuses).length} active status`)
         );
       }
@@ -1295,18 +1384,48 @@
     });
     form?.addEventListener('reset', () => requestAnimationFrame(runReplay));
 
+    function stateHash(value) {
+      return G.hashHex(value).slice(0, 12);
+    }
+
     const probes = {
       duplicate: () => {
         const result = G.demonstrateDuplicateCommand(inputFromForm());
-        return { pass: result.duplicateDetected && result.stateUnchanged, code: result.error?.code, evidence: result.stateUnchanged ? 'state hash unchanged' : 'state changed' };
+        const pass = result.duplicateDetected && result.stateUnchanged;
+        const beforeHash = stateHash(result.before);
+        const afterHash = stateHash(result.after);
+        return {
+          pass,
+          code: result.error?.code || 'NO_ERROR',
+          summary: pass ? '중복 command를 거부해 두 번째 비용·피해·이벤트가 발생하지 않았습니다.' : '중복 command 처리 뒤 상태가 달라졌습니다.',
+          evidence: `실행 전후 상태 해시 ${beforeHash} → ${afterHash}${result.stateUnchanged ? '로 동일합니다.' : '로 변경됐습니다.'}`,
+          point: '같은 commandId는 재전송되어도 정확히 한 번만 반영돼야 합니다.'
+        };
       },
       conflict: () => {
         const result = G.demonstrateVersionConflict(inputFromForm());
-        return { pass: result.rejected && result.noPartialMutation, code: result.error?.code, evidence: result.noPartialMutation ? 'no partial mutation' : 'state changed' };
+        const pass = result.rejected && result.noPartialMutation;
+        const beforeHash = stateHash(result.before);
+        const afterHash = stateHash(result.after);
+        return {
+          pass,
+          code: result.error?.code || 'NO_ERROR',
+          summary: pass ? '외부 변경 뒤 stale plan을 거부해 추가 mutation과 event를 남기지 않았습니다.' : 'stale plan이 최신 상태를 변경했습니다.',
+          evidence: `외부 변경 반영 상태와 거부 후 상태 해시가 ${beforeHash} → ${afterHash}${result.noPartialMutation ? '로 동일합니다.' : '로 달라졌습니다.'}`,
+          point: 'expectedVersion 사전 조건은 동시 변경을 오래된 계산으로 덮어쓰지 못하게 합니다.'
+        };
       },
       rollback: () => {
         const result = G.demonstrateAtomicRollback(inputFromForm());
-        return { pass: result.rolledBack, code: result.error?.code, evidence: result.rolledBack ? 'working copy discarded' : 'partial state detected' };
+        const beforeHash = stateHash(result.before);
+        const afterHash = stateHash(result.after);
+        return {
+          pass: result.rolledBack,
+          code: result.error?.code || 'NO_ERROR',
+          summary: result.rolledBack ? '유효한 첫 operation까지 포함해 working copy 전체를 폐기했습니다.' : '실패 전에 실행한 일부 operation이 상태에 남았습니다.',
+          evidence: `commit 전후 상태 해시 ${beforeHash} → ${afterHash}${result.rolledBack ? '로 동일합니다.' : '로 변경됐습니다.'}`,
+          point: '모든 operation과 invariant가 성공한 경우에만 state와 outbox를 함께 확정해야 합니다.'
+        };
       }
     };
     $$('[data-runtime-check]', document).forEach(button => {
@@ -1316,12 +1435,12 @@
         try {
           const result = probes[key]();
           if (output) {
-            output.textContent = `${result.pass ? 'PASS' : 'FAIL'} · ${result.code} · ${result.evidence}`;
+            output.textContent = `${result.pass ? 'PASS' : 'FAIL'} · ${result.code} — ${result.summary} 근거: ${result.evidence} 학습 포인트: ${result.point}`;
             output.dataset.state = result.pass ? 'pass' : 'fail';
           }
         } catch (error) {
           if (output) {
-            output.textContent = `ERROR · ${error.code || error.message}`;
+            output.textContent = `ERROR · ${error.code || error.message} — probe를 완료하지 못했습니다. 입력과 콘솔 오류를 확인하세요.`;
             output.dataset.state = 'fail';
           }
         }
@@ -1412,6 +1531,7 @@
   initialiseCalculator();
   initialiseSteppers();
   initialiseTableAccessibility();
+  initialiseHorizontalScrollHints();
   initialisePrintAndImages();
   initialiseCurrentNavigation();
   initialiseLearningProgress();

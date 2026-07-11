@@ -9,7 +9,7 @@ digraph ActivityDiagram {
 	dirty [label="Cache dirty or context-sensitive?" fillcolor="#FFF3CD" shape=diamond]
 	cache [label="Return cached value" fillcolor="#F1F8E9" shape=box]
 	collect [label="Collect active modifiers
-+ remove expired modifiers" fillcolor="#DFF7E4" shape=box]
+ filter expired without mutation" fillcolor="#DFF7E4" shape=box]
 	filter [label="Filter by Condition.Evaluate(context)" fillcolor="#DFF7E4" shape=box]
 	sort [label="Sort by phase, operation, priority" fillcolor="#E0F7FA" shape=box]
 	apply [label="Apply calculation phases
@@ -18,8 +18,6 @@ Base -> Add -> Percent -> More/Less -> Override -> Clamp" fillcolor="#E0F7FA" sh
 when formula requires other stats" fillcolor="#FFFDE7" shape=box]
 	breakdown [label="Build debug breakdown
 and update cache" fillcolor="#F3E5F5" shape=box]
-	publish [label="Publish OnStatChanged
-when value changed" fillcolor="#E0F7FA" shape=box]
 	return [label="Return StatValue" fillcolor="#F1F8E9" shape=box]
 	end [label=End fillcolor="#111827" fontcolor=white shape=doublecircle width=0.35]
 	start -> query
@@ -35,7 +33,6 @@ when value changed" fillcolor="#E0F7FA" shape=box]
 	sort -> apply
 	apply -> derived
 	derived -> breakdown
-	breakdown -> publish
-	publish -> return
+	breakdown -> return
 	return -> end
 }

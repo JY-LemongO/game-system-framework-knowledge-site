@@ -15,7 +15,7 @@ digraph G {
 
   Input -> Contracts [label="command"];
   Contracts -> Kernel [label="validated intent"];
-  Kernel -> Storage [label="atomic plan / outbox"];
+  Kernel -> Storage [label="atomic state / outbox"];
   Storage -> Kernel [style=dashed, label="snapshot / versions"];
   Kernel -> Engine [label="committed result"];
   Kernel -> Telemetry [label="observation events"];

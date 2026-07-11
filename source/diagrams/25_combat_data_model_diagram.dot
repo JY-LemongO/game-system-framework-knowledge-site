@@ -3,50 +3,27 @@ digraph G {
   node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
   edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
   rankdir=LR; splines=ortho;
+
   subgraph cluster_def { label="Definition Data"; color="#dbe3ef"; style="rounded";
-    DamageTypeDefinition [label="DamageTypeDefinition
-- id
-- tags
-- defaultResistanceStat"];
-    CombatFormulaDefinition [label="CombatFormulaDefinition
-- order
-- roundingPolicy
-- minDamage
-- clampRule"];
-    ResistanceTable [label="ResistanceTable
-- type
-- cap
-- penetrationRule"];
+    DamageTypeDefinition [label="DamageTypeDefinition\n- id\n- tags\n- defaultResistanceStat"];
+    CombatFormulaDefinition [label="CombatFormulaDefinition\n- order\n- roundingPolicy\n- minDamage\n- clampRule"];
+    ResistanceTable [label="ResistanceTable\n- type\n- cap\n- penetrationRule"];
   }
-  subgraph cluster_runtime { label="Runtime Data"; color="#dbe3ef"; style="rounded";
-    DamageRequest [label="DamageRequest
-- AttackerId
-- DefenderId
-- Source: SourceRef
-- FormulaId
-- DamageType
-- BaseValue
-- CoefficientBps
-- Tags
-- Seed"];
-    CombatContext [label="CombatContext
-- position
-- tags
-- randomStream"];
-    DamageResult [label="DamageResult
-- Hit
-- Critical
-- RawDamage
-- ResolvedDamage
-- ShieldAbsorbed
-- FinalHpDamage"];
-    CombatLog [label="CombatLog
-- formulaSteps
-- statReads
-- eventIds"];
+  subgraph cluster_runtime { label="Resolve Data (immutable)"; color="#dbe3ef"; style="rounded";
+    DamageRequest [label="DamageRequest\n- AttackerId\n- DefenderId\n- Source: SourceRef\n- FormulaId\n- DamageType\n- BaseValue\n- CoefficientBps\n- Tags\n- Seed"];
+    CombatContext [label="CombatContext\n- frozen stats\n- status tags\n- random stream\n- resource snapshot\n  AvailableShield · AvailableTargetHp\n- resource versions"];
+    DamageResult [label="DamageResult\n- Outcome: HitOutcome\n- Critical\n- RawDamage\n- ResolvedDamage\n- ShieldAbsorbed\n- FinalHpDamage\n- Overkill\nResolvedDamage = ShieldAbsorbed\n+ FinalHpDamage + Overkill"];
+    DebugTrace [label="DebugTrace\n- formulaSteps\n- statReads\n- RNG decisions"];
   }
+  subgraph cluster_commit { label="Commit Data"; color="#dbe3ef"; style="rounded";
+    AppliedDamage [label="AppliedDamage\n- committed Shield/HP\n- resulting versions\n- event ids"];
+    Outbox [label="Outbox\n- DamageCommitted\n- EntityDefeated?"];
+  }
+
   DamageTypeDefinition -> DamageRequest [label="type ref"];
   CombatFormulaDefinition -> DamageResult [label="calculation policy"];
   ResistanceTable -> DamageResult [label="mitigation policy"];
-  DamageRequest -> CombatContext -> DamageResult -> CombatLog;
+  DamageRequest -> CombatContext -> DamageResult -> DebugTrace;
+  DamageResult -> AppliedDamage [label="separate atomic commit"];
+  AppliedDamage -> Outbox [label="same transaction"];
 }

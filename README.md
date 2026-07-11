@@ -34,6 +34,7 @@ npm run serve
 ## 학습 자료와 저장소 문서의 경계
 
 - 공개 HTML은 현재 설명하는 개념, 계약, 예제, 실습만 담는다.
+- `source/csharp/`은 페이지의 핵심 계약과 Fireball 불변식을 실제 빌드로 검증하는 C# 참조 프로젝트를 보관한다.
 - `source/runtime/`은 Runtime Contract Lab의 JavaScript 시뮬레이터 커널, fixture, 계약 스키마를 보관한다.
 - `source/diagrams/`와 `assets/diagrams/`는 학습 다이어그램의 원본과 출력물을 보관한다.
 - `QA_REPORT.md`, `PHASE3_REFERENCE_IMPLEMENTATION.md`, `PHASE3_IMPLEMENTATION_PLAN.md` 같은 문서는 저장소 내부 검증·계획 기록이며 공개 내비게이션에는 연결하지 않는다.
@@ -42,7 +43,8 @@ npm run serve
 
 ```bash
 npm run python:deps
+npm run csharp:verify
 npm run qa
 ```
 
-`qa`는 런타임 테스트, 내비게이션 문구 일치, 검색 색인 재생성, 정적 링크·계약 검증, 체크섬 manifest 확인, 데스크톱·모바일 브라우저 smoke test를 순서대로 실행한다. 파일을 변경한 뒤에는 `npm run site-shell`로 drawer·pager 설명을, `npm run manifest`로 `MANIFEST.sha256`을 갱신한다. 검색 색인은 `source/site-map.json`과 공개 HTML을 기준으로 생성한다.
+`csharp:verify`는 외부 테스트 패키지 없이 C# 계약과 Fireball 기준 수치를 빌드·실행한다. `qa`는 JavaScript 런타임 테스트, C# 참조 검증, 내비게이션 문구 일치, 검색 색인 재생성, 정적 링크·계약 검증, 체크섬 manifest 확인, 데스크톱·모바일 브라우저 smoke test를 순서대로 실행한다. 파일을 변경한 뒤에는 `npm run site-shell`로 drawer·pager 설명을, `npm run manifest`로 `MANIFEST.sha256`을 갱신한다. 검색 색인은 `source/site-map.json`과 공개 HTML을 기준으로 생성한다.

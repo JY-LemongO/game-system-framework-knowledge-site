@@ -14,14 +14,22 @@ EntityId / EntityRef", fillcolor="#eaf0ff", color="#8292f7"];
     TagService [label="TagService
 TagSet / Tag Query", fillcolor="#f3eefc", color="#ab8fe0"];
     SourceTracker [label="SourceTracker
-SourceId / Origin", fillcolor="#fff7e6", color="#e0ad4e"];
+SourceRef / definition / instance", fillcolor="#fff7e6", color="#e0ad4e"];
     ContextFactory [label="GameContextFactory
 actor · target · seed · time", fillcolor="#eefbf6", color="#61b99a"];
   }
   subgraph cluster_runtime {
     label="런타임 서비스: 실행·재현·추적"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
     EventBus [label="EventBus
-publish / subscribe", fillcolor="#fff0f3", color="#e07b91"];
+committed facts only", fillcolor="#fff0f3", color="#e07b91"];
+    RuntimeCommitter [label="RuntimeCommitter
+versions · invariants
+state + outbox atomic", fillcolor="#eefbf6", color="#61b99a"];
+    DurableOutbox [label="Durable Outbox
+committed event records", fillcolor="#e9fbff", color="#54b7cf"];
+    ReactionQueue [label="ReactionQueue
+priority · stable key
+depth / budget", fillcolor="#f3eefc", color="#ab8fe0"];
     TimeService [label="TimeService
 tick / duration / cooldown", fillcolor="#e9fbff", color="#54b7cf"];
     RandomService [label="RandomStream
@@ -49,7 +57,7 @@ Modifier source", fillcolor="#f7f9fc", color="#bac7db"];
   EntityRegistry -> ContextFactory [label="actor/target resolve"];
   TagService -> ContextFactory [label="tags"];
   SourceTracker -> ContextFactory [label="source"];
-  ContextFactory -> EventBus [label="correlation"];
+  ContextFactory -> RuntimeCommitter [label="identity / correlation"];
   TimeService -> Skill [label="cooldown"];
   TimeService -> Status [label="duration/tick"];
   RandomService -> Skill [label="request seed"];
@@ -57,7 +65,16 @@ Modifier source", fillcolor="#f7f9fc", color="#bac7db"];
   DataRegistry -> Stat [label="definitions"];
   DataRegistry -> Effect [label="definitions"];
   DataRegistry -> Skill [label="definitions"];
-  EventBus -> DebugTrace [label="events"];
+  Skill -> RuntimeCommitter [label="cost/cooldown plan"];
+  Effect -> RuntimeCommitter [label="effect plan"];
+  Combat -> RuntimeCommitter [label="DamageResult plan"];
+  Status -> RuntimeCommitter [label="status/tick plan"];
+  RuntimeCommitter -> DurableOutbox [label="same transaction"];
+  DurableOutbox -> EventBus [label="dispatch committed facts"];
+  EventBus -> ReactionQueue [label="state-changing reactions"];
+  ReactionQueue -> Effect [label="new command"];
+  ReactionQueue -> Status [label="new command"];
+  EventBus -> DebugTrace [label="observation"];
   Stat -> DebugTrace [label="breakdown"];
   Effect -> DebugTrace [label="effect log"];
   Combat -> DebugTrace [label="damage log"];

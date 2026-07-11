@@ -3,7 +3,7 @@
     "file": "index.html",
     "short": "홈",
     "title": "C# 게임 시스템 설계 지식 베이스",
-    "desc": "C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트",
+    "desc": "C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트",
     "key": "home learning path c# csharp",
     "group": "시작",
     "level": "Overview"
@@ -56,7 +56,7 @@
     "file": "modules/combat-resolution-system.html",
     "short": "Combat",
     "title": "Combat Resolution System",
-    "desc": "C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult로 계산하는 구조",
+    "desc": "C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조",
     "key": "combat damage hit critical armor resistance shield c# csharp",
     "group": "Core Systems",
     "level": "Resolution",
@@ -81,7 +81,9 @@
     "desc": "Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약",
     "key": "integration dependency contract reaction c# csharp interface",
     "group": "Architecture",
-    "level": "Architecture"
+    "level": "Architecture",
+    "learningTrack": "practice",
+    "learningOrder": 7
   },
   {
     "file": "modules/fireball-case-study.html",
@@ -90,16 +92,20 @@
     "desc": "Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름",
     "key": "case fireball burn damage vertical slice c# csharp command",
     "group": "Practice",
-    "level": "Case Study"
+    "level": "Case Study",
+    "learningTrack": "practice",
+    "learningOrder": 8
   },
   {
     "file": "modules/runtime-reference.html",
     "short": "Runtime Lab",
     "title": "Runtime Contract Lab",
-    "desc": "C# 실행 계약의 replay, atomic commit, reaction, cache, migration을 JavaScript 시뮬레이터로 관찰하는 실습",
+    "desc": "C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습",
     "key": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
     "group": "Practice",
-    "level": "Lab"
+    "level": "Lab",
+    "learningTrack": "practice",
+    "learningOrder": 9
   },
   {
     "file": "modules/diagram-gallery.html",

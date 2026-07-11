@@ -2,14 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://gsf.example/contracts/source-ref.schema.json",
   "title": "GSF Source Reference",
-  "description": "A structured reference that separates a definition from one concrete execution instance.",
+  "description": "A structured reference with a required definition. Skill and status sources require an execution instance; system sources may omit it.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["kind", "definitionId", "instanceId"],
+  "required": ["kind", "definitionId"],
   "properties": {
     "kind": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9-]*$"
+      "enum": ["skill-execution", "status", "system"]
     },
     "definitionId": {
       "$ref": "#/$defs/namespacedId"
@@ -18,10 +17,16 @@
       "$ref": "#/$defs/namespacedId"
     }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "enum": ["skill-execution", "status"] } } },
+      "then": { "required": ["instanceId"] }
+    }
+  ],
   "$defs": {
     "namespacedId": {
       "type": "string",
-      "pattern": "^[a-z][a-z0-9-]*(?:\\.[A-Za-z0-9_-]+)+$"
+      "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9_-]*)+$"
     }
   }
 }

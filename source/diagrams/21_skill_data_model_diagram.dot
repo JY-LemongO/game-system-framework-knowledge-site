@@ -1,4 +1,3 @@
-
 digraph G {
   graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.70, nodesep=0.50];
   node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
@@ -7,40 +6,33 @@ digraph G {
   splines=ortho;
 
   subgraph cluster_definition {
-    label="Definition Data: 패치와 밸런싱 대상"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
-    SkillDef [label="SkillDefinition
-id, tags, display", fillcolor="#fff7e6", color="#e0ad4e"];
-    CostDef [label="CostDefinition
-resource, amount, timing", fillcolor="#fff0f3", color="#e07b91"];
-    CooldownDef [label="CooldownDefinition
-duration, group, charges", fillcolor="#fff0f3", color="#e07b91"];
-    TargetDef [label="TargetingSpec
-type, range, los", fillcolor="#e9fbff", color="#54b7cf"];
-    TimelineDef [label="TimelineDefinition
-phases, markers, cancels", fillcolor="#e9fbff", color="#54b7cf"];
-    BundleRef [label="EffectBundleRef
-effect ids + policy", fillcolor="#fff7e6", color="#e0ad4e"];
+    label="Definition Data · static balance"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
+    SkillDef [label="SkillDefinition\nid · tags · display", fillcolor="#fff7e6", color="#e0ad4e"];
+    CostDef [label="CostDefinition\nresource · amount · timing", fillcolor="#fff0f3", color="#e07b91"];
+    CooldownDef [label="CooldownDefinition\nduration · group · charges", fillcolor="#fff0f3", color="#e07b91"];
+    TargetDef [label="TargetingSpec\ntype · range · line of sight", fillcolor="#e9fbff", color="#54b7cf"];
+    TimelineDef [label="TimelineDefinition\nphases · markers · cancels", fillcolor="#e9fbff", color="#54b7cf"];
+    BundleRef [label="EffectBundleRef\nprimary effects · reactions · policy", fillcolor="#fff7e6", color="#e0ad4e"];
   }
   subgraph cluster_runtime {
-    label="Availability State + Transient Execution"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
-    SkillBook [label="SkillBook
-learned skill ids", fillcolor="#eaf0ff", color="#8292f7"];
-    SkillRuntime [label="SkillRuntime
-cooldown, charges", fillcolor="#eaf0ff", color="#8292f7"];
-    CastState [label="SkillExecution
-phase, elapsed, marker", fillcolor="#eaf0ff", color="#8292f7"];
+    label="Project-specific runtime models · availability and one execution"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
+    SkillBook [label="SkillBook\nlearned skill ids", fillcolor="#eaf0ff", color="#8292f7"];
+    SkillRuntime [label="SkillRuntime\nlearned level · cooldown · charges", fillcolor="#eaf0ff", color="#8292f7"];
+    SkillExecution [label="<<internal>> SkillExecution\nexecution id · phase · marker", fillcolor="#eaf0ff", color="#8292f7"];
+    SkillMutation [label="SkillMutation\ncost delta · cooldown ready tick\ncharge delta", fillcolor="#eefbf6", color="#61b99a"];
+    EffectBundlePlan [label="<<public Effect contract>> EffectBundlePlan\nBundleId · PrimaryOperations\nReactions", fillcolor="#eefbf6", color="#61b99a"];
+    ReleasePlan [label="<<internal project model>> SkillReleasePlan\nSkillMutation + EffectBundlePlan\nversion preconditions", fillcolor="#e9fbff", color="#54b7cf"];
+    CommitReceipt [label="CommitPlan → CommitReceipt\nstate + outbox atomic", fillcolor="#fff7e6", color="#e0ad4e"];
   }
   subgraph cluster_log {
-    label="Execution Log: 디버그와 리플레이"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
-    SkillRequest [label="SkillRequest
-CasterId, SkillId, TargetId?
-RequestedTick, RootSeed", fillcolor="#eefbf6", color="#61b99a"];
-    SkillResult [label="SkillResult
-Succeeded, FailureReason?
-Effects", fillcolor="#f0f3f9", color="#99a8bd"];
-    SkillTrace [label="SkillTrace
-steps, costs, events", fillcolor="#f0f3f9", color="#99a8bd"];
+    label="Input / Result / Observation"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
+    SkillRequest [label="<<public contract>> SkillRequest\nCasterId · SkillId · TargetId?\nRequestedTick · RootSeed", fillcolor="#eefbf6", color="#61b99a"];
+    SkillValidator [label="<<public interface>> ISkillRequestValidator\nValidate(SkillRequest)", fillcolor="#f3eefc", color="#ab8fe0"];
+    SkillDecision [label="<<public contract>> SkillDecision\nCanExecute · FailureReason?", fillcolor="#f3eefc", color="#ab8fe0"];
+    SkillResult [label="<<public contract>> SkillResult\nSucceeded · FailureReason?\nEffects", fillcolor="#f0f3f9", color="#99a8bd"];
+    SkillTrace [label="DebugTrace / outbox\nseparate calculation evidence\nand committed facts", fillcolor="#f0f3f9", color="#99a8bd"];
   }
+
   SkillDef -> CostDef [label="has"];
   SkillDef -> CooldownDef [label="has"];
   SkillDef -> TargetDef [label="has"];
@@ -48,9 +40,19 @@ steps, costs, events", fillcolor="#f0f3f9", color="#99a8bd"];
   SkillDef -> BundleRef [label="has"];
   SkillBook -> SkillRuntime [label="owns"];
   SkillRuntime -> SkillDef [label="definition id"];
-  SkillRequest -> CastState [label="creates"];
-  CastState -> SkillDef [label="definition id"];
-  SkillRequest -> SkillDef [label="lookup"];
-  CastState -> SkillResult [label="produces"];
-  SkillResult -> SkillTrace [label="debug"];
+  SkillRequest -> SkillValidator [label="Validate"];
+  SkillRequest -> SkillExecution [label="request after accepted decision"];
+  SkillValidator -> SkillDecision [label="returns"];
+  SkillDecision -> SkillExecution [label="accepted · internal Begin"];
+  SkillDecision -> SkillResult [label="rejected"];
+  SkillExecution -> SkillDef [label="definition id"];
+  SkillExecution -> SkillMutation [label="PrepareRelease"];
+  BundleRef -> EffectBundlePlan [label="public IEffectPlanner.Prepare"];
+  SkillMutation -> ReleasePlan;
+  EffectBundlePlan -> ReleasePlan;
+  SkillRuntime -> ReleasePlan [label="snapshot + version"];
+  ReleasePlan -> CommitReceipt [label="IRuntimeCommitter.Commit"];
+  CommitReceipt -> SkillRuntime [label="committed mutation"];
+  CommitReceipt -> SkillResult [label="receipt"];
+  SkillResult -> SkillTrace [label="correlates, does not own"];
 }

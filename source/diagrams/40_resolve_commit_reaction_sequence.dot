@@ -10,8 +10,8 @@ digraph G {
   Preconditions [shape=diamond, fillcolor="#fff7e6", label="4. Version +\nidempotency OK?"];
   Working [fillcolor="#fff7e6", label="5. Working Copy\nordered operations"];
   Validate [shape=diamond, fillcolor="#fff0f3", label="6. All resource\ninvariants valid?"];
-  Commit [fillcolor="#eefbf6", label="7. Atomic Commit\nstate swap + processed command"];
-  Outbox [fillcolor="#e9fbff", label="8. Post-commit Outbox\nSkillCommitted · DamageCommitted"];
+  Commit [fillcolor="#eefbf6", label="7. Atomic Commit\nstate + outbox + processed command"];
+  Outbox [fillcolor="#e9fbff", label="8. Committed Facts Dispatch\nSkillCommitted · DamageCommitted"];
   Queue [fillcolor="#f3eefc", label="9. Bounded ReactionQueue\npriority · stable key · budget"];
   Status [fillcolor="#e9fbff", label="10. Status Commit / Tick\ntick-before-expire · catch-up cap"];
   Reject [shape=note, fillcolor="#fff0f3", label="Reject without mutation\nDomainError + retryability"];

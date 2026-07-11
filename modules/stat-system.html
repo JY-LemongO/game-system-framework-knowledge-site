@@ -371,32 +371,32 @@
 
 public sealed class StatModifier
 {
-    public string ModifierId { get; }
-    public string StatId { get; }
+    public EntityId ModifierId { get; }
+    public EntityId StatId { get; }
     public ModifierOperation Operation { get; }
     public decimal Value { get; }
-    public string SourceId { get; }
+    public SourceRef Source { get; }
     public int Priority { get; }
-    public string StackRule { get; }
-    public IModifierCondition Condition { get; }
+    public EntityId StackRuleId { get; }
+    public IModifierCondition? Condition { get; }
 
     public StatModifier(
-        string modifierId,
-        string statId,
+        EntityId modifierId,
+        EntityId statId,
         ModifierOperation operation,
         decimal value,
-        string sourceId,
+        SourceRef source,
         int priority,
-        string stackRule = "Stack",
-        IModifierCondition condition = null)
+        EntityId stackRuleId,
+        IModifierCondition? condition = null)
     {
         ModifierId = modifierId;
         StatId = statId;
         Operation = operation;
         Value = value;
-        SourceId = sourceId;
+        Source = source;
         Priority = priority;
-        StackRule = stackRule;
+        StackRuleId = stackRuleId;
         Condition = condition;
     }
 }
@@ -408,8 +408,9 @@ public interface IModifierCondition
 
 public interface IStatQuery
 {
-    decimal GetValue(EntityId ownerId, string statId, StatContext context);
+    decimal GetValue(EntityId ownerId, EntityId statId, StatContext context);
 }</code></pre>
+<div class="callout"><b>질의 불변식.</b> <code>ownerId</code>는 반드시 <code>context.OwnerId</code>와 같아야 한다. 다르면 다른 소유자의 문맥으로 조건을 평가하게 되므로 유효하지 않은 질의로 거부한다.</div>
 <h2 id="modifier는-왜-중요한가">
       Modifier는 왜 중요한가?
      </h2>
@@ -447,7 +448,7 @@ Final: 156</code></pre>
 </div>
 <img alt="Stat 계산 액티비티 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/04_calculation_activity_diagram.svg"/>
 <figcaption class="cap">
-       GetValue 호출 후 캐시 확인, Modifier 필터링, 단계별 계산, 이벤트 발행이 이어진다.
+       GetValue 호출은 캐시 확인, Modifier 필터링, 단계별 계산과 Debug Breakdown 반환까지만 수행한다. StatChanged는 Modifier·Resource 변경을 commit할 때 outbox에 기록한다.
       </figcaption>
 </figure>
 <div class="table-scroll">
@@ -537,9 +538,9 @@ Final: 156</code></pre>
       </b>
       같은 operation과 priority를 가진 Modifier는
       <code>
-       (Priority, SourceId, ModifierId)
+       (Priority, Source.Kind, Source.DefinitionId, Source.InstanceId, ModifierId)
       </code>
-      같은 안정적인 키로 정렬한다. More/Less는 합산이 아니라 항목별 곱으로 정의하고, Override가 여러 개면 승자 규칙을 데이터 계약에 명시한다.
+      같은 안정적인 키로 정렬한다. InstanceId가 없는 SourceRef도 null 정렬 순서를 고정해야 한다. More/Less는 합산이 아니라 항목별 곱으로 정의하고, Override가 여러 개면 승자 규칙을 데이터 계약에 명시한다.
      </div>
 <div class="callout">
 <strong>
@@ -561,20 +562,20 @@ Final: 156</code></pre>
 {
     public EntityId OwnerId { get; }
     public EntityId? TargetId { get; }
-    public string SkillId { get; }
+    public EntityId SkillId { get; }
     public IReadOnlyCollection&lt;string&gt; SkillTags { get; }
     public IReadOnlyCollection&lt;string&gt; TargetTags { get; }
-    public IReadOnlyCollection&lt;string&gt; TargetStatuses { get; }
+    public IReadOnlyCollection&lt;EntityId&gt; TargetStatuses { get; }
     public decimal Distance { get; }
     public string Moment { get; }
 
     public StatContext(
         EntityId ownerId,
         EntityId? targetId,
-        string skillId,
+        EntityId skillId,
         string[] skillTags,
         string[] targetTags,
-        string[] targetStatuses,
+        EntityId[] targetStatuses,
         decimal distance,
         string moment)
     {
@@ -590,7 +591,7 @@ Final: 156</code></pre>
         SkillId = skillId;
         SkillTags = Array.AsReadOnly((string[])skillTags.Clone());
         TargetTags = Array.AsReadOnly((string[])targetTags.Clone());
-        TargetStatuses = Array.AsReadOnly((string[])targetStatuses.Clone());
+        TargetStatuses = Array.AsReadOnly((EntityId[])targetStatuses.Clone());
         Distance = distance;
         Moment = moment;
     }
@@ -722,16 +723,16 @@ Final: 156</code></pre>
       파생 스탯은 다른 스탯으로 계산되는 값이다. vitality가 바뀌면 max_hp도 dirty 처리되어야 하고, strength가 바뀌면 attack_power가 재계산되어야 한다.
      </p>
 <pre><code class="language-csharp">private decimal CalculateMaxHp(StatContext context)
-    =&gt; 100m + GetValue("vitality", context) * 10m;
+    =&gt; 100m + GetValue(context.OwnerId, new EntityId("stat.vitality"), context) * 10m;
 
 private decimal CalculateAttackPower(StatContext context)
-    =&gt; GetValue("weapon_attack", context)
-       + GetValue("strength", context) * 2m;
+    =&gt; GetValue(context.OwnerId, new EntityId("stat.weapon-attack"), context)
+       + GetValue(context.OwnerId, new EntityId("stat.strength"), context) * 2m;
 
 private decimal CalculateCritChance(StatContext context)
 {
-    decimal chance = GetValue("dexterity", context) * 0.002m
-                     + GetValue("item_bonus", context);
+    decimal chance = GetValue(context.OwnerId, new EntityId("stat.dexterity"), context) * 0.002m
+                     + GetValue(context.OwnerId, new EntityId("stat.item-bonus"), context);
 
     return Math.Min(1m, Math.Max(0m, chance));
 }</code></pre>
@@ -862,10 +863,10 @@ private decimal CalculateCritChance(StatContext context)
          Status 제거 → Stat
         </td>
 <td>
-         SourceId=StatusInstanceId인 Modifier를 제거한다. 현재 HP나 Shield는 ResourceController가 별도로 관리한다.
+         SourceRef.StatusInstanceId가 일치하는 Modifier를 제거한다. 현재 HP나 Shield는 ResourceController가 별도로 관리한다.
         </td>
 <td>
-         SourceId가 없으면 중첩과 제거 디버그가 어려워진다.
+         구조화된 SourceRef가 없으면 중첩과 제거 디버그가 어려워진다.
         </td>
 </tr>
 <tr>
@@ -884,17 +885,18 @@ private decimal CalculateCritChance(StatContext context)
 <pre><code class="language-csharp">public void ApplyRage(StatusInstance rage)
 {
     _stats.AddModifier(new StatModifier(
-        modifierId: "modifier.rage.attack-power",
-        statId: "attack_power",
+        modifierId: new EntityId("modifier.rage.attack-power"),
+        statId: new EntityId("stat.attack-power"),
         operation: ModifierOperation.PercentAdd,
         value: 0.30m,
-        sourceId: rage.SourceId,
-        priority: 0));
+        source: SourceRef.Status(new EntityId("status.rage"), rage.InstanceId),
+        priority: 0,
+        stackRuleId: new EntityId("stack-rule.stack")));
 }
 
 public void RemoveRage(StatusInstance rage)
 {
-    _stats.RemoveModifiersBySource(rage.SourceId);
+    _stats.RemoveModifiersBySource(rage.InstanceId);
 }</code></pre>
 <section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
 <span class="section-kicker">Comprehension check</span>
@@ -903,7 +905,7 @@ public void RemoveRage(StatusInstance rage)
 <ol class="checkpoint-grid">
 <li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="stat.q1"><summary>장비로 max_hp가 100에서 120으로 증가할 때 Stat과 ResourceController는 각각 무엇을 결정해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Stat은 최종 최대치 120을 계산한다. 현재 HP 변경은 ResourceController가 KeepCurrent, KeepRatio, AddDelta 같은 동기화 정책에 따라 처리한다.</p></div></details></li>
 <li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="stat.q2"><summary>Burn 대상 공격 시 치명타 확률 +10% 결과를 Burn이 없는 대상에게도 캐시 재사용하면 무엇이 잘못될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">대상과 상태가 다른데 조건부 값을 재사용하게 된다. 무조건부 레이어만 owner 단위로 캐시하고, 조건부 값은 context fingerprint별로 캐시하거나 다시 계산해야 한다.</p></div></details></li>
-<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="stat.q3"><summary>Rage가 적용되고 제거되는 동안 Status, Stat, Combat은 각각 어떤 역할을 맡아야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Status가 SourceId=StatusInstanceId인 Modifier를 등록·제거하고 Stat이 최종 공격력을 계산한다. Combat은 계산된 값을 읽을 뿐 Modifier나 원본 값을 직접 변경하지 않는다.</p></div></details></li>
+<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="stat.q3"><summary>Rage가 적용되고 제거되는 동안 Status, Stat, Combat은 각각 어떤 역할을 맡아야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Status가 StatusInstanceId를 포함한 SourceRef의 Modifier를 등록·제거하고 Stat이 최종 공격력을 계산한다. Combat은 계산된 값을 읽을 뿐 Modifier나 원본 값을 직접 변경하지 않는다.</p></div></details></li>
 </ol>
 </section>
 <h2 id="설계-점검">
@@ -914,7 +916,7 @@ public void RemoveRage(StatusInstance rage)
        StatDefinition과 StatInstance가 분리되어 있다.
       </li>
 <li>
-       Modifier는 SourceId, Operation, Priority, StackRule, Condition을 가진다.
+       Modifier는 SourceRef, Operation, Priority, StackRuleId, Condition을 가진다.
       </li>
 <li>
        Base/Add/Percent/More/Override/Clamp 계산 순서가 명시되어 있다.
@@ -926,7 +928,7 @@ public void RemoveRage(StatusInstance rage)
        조건부 Modifier가 StatContext로 평가된다.
       </li>
 <li>
-       StatChangedEvent와 DebugBreakdown이 제공된다.
+       DebugBreakdown은 query 결과로, StatChangedEvent는 mutation commit의 outbox fact로 제공된다.
       </li>
 </ul>
 </article>
@@ -1103,7 +1105,7 @@ public void RemoveRage(StatusInstance rage)
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a aria-current="page" class="is-active" href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache, migration을 JavaScript 시뮬레이터로 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a aria-current="page" class="is-active" href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
@@ -1124,7 +1126,7 @@ public void RemoveRage(StatusInstance rage)
       ESC
      </button>
 </header>
-<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
+<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceRef…" spellcheck="false" type="search"/>
 <div class="command-hints">
 <span>
       ↑↓ 이동

@@ -6,9 +6,10 @@ digraph G {
   DamageRequest [shape=plain,label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a"><TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">DamageRequest</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ AttackerId: EntityId</TD></TR><TR><TD ALIGN="LEFT">+ DefenderId: EntityId</TD></TR><TR><TD ALIGN="LEFT">+ Source: SourceRef</TD></TR><TR><TD ALIGN="LEFT">+ FormulaId</TD></TR><TR><TD ALIGN="LEFT">+ DamageType</TD></TR><TR><TD ALIGN="LEFT">+ BaseValue</TD></TR><TR><TD ALIGN="LEFT">+ CoefficientBps</TD></TR><TR><TD ALIGN="LEFT">+ Tags</TD></TR><TR><TD ALIGN="LEFT">+ Seed</TD></TR></TABLE>>];
   CombatContext [shape=plain,label=<
-<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#54b7cf"><TR><TD BGCOLOR="#e9fbff"><B><FONT POINT-SIZE="16">CombatContext</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Distance</TD></TR><TR><TD ALIGN="LEFT">+ Facing</TD></TR><TR><TD ALIGN="LEFT">+ TerrainTags</TD></TR><TR><TD ALIGN="LEFT">+ StatusTags</TD></TR><TR><TD ALIGN="LEFT">+ Difficulty</TD></TR></TABLE>>];
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#54b7cf"><TR><TD BGCOLOR="#e9fbff"><B><FONT POINT-SIZE="16">CombatContext</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Distance</TD></TR><TR><TD ALIGN="LEFT">+ Facing</TD></TR><TR><TD ALIGN="LEFT">+ TerrainTags</TD></TR><TR><TD ALIGN="LEFT">+ StatusTags</TD></TR><TR><TD ALIGN="LEFT">+ AvailableShield: resource snapshot</TD></TR><TR><TD ALIGN="LEFT">+ AvailableTargetHp: resource snapshot</TD></TR><TR><TD ALIGN="LEFT">+ Difficulty</TD></TR></TABLE>>];
   DamagePipeline [shape=plain,label=<
-<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#8292f7"><TR><TD BGCOLOR="#eaf0ff"><B><FONT POINT-SIZE="16">DamagePipeline</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Validate()</TD></TR><TR><TD ALIGN="LEFT">+ ResolveHit()</TD></TR><TR><TD ALIGN="LEFT">+ ResolveCritical()</TD></TR><TR><TD ALIGN="LEFT">+ Calculate()</TD></TR><TR><TD ALIGN="LEFT">+ BuildResult()</TD></TR></TABLE>>];
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#8292f7"><TR><TD BGCOLOR="#eaf0ff"><B><FONT POINT-SIZE="16">DamagePipeline</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Validate()</TD></TR><TR><TD ALIGN="LEFT">+ ResolveHit()</TD></TR><TR><TD ALIGN="LEFT">+ CalculateFormula()</TD></TR><TR><TD ALIGN="LEFT">+ ResolveCritical()</TD></TR><TR><TD ALIGN="LEFT">+ BuildResult()</TD></TR></TABLE>>];
+  ICombatResolver [label="<<interface>> ICombatResolver\n+ Resolve(DamageRequest, CombatContext): DamageResult\npure calculation", fillcolor="#eaf0ff", color="#8292f7"];
   HitResolver [shape=plain,label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e0ad4e"><TR><TD BGCOLOR="#fff7e6"><B><FONT POINT-SIZE="16">HitResolver</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Accuracy</TD></TR><TR><TD ALIGN="LEFT">+ Evasion</TD></TR><TR><TD ALIGN="LEFT">+ Block</TD></TR><TR><TD ALIGN="LEFT">+ Invulnerable</TD></TR></TABLE>>];
   CriticalResolver [shape=plain,label=<
@@ -17,23 +18,30 @@ digraph G {
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0"><TR><TD BGCOLOR="#f3eefc"><B><FONT POINT-SIZE="16">DamageFormula</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ BaseValue + StatValue * Coefficient</TD></TR><TR><TD ALIGN="LEFT">+ OffensiveBonus</TD></TR><TR><TD ALIGN="LEFT">+ FormulaSubtotal</TD></TR></TABLE>>];
   DefenseResolver [shape=plain,label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e07b91"><TR><TD BGCOLOR="#fff0f3"><B><FONT POINT-SIZE="16">DefenseResolver</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Armor</TD></TR><TR><TD ALIGN="LEFT">+ Guard</TD></TR><TR><TD ALIGN="LEFT">+ FlatReduction</TD></TR><TR><TD ALIGN="LEFT">+ PercentReduction</TD></TR></TABLE>>];
+  BlockPolicy [label="BlockPolicy\nreduction · guard cost · event\nproject-specific", fillcolor="#fff7e6", color="#e0ad4e"];
   ResistanceResolver [shape=plain,label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e07b91"><TR><TD BGCOLOR="#fff0f3"><B><FONT POINT-SIZE="16">ResistanceResolver</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Fire / Ice / Poison</TD></TR><TR><TD ALIGN="LEFT">+ Penetration</TD></TR><TR><TD ALIGN="LEFT">+ Vulnerability</TD></TR><TR><TD ALIGN="LEFT">+ Cap</TD></TR></TABLE>>];
   ShieldResolver [shape=plain,label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#99a8bd"><TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">ShieldResolver</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Barrier</TD></TR><TR><TD ALIGN="LEFT">+ Absorb</TD></TR><TR><TD ALIGN="LEFT">+ DamageRedirect</TD></TR></TABLE>>];
+  HitOutcome [label="HitOutcome\nHit · Miss · Blocked\nImmune · Rejected", fillcolor="#fff7e6", color="#e0ad4e"];
   DamageResult [shape=plain,label=<
-<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a"><TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">DamageResult</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Hit</TD></TR><TR><TD ALIGN="LEFT">+ Critical</TD></TR><TR><TD ALIGN="LEFT">+ RawDamage</TD></TR><TR><TD ALIGN="LEFT">+ ResolvedDamage</TD></TR><TR><TD ALIGN="LEFT">+ ShieldAbsorbed</TD></TR><TR><TD ALIGN="LEFT">+ FinalHpDamage</TD></TR></TABLE>>];
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a"><TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">DamageResult</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Outcome: HitOutcome</TD></TR><TR><TD ALIGN="LEFT">+ Critical</TD></TR><TR><TD ALIGN="LEFT">+ RawDamage (post-critical, pre-mitigation)</TD></TR><TR><TD ALIGN="LEFT">+ ResolvedDamage</TD></TR><TR><TD ALIGN="LEFT">+ ShieldAbsorbed</TD></TR><TR><TD ALIGN="LEFT">+ FinalHpDamage</TD></TR><TR><TD ALIGN="LEFT">+ Overkill</TD></TR><TR><TD ALIGN="LEFT"><B>Invariant:</B> ResolvedDamage =</TD></TR><TR><TD ALIGN="LEFT">ShieldAbsorbed + FinalHpDamage + Overkill</TD></TR></TABLE>>];
+  DamageCommit [label="IDamageCommitService / RuntimeCommitter\n+ Commit(defenderId, result): AppliedDamage\nShield · HP · outbox atomic", fillcolor="#eefbf6", color="#61b99a"];
   CombatLogBuilder [label="CombatLogBuilder\n+ BuildHumanReadableLog()"];
 
   DamageRequest -> DamagePipeline [label="input"];
   CombatContext -> DamagePipeline [label="context"];
+  ICombatResolver -> DamagePipeline [label="implemented by", arrowhead=empty];
   DamagePipeline -> HitResolver [label="1"];
-  DamagePipeline -> CriticalResolver [label="2"];
-  DamagePipeline -> DamageFormula [label="3"];
-  DamageFormula -> DefenseResolver [label="4"];
-  DefenseResolver -> ResistanceResolver [label="5"];
-  ResistanceResolver -> ShieldResolver [label="6"];
+  DamagePipeline -> DamageFormula [label="2"];
+  DamageFormula -> CriticalResolver [label="3"];
+  CriticalResolver -> DefenseResolver [label="4"];
+  DefenseResolver -> BlockPolicy [label="5"];
+  BlockPolicy -> ResistanceResolver [label="6"];
+  ResistanceResolver -> ShieldResolver [label="7"];
   ShieldResolver -> DamageResult [label="returns"];
-  DamagePipeline -> DamageResult [style=dashed, label="miss / immune"];
+  HitOutcome -> DamageResult [label="classifies"];
+  DamagePipeline -> DamageResult [style=dashed, label="Miss / Blocked / Immune / Rejected"];
+  DamageResult -> DamageCommit [label="commit separately"];
   DamageResult -> CombatLogBuilder [label="log"];
 }

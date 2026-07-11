@@ -9,13 +9,13 @@ digraph G {
   splines=ortho;
   node [shape=record, style="rounded,filled", fillcolor="#ffffff"];
   EffectDefinitionData [label="{EffectDefinitionData|effectId PK\ltype\ltargetSelectorId FK\lvalueExpressionId FK?\lconditionIds[]\lexecutorKey\ltags[]\l}", fillcolor="#fff7e6", color="#e0ad4e"];
-  EffectBundleData [label="{EffectBundleData|bundleId PK\leffectIds[]\lexecutionMode\lstopPolicy\lrollbackPolicy\l}", fillcolor="#fff7e6", color="#e0ad4e"];
+  EffectBundleData [label="{EffectBundleData|bundleId PK\lprimaryEffectIds[]\lreactionIds[]\lexecutionPolicy=commit_then_react\lstopPolicy\l}", fillcolor="#fff7e6", color="#e0ad4e"];
   TargetSelectorData [label="{TargetSelectorData|selectorId PK\lselectorType\lshape/range/angle\llimit\lfilterIds[]\l}", fillcolor="#fff7e6", color="#e0ad4e"];
   ValueExpressionData [label="{ValueExpressionData|valueId PK\lbaseValue\lscalingTerms[]\lstatRefs[]\lmin/max\lrounding\l}", fillcolor="#fff7e6", color="#e0ad4e"];
   EffectConditionData [label="{EffectConditionData|conditionId PK\lconditionType\lparams\lfailurePolicy\l}", fillcolor="#fff7e6", color="#e0ad4e"];
   SkillDefinitionData [label="{SkillDefinitionData|skillId PK\leffectBundleId FK\lcosts[]\ltargeting\ltimeline\l}", fillcolor="#eaf0ff", color="#8292f7"];
   StatusDefinitionData [label="{StatusDefinitionData|statusId PK\lonApplyBundleId FK?\lmodifiers[]\ltickBundleId FK?\lonExpireBundleId FK?\l}", fillcolor="#eaf0ff", color="#8292f7"];
-  EventReactionData [label="{EventReactionData|reactionId PK\ltriggerEvent\lconditionIds[]\leffectBundleId FK\lpriority\l}", fillcolor="#eaf0ff", color="#8292f7"];
+  EventReactionData [label="{EventReactionData|reactionId PK\ltriggerEvent\lconditionIds[]\leffectBundleId FK\lpriority\lstableOrderKey\lbudgetCost\lcausationId\lidempotencyKey\l}", fillcolor="#eaf0ff", color="#8292f7"];
   EffectExecutionLog [label="{EffectExecutionLog|executionId PK\lrequestId\lsourceId\ltargetIds[]\leffectIds[]\lresultItems[]\lseed\ltimestamp\l}", fillcolor="#f3eefc", color="#ab8fe0"];
   ScheduledEffectState [label="{ScheduledEffectState|scheduleId PK\leffectId FK\lsourceId\lremainingTime\lrepeatCount\lcontextSnapshot\l}", fillcolor="#f3eefc", color="#ab8fe0"];
 
@@ -25,7 +25,8 @@ digraph G {
   EffectDefinitionData -> EffectConditionData;
   SkillDefinitionData -> EffectBundleData [label="cast"];
   StatusDefinitionData -> EffectBundleData [label="apply/tick/expire"];
-  EventReactionData -> EffectBundleData [label="trigger"];
+  EffectBundleData -> EventReactionData [label="post-commit reactions"];
+  EventReactionData -> EffectBundleData [label="new command"];
   EffectExecutionLog -> EffectDefinitionData [label="records"];
   ScheduledEffectState -> EffectDefinitionData [label="future"];
 }

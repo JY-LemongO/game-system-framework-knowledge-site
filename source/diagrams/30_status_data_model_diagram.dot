@@ -9,15 +9,17 @@ digraph G {
 - displayName
 - tags"];
     DurationRule [label="DurationRule
-- base
+- durationTicks
+- clockDomain
 - refreshPolicy"];
     StackingRule [label="StackingRule
 - type
 - maxStacks
 - onReapply"];
     TickRule [label="TickRule
-- interval
-- startPolicy"];
+- intervalTicks
+- startPolicy
+- MaxCatchUpTicks"];
     ModifierTemplate [label="ModifierTemplate
 - stat
 - operation
@@ -31,16 +33,17 @@ digraph G {
 - instanceId
 - target
 - Source: SourceRef
-- modifierSourceId=instanceId"];
+- modifierSourceRef=SourceRef.Status(definitionId, instanceId)"];
     StackState [label="StackState
 - count
 - contributors"];
     DurationState [label="DurationState
-- remaining
-- startTime"];
+- startTick
+- expiresAtTick
+- clockDomain"];
     TickState [label="TickState
-- nextTick
-- elapsed"];
+- nextTickAt
+- elapsedTicks"];
     SnapshotState [label="SnapshotState
 - capturedStats?
 - seed"];

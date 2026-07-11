@@ -7,20 +7,18 @@ digraph G {
   start [shape=circle, width=.26, label="", fillcolor="#182033", color="#182033"];
   dmg [label="DamageEffect\nBuild DamageRequest", fillcolor="#eefbf6", color="#5ac39b"];
   req [label="DamageRequest\nAttackerId · DefenderId · FormulaId\nSource · DamageType · BaseValue\nCoefficientBps · Tags · Seed", fillcolor="#f8fafc"];
-  resolver [label="CombatResolver\nResolve(request)", fillcolor="#eaf0ff", color="#8292f7"];
-  stat [label="StatSystem\nRead attacker / defender final values", fillcolor="#fff8e7", color="#e4ad4f"];
-  status [label="Status Query\nRead immunity / vulnerability tags", fillcolor="#f4efff", color="#a884e8"];
-  pipe [label="DamagePipeline\nhit → critical → formula → defense → resistance → shield", fillcolor="#ffffff"];
-  result [label="DamageResult\nHit · Critical · RawDamage\nResolvedDamage · ShieldAbsorbed · FinalHpDamage", fillcolor="#eefbf6", color="#5ac39b"];
-  resource [label="ResourceController\nApply HP loss by project policy", fillcolor="#fff1f2", color="#e07b91"];
-  event [label="EventBus after commit\nDamageCommitted / EntityDefeated", fillcolor="#f8fafc"];
-  trace [label="DebugTrace\nAppend calculation breakdown", fillcolor="#f8fafc"];
+  snapshot [label="CombatContext snapshot\nattacker/defender stats · status tags · versions\nAvailableShield · AvailableTargetHp", fillcolor="#fff8e7", color="#e4ad4f"];
+  resolver [label="ICombatResolver\nResolve(request, context)\npure calculation", fillcolor="#eaf0ff", color="#8292f7"];
+  pipe [label="DamagePipeline\nHitOutcome → formula → critical → defense\nresistance → shield → clamp/round", fillcolor="#ffffff"];
+  result [label="DamageResult\nOutcome · Critical · RawDamage (pre-mitigation)\nResolvedDamage · ShieldAbsorbed · FinalHpDamage · Overkill", fillcolor="#eefbf6", color="#5ac39b"];
+  trace [label="DebugTrace\ncalculation breakdown only", fillcolor="#f8fafc"];
+  commit [label="IDamageCommitService / RuntimeCommitter\nversion 재검사 · Shield/HP + outbox\n원자적 commit", fillcolor="#fff1f2", color="#e07b91"];
+  event [label="Committed facts dispatch\nDamageCommitted / EntityDefeated", fillcolor="#e9fbff", color="#54b7cf"];
+  reaction [label="ReactionQueue\n흡혈 · Burn · 반사 command", fillcolor="#f4efff", color="#a884e8"];
+  reject [shape=note, label="commit 실패\nmutation 없음 · event 없음", fillcolor="#fff0f3", color="#e07b91"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];
 
-  start -> dmg -> req -> resolver -> pipe -> result -> resource -> event -> trace -> end;
-  resolver -> stat [style=dashed, label="stat reads"];
-  resolver -> status [style=dashed, label="status/tag reads"];
-  stat -> pipe [style=dashed, label="values"];
-  status -> pipe [style=dashed, label="tags"];
-  result -> trace [style=dashed, label="formula steps"];
+  start -> dmg -> req -> snapshot -> resolver -> pipe -> result -> commit -> event -> reaction -> end;
+  result -> trace [style=dashed, label="explain"];
+  commit -> reject [style=dashed, label="version / invariant fail", color="#dc2626", fontcolor="#dc2626"];
 }

@@ -1,75 +1,67 @@
-
 digraph G {
-
   graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.65, nodesep=0.48];
   node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
   edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
-
   rankdir=LR;
   splines=ortho;
   node [shape=box, style="rounded,filled", width=2.1, height=0.52];
+
   subgraph cluster_data {
-    label="Content / Data"; style="rounded,dashed"; color="#dfe5ee"; fontname="Noto Sans CJK KR"; fontcolor="#607086"; fontsize=17;
-    EffectDefinitionData [label="EffectDefinition
-효과 종류·파라미터", fillcolor="#fff7e6", color="#e0ad4e"];
-    EffectBundleData [label="EffectBundle
-효과 묶음", fillcolor="#fff7e6", color="#e0ad4e"];
-    TargetSelectorData [label="TargetSelector
-Self·Area·Cone·Chain", fillcolor="#fff7e6", color="#e0ad4e"];
-    ValueExpressionData [label="ValueExpression
-base + stat scaling", fillcolor="#fff7e6", color="#e0ad4e"];
-    ConditionData [label="ConditionData
-대상·태그·상태 조건", fillcolor="#fff7e6", color="#e0ad4e"];
+    label="Content / Data"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=17;
+    EffectDefinitionData [label="EffectDefinition\ntype · parameters", fillcolor="#fff7e6", color="#e0ad4e"];
+    EffectBundleData [label="EffectBundleDefinition\nstatic effect references · reactions\ncontent data", fillcolor="#fff7e6", color="#e0ad4e"];
+    TargetSelectorData [label="TargetSelector\nSelf · Single · Area · Chain", fillcolor="#fff7e6", color="#e0ad4e"];
+    ValueExpressionData [label="ValueExpression\nnon-damage values", fillcolor="#fff7e6", color="#e0ad4e"];
+    ConditionData [label="ConditionData\ntarget · tag · status", fillcolor="#fff7e6", color="#e0ad4e"];
   }
   subgraph cluster_runtime {
-    label="Reusable Effect Framework"; style="rounded,dashed"; color="#dfe5ee"; fontname="Noto Sans CJK KR"; fontcolor="#607086"; fontsize=17;
-    EffectRegistry [label="EffectRegistry
-정의 로드·검증", fillcolor="#eaf0ff", color="#8292f7"];
-    EffectRequest [label="EffectRequest
-실행 요청", fillcolor="#eaf0ff", color="#8292f7"];
-    EffectContext [label="EffectContext
-CasterId · InitialTargetId
-Source · RandomSeed", fillcolor="#eaf0ff", color="#8292f7"];
-    EffectPipeline [label="EffectPipeline
-Validate→Target→Value→Apply", fillcolor="#eaf0ff", color="#8292f7"];
-    TargetResolver [label="TargetResolver
-후보 수집·필터", fillcolor="#eaf0ff", color="#8292f7"];
-    ValueResolver [label="ValueResolver
-스탯 조회·수식 계산", fillcolor="#eaf0ff", color="#8292f7"];
-    EffectExecutor [label="EffectExecutor
-효과별 적용기", fillcolor="#eaf0ff", color="#8292f7"];
-    EffectResult [label="EffectResult
-성공·실패·결과 목록", fillcolor="#eaf0ff", color="#8292f7"];
-    EffectLog [label="EffectLog
-디버그·리플레이 근거", fillcolor="#f3eefc", color="#ab8fe0"];
+    label="Effect Runtime · public port and internal stages"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=17;
+    EffectRegistry [label="EffectRegistry\ndefinition load · validation", fillcolor="#eaf0ff", color="#8292f7"];
+    EffectContext [label="EffectContext\nCasterId · InitialTargetId\nSourceRef · RandomSeed", fillcolor="#eaf0ff", color="#8292f7"];
+    Normalizer [label="<<internal stage>>\nDefinitionNormalizer\nvalidate · target · normalize", fillcolor="#eaf0ff", color="#8292f7"];
+    RuntimeModel [label="EffectOperation / EffectBundle\npublic runtime input", fillcolor="#eefbf6", color="#61b99a"];
+    Executor [label="<<public interface>> IEffectExecutor\nExecute(Operation | Bundle, Context)", fillcolor="#eefbf6", color="#61b99a"];
+    Planner [label="<<public interface>> IEffectPlanner\nPrepare(EffectBundle, Context)", fillcolor="#e9fbff", color="#54b7cf"];
+    TargetResolver [label="TargetResolver\ncollect · filter · stable sort", fillcolor="#eaf0ff", color="#8292f7"];
+    OperationPlanner [label="<<internal stage>> OperationPlanBuilder\nDamageRequest · ApplyStatusRequest\nmutation + planned outbox", fillcolor="#eaf0ff", color="#8292f7"];
+    Plan [label="<<public contract>> EffectBundlePlan\nBundleId · PrimaryOperations\nReactions", fillcolor="#eefbf6", color="#61b99a"];
+    EffectResult [label="EffectResult\nsuccess · failure · result items", fillcolor="#eaf0ff", color="#8292f7"];
+    EffectLog [label="DebugTrace\ncalculation evidence", fillcolor="#f3eefc", color="#ab8fe0"];
   }
   subgraph cluster_external {
-    label="External Systems"; style="rounded,dashed"; color="#dfe5ee"; fontname="Noto Sans CJK KR"; fontcolor="#607086"; fontsize=17;
-    StatSystem [label="Stat System
-최종값·Modifier", fillcolor="#eefbf6", color="#61b99a"];
-    CombatSystem [label="Combat System
-Hit/Crit/Damage", fillcolor="#eefbf6", color="#61b99a"];
-    StatusSystem [label="Status System
-상태 부여·제거", fillcolor="#eefbf6", color="#61b99a"];
-    EventBus [label="Event Bus
-EffectApplied 등", fillcolor="#eefbf6", color="#61b99a"];
+    label="Ports / Commit / Reaction"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=17;
+    StatSystem [label="IStatQuery\npure contextual values", fillcolor="#eefbf6", color="#61b99a"];
+    CombatSystem [label="ICombatResolver\npure DamageResult", fillcolor="#eefbf6", color="#61b99a"];
+    Committer [label="RuntimeCommitter\nstate + outbox atomic", fillcolor="#eefbf6", color="#61b99a"];
+    Facts [label="Committed facts\nEffectCompleted · DamageCommitted", fillcolor="#e9fbff", color="#54b7cf"];
+    ReactionQueue [label="ReactionQueue\nstate-changing follow-up commands", fillcolor="#f3eefc", color="#ab8fe0"];
+    StatusSystem [label="Status System\nApplyStatus command", fillcolor="#eefbf6", color="#61b99a"];
   }
+
   EffectDefinitionData -> EffectRegistry;
   EffectBundleData -> EffectRegistry;
   TargetSelectorData -> TargetResolver;
-  ValueExpressionData -> ValueResolver;
-  ConditionData -> EffectPipeline;
-  EffectRequest -> EffectPipeline;
-  EffectContext -> EffectPipeline;
-  EffectPipeline -> TargetResolver;
-  EffectPipeline -> ValueResolver;
-  EffectPipeline -> EffectExecutor;
-  TargetResolver -> EffectResult;
-  ValueResolver -> StatSystem [label="GetValue(ctx)"];
-  EffectExecutor -> CombatSystem [label="DamageEffect"];
-  EffectExecutor -> StatusSystem [label="ApplyStatus"];
-  EffectExecutor -> StatSystem [label="AddModifier/Resource"];
-  EffectExecutor -> EffectResult;
-  EffectResult -> EventBus [label="Publish"];
-  EffectPipeline -> EffectLog;
+  ValueExpressionData -> Normalizer;
+  ConditionData -> Normalizer;
+  EffectRegistry -> Normalizer;
+  TargetResolver -> Normalizer [label="stable targets"];
+  Normalizer -> RuntimeModel [label="normalize"];
+  RuntimeModel -> Executor [label="input"];
+  RuntimeModel -> Planner [label="bundle input"];
+  EffectContext -> Executor [label="input"];
+  EffectContext -> Planner [label="input"];
+  Executor -> Planner [label="uses for bundle"];
+  Executor -> OperationPlanner [label="execute operation / plan"];
+  Planner -> TargetResolver [label="optional revalidation"];
+  OperationPlanner -> StatSystem [label="GetValue(owner, stat, ctx)"];
+  OperationPlanner -> CombatSystem [label="DamageRequest"];
+  Planner -> Plan [label="returns"];
+  Plan -> OperationPlanner [label="expand primary operations"];
+  CombatSystem -> OperationPlanner [label="DamageResult"];
+  OperationPlanner -> Committer [label="mutation + planned outbox"];
+  Committer -> Facts;
+  Facts -> ReactionQueue;
+  ReactionQueue -> StatusSystem [label="ApplyStatusRequest"];
+  Committer -> EffectResult [label="receipt"];
+  Planner -> EffectLog [label="trace"];
 }

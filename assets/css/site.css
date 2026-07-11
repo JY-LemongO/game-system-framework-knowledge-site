@@ -521,7 +521,7 @@ kbd {
 .doc-article h3 { color: var(--ink); font-size: 19px; line-height: 1.35; letter-spacing: -.025em; text-wrap: balance; }
 .doc-article p { margin: 0 0 20px; color: var(--ink-2); font-size: 16.5px; line-height: 1.86; word-break: keep-all; }
 .doc-article strong, .doc-article b { font-weight: 760; }
-.doc-article code:not(pre code) { padding: .14em .38em; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-soft); color: color-mix(in srgb, var(--accent) 88%, var(--ink)); font-size: .88em; }
+.doc-article code:not(pre code) { padding: .14em .38em; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-soft); color: color-mix(in srgb, var(--accent) 88%, var(--ink)); font-size: .88em; overflow-wrap: anywhere; word-break: break-word; }
 .doc-article ul, .doc-article ol { margin: 0 0 24px; padding-left: 23px; color: var(--ink-2); }
 .doc-article li { margin: 8px 0; padding-left: 4px; line-height: 1.75; }
 .doc-article a:not(.button):not(.card):not(.system-card):not(.small):not(.thumb):not(.pager a) { text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); text-underline-offset: 3px; }
@@ -791,6 +791,7 @@ a.card:hover, a.system-card:hover { transform: translateY(-4px); border-color: c
 
 /* Tables */
 .table-scroll { position: relative; margin: 24px 0 30px; overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-sm); scrollbar-width: thin; }
+.table-scroll > [data-horizontal-scroll-hint="table"] { margin: 0; padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; font-weight: 700; }
 table { width: 100%; min-width: 650px; border-collapse: collapse; text-align: left; font-size: 13.5px; }
 th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.65; }
 th { background: color-mix(in srgb, var(--surface-solid) 70%, var(--accent-soft)); color: var(--muted); font-size: 10px; font-weight: 830; letter-spacing: .05em; text-transform: uppercase; }
@@ -806,6 +807,7 @@ td:first-child { color: var(--ink); font-weight: 680; }
 pre, .codewrap { margin: 24px 0 30px; }
 .codewrap { position: relative; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 18px; background: #10131a; box-shadow: var(--shadow-sm); color: #e9edf5; }
 .codewrap pre { margin: 0; padding: 52px 20px 21px; overflow-x: auto; background: transparent; color: inherit; font-size: 12.5px; line-height: 1.7; tab-size: 2; }
+.code-head [data-horizontal-scroll-hint="code"] { font: inherit; letter-spacing: normal; text-transform: none; }
 .code-head { position: absolute; z-index: 2; top: 0; left: 0; right: 0; height: 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 9px 0 14px; border-bottom: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.025); color: #9da7b8; }
 .code-head span { font-family: var(--font-mono); font-size: 9px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
 .code-copy { min-height: 27px; padding: 0 9px; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; background: rgba(255,255,255,.04); color: #cbd2df; cursor: pointer; font-size: 10px; }
@@ -1324,6 +1326,7 @@ body.is-focus .hero { min-height: 320px; }
 .probe-card > span { color: var(--accent); font-size: 9px; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; }
 .probe-card h3 { margin: 28px 0 8px; font-size: 23px; letter-spacing: -.04em; }
 .probe-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.probe-card p + p { margin-top: 9px; }
 .probe-card button { min-height: 39px; margin-top: auto; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surface-solid); color: var(--ink); cursor: pointer; font-size: 10px; font-weight: 750; }
 .probe-card button:hover { border-color: var(--accent); transform: translateY(-1px); }
 .probe-card output { min-height: 44px; display: flex; align-items: center; margin-top: 9px; padding: 9px 10px; border-radius: 10px; background: var(--surface-soft); color: var(--muted); font-family: var(--font-mono); font-size: 9px; line-height: 1.45; }
