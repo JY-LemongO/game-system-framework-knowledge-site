@@ -795,6 +795,16 @@ crit_chance = clamp(0, 1, dexterity * 0.002 + item_bonus)</code></pre>
 Rage Status Removed
   removeModifiersBySource(sourceId)
   recalculate attack_power if dirty</code></pre>
+<section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
+<span class="section-kicker">Comprehension check</span>
+<h2 id="이해도-확인">이해도 확인</h2>
+<p class="checkpoint-intro">최종 수치 계산, 현재 리소스 상태, 조건부 문맥이 각각 어느 경계에 속하는지 먼저 판단한 뒤 해설을 확인한다.</p>
+<ol class="checkpoint-grid">
+<li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="stat.q1"><summary>장비로 max_hp가 100에서 120으로 증가할 때 Stat과 ResourceController는 각각 무엇을 결정해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Stat은 최종 최대치 120을 계산한다. 현재 HP 변경은 ResourceController가 KeepCurrent, KeepRatio, AddDelta 같은 동기화 정책에 따라 처리한다.</p></div></details></li>
+<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="stat.q2"><summary>Burn 대상 공격 시 치명타 확률 +10% 결과를 Burn이 없는 대상에게도 캐시 재사용하면 무엇이 잘못될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">대상과 상태가 다른데 조건부 값을 재사용하게 된다. 무조건부 레이어만 owner 단위로 캐시하고, 조건부 값은 context fingerprint별로 캐시하거나 다시 계산해야 한다.</p></div></details></li>
+<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="stat.q3"><summary>Rage가 적용되고 제거되는 동안 Status, Stat, Combat은 각각 어떤 역할을 맡아야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Status가 sourceId=statusInstanceId인 Modifier를 등록·제거하고 Stat이 최종 공격력을 계산한다. Combat은 계산된 값을 읽을 뿐 Modifier나 원본 값을 직접 변경하지 않는다.</p></div></details></li>
+</ol>
+</section>
 <h2 id="설계-점검">
       설계 점검
      </h2>
@@ -864,6 +874,9 @@ Rage Status Removed
       </a>
 <a href="#구현-안티패턴">
        구현 안티패턴
+      </a>
+<a href="#이해도-확인">
+       이해도 확인
       </a>
 <a href="#설계-점검">
        설계 점검
@@ -1069,6 +1082,9 @@ Rage Status Removed
      </a>
 <a href="#구현-안티패턴">
       구현 안티패턴
+     </a>
+<a href="#이해도-확인">
+      이해도 확인
      </a>
 <a href="#설계-점검">
       설계 점검

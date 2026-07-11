@@ -15,7 +15,9 @@
     "desc": "Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약",
     "key": "core entity source event context time random",
     "group": "Foundation",
-    "level": "Foundation"
+    "level": "Foundation",
+    "learningTrack": "core",
+    "learningOrder": 1
   },
   {
     "file": "modules/stat-system.html",
@@ -24,7 +26,9 @@
     "desc": "스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조",
     "key": "stat modifier resource calculation",
     "group": "Core Systems",
-    "level": "Core"
+    "level": "Core",
+    "learningTrack": "core",
+    "learningOrder": 2
   },
   {
     "file": "modules/effect-system.html",
@@ -33,7 +37,9 @@
     "desc": "EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계",
     "key": "effect damage status target context",
     "group": "Core Systems",
-    "level": "Bridge"
+    "level": "Bridge",
+    "learningTrack": "core",
+    "learningOrder": 3
   },
   {
     "file": "modules/skill-action-system.html",
@@ -42,7 +48,9 @@
     "desc": "비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조",
     "key": "skill action cooldown targeting timeline",
     "group": "Core Systems",
-    "level": "Action"
+    "level": "Action",
+    "learningTrack": "core",
+    "learningOrder": 4
   },
   {
     "file": "modules/combat-resolution-system.html",
@@ -51,7 +59,9 @@
     "desc": "명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조",
     "key": "combat damage hit critical armor resistance shield",
     "group": "Core Systems",
-    "level": "Resolution"
+    "level": "Resolution",
+    "learningTrack": "core",
+    "learningOrder": 5
   },
   {
     "file": "modules/status-system.html",
@@ -60,7 +70,9 @@
     "desc": "버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조",
     "key": "status buff debuff stack duration tick burn rage",
     "group": "Core Systems",
-    "level": "Runtime"
+    "level": "Runtime",
+    "learningTrack": "core",
+    "learningOrder": 6
   },
   {
     "file": "modules/integration-map.html",

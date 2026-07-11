@@ -19,7 +19,30 @@
       }
     },
     set(key, value) {
-      try { localStorage.setItem(key, value); } catch (_) { /* private/file mode */ }
+      try {
+        localStorage.setItem(key, value);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    },
+    remove(key) {
+      try {
+        localStorage.removeItem(key);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    },
+    available() {
+      const key = '__gsf-storage-check__';
+      try {
+        localStorage.setItem(key, '1');
+        localStorage.removeItem(key);
+        return true;
+      } catch (_) {
+        return false;
+      }
     }
   };
 
@@ -953,6 +976,173 @@
     });
   }
 
+  function initialiseLearningProgress() {
+    const storageKey = 'gsf-learning-progress-v1';
+    const learningPages = (window.__GSF_SITE__?.pages || [])
+      .filter(page => page.learningTrack === 'core' && Number.isInteger(page.learningOrder))
+      .sort((left, right) => left.learningOrder - right.learningOrder);
+    if (!learningPages.length) return;
+
+    const learningFiles = new Set(learningPages.map(page => page.file));
+    const currentLesson = learningPages.find(page => page.file === currentFile);
+    const storageAvailable = safeStorage.available();
+
+    function emptyState() {
+      return { version: 1, completed: [], lastVisited: null };
+    }
+
+    function readState() {
+      const raw = safeStorage.get(storageKey);
+      if (!raw) return emptyState();
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.version !== 1 || !Array.isArray(parsed.completed)) throw new Error('unsupported learning state');
+        const completed = [...new Set(parsed.completed.filter(file => learningFiles.has(file)))];
+        const lastVisited = learningFiles.has(parsed.lastVisited) ? parsed.lastVisited : null;
+        return { version: 1, completed, lastVisited };
+      } catch (_) {
+        safeStorage.remove(storageKey);
+        return emptyState();
+      }
+    }
+
+    function writeState(nextState) {
+      return safeStorage.set(storageKey, JSON.stringify({
+        version: 1,
+        completed: learningPages.map(page => page.file).filter(file => nextState.completed.includes(file)),
+        lastVisited: learningFiles.has(nextState.lastVisited) ? nextState.lastVisited : null
+      }));
+    }
+
+    let state = readState();
+    if (currentLesson && state.lastVisited !== currentLesson.file) {
+      state = { ...state, lastVisited: currentLesson.file };
+      writeState(state);
+    }
+
+    function nextLearningTarget() {
+      const complete = new Set(state.completed);
+      if (complete.size === learningPages.length) {
+        return { file: 'modules/integration-map.html', short: '통합 구조로 이어가기' };
+      }
+
+      const lastIndex = learningPages.findIndex(page => page.file === state.lastVisited);
+      if (lastIndex >= 0 && !complete.has(learningPages[lastIndex].file)) return learningPages[lastIndex];
+      if (lastIndex >= 0) {
+        const after = learningPages.slice(lastIndex + 1).find(page => !complete.has(page.file));
+        if (after) return after;
+      }
+      return learningPages.find(page => !complete.has(page.file)) || learningPages[0];
+    }
+
+    const completionSection = currentLesson && $('#article-content') && $('.doc-pager')
+      ? document.createElement('section')
+      : null;
+
+    if (completionSection) {
+      completionSection.className = 'learning-completion';
+      completionSection.dataset.learningCompletion = '';
+      completionSection.setAttribute('aria-labelledby', 'learning-completion-title');
+      completionSection.innerHTML = `
+        <div>
+          <span class="section-kicker">Learning progress</span>
+          <h2 id="learning-completion-title">이 단원을 다 학습했나요?</h2>
+          <p><b data-learning-completion-name></b> 완료 표시는 현재 브라우저에만 저장됩니다.</p>
+        </div>
+        <div class="learning-completion-actions">
+          <button aria-describedby="learning-completion-note" aria-pressed="false" class="button primary" data-learning-complete data-learning-toggle type="button">학습 완료</button>
+          <p aria-atomic="true" aria-live="polite" data-learning-status id="learning-completion-note" role="status"></p>
+        </div>`;
+      $('[data-learning-completion-name]', completionSection).textContent = currentLesson.short;
+      $('.doc-pager').before(completionSection);
+    }
+
+    const completionButton = completionSection && $('[data-learning-complete]', completionSection);
+    const completionStatus = completionSection && $('[data-learning-status]', completionSection);
+
+    function renderCompletion() {
+      if (!completionButton || !completionStatus) return;
+      const complete = state.completed.includes(currentLesson.file);
+      completionSection.dataset.state = complete ? 'complete' : 'incomplete';
+      completionButton.setAttribute('aria-pressed', String(complete));
+      completionButton.textContent = '학습 완료';
+      completionButton.classList.toggle('primary', !complete);
+      completionButton.classList.toggle('ghost', complete);
+      if (!completionStatus.textContent) {
+        completionStatus.textContent = storageAvailable
+          ? complete
+            ? `${currentLesson.short} 학습 완료가 이 브라우저에 저장되어 있습니다.`
+            : '완료 여부는 정답 공개와 별개로 직접 선택할 수 있습니다.'
+          : '이 환경에서는 학습 진행도를 저장할 수 없습니다.';
+      }
+    }
+
+    completionButton?.addEventListener('click', () => {
+      const complete = state.completed.includes(currentLesson.file);
+      const completed = complete
+        ? state.completed.filter(file => file !== currentLesson.file)
+        : [...state.completed, currentLesson.file];
+      const nextState = { ...state, completed, lastVisited: currentLesson.file };
+      if (!writeState(nextState)) {
+        completionStatus.textContent = '이 환경에서는 학습 진행도를 저장할 수 없습니다.';
+        return;
+      }
+      state = nextState;
+      completionStatus.textContent = complete
+        ? `${currentLesson.short} 완료 표시를 취소했습니다.`
+        : `${currentLesson.short} 학습 완료를 이 브라우저에 저장했습니다.`;
+      renderCompletion();
+    });
+
+    const progressPanel = $('[data-learning-progress]');
+    const progressMeter = progressPanel && $('[data-learning-progress-meter]', progressPanel);
+    const progressCount = progressPanel && $('[data-learning-progress-count]', progressPanel);
+    const resumeLink = progressPanel && $('[data-learning-resume]', progressPanel);
+    const resetButton = progressPanel && $('[data-learning-reset]', progressPanel);
+    const progressStatus = progressPanel && $('[data-learning-progress-status]', progressPanel);
+
+    function renderProgress() {
+      if (!progressPanel || !progressMeter || !progressCount || !resumeLink || !resetButton || !progressStatus) return;
+      const completedCount = state.completed.length;
+      const target = nextLearningTarget();
+      progressPanel.hidden = false;
+      progressMeter.max = learningPages.length;
+      progressMeter.value = completedCount;
+      progressMeter.textContent = `${Math.round((completedCount / learningPages.length) * 100)}%`;
+      progressMeter.setAttribute('aria-valuetext', `${learningPages.length}개 중 ${completedCount}개 완료`);
+      progressCount.textContent = `${completedCount} / ${learningPages.length}`;
+      resumeLink.href = `${prefix}${target.file}`;
+      resumeLink.textContent = completedCount === learningPages.length
+        ? target.short
+        : state.completed.length || state.lastVisited ? `${target.short} 이어보기` : 'Core부터 시작';
+      resetButton.disabled = completedCount === 0 && !state.lastVisited;
+      if (!storageAvailable) progressStatus.textContent = '이 환경에서는 학습 진행도를 저장할 수 없습니다.';
+    }
+
+    resetButton?.addEventListener('click', () => {
+      if (!confirm('이 브라우저에 저장된 핵심 학습 진행 기록을 초기화할까요?')) return;
+      if (!safeStorage.remove(storageKey)) {
+        progressStatus.textContent = '이 환경에서는 학습 진행도를 초기화할 수 없습니다.';
+        return;
+      }
+      state = emptyState();
+      progressStatus.textContent = '핵심 학습 진행 기록을 초기화했습니다.';
+      renderProgress();
+    });
+
+    addEventListener('storage', event => {
+      if (event.key !== storageKey) return;
+      state = readState();
+      if (completionStatus) completionStatus.textContent = '다른 탭에서 변경된 학습 진행도를 반영했습니다.';
+      if (progressStatus) progressStatus.textContent = '다른 탭에서 변경된 학습 진행도를 반영했습니다.';
+      renderCompletion();
+      renderProgress();
+    });
+
+    renderCompletion();
+    renderProgress();
+  }
+
   function initialiseRuntimeReference() {
     const lab = $('[data-runtime-lab]');
     const G = window.GSFRuntime;
@@ -1211,5 +1401,6 @@
   initialiseTableAccessibility();
   initialisePrintAndImages();
   initialiseCurrentNavigation();
+  initialiseLearningProgress();
   initialiseRuntimeReference();
 })();

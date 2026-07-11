@@ -788,6 +788,16 @@
        </p>
 </div>
 </div>
+<section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
+<span class="section-kicker">Comprehension check</span>
+<h2 id="이해도-확인">이해도 확인</h2>
+<p class="checkpoint-intro">답을 펼치기 전에 Core가 제공해야 할 공통 계약과 각 도메인 시스템이 소유할 규칙을 먼저 구분해 본다.</p>
+<ol class="checkpoint-grid">
+<li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="core.q1"><summary>Fireball의 치명타 확률과 배율 공식을 Core Runtime의 RandomStream 안에 넣어도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">넣으면 안 된다. Core는 seed 분기와 결정론적 난수 API만 제공하고, 치명타 규칙과 공식은 Combat 정책이 소유해야 한다.</p></div></details></li>
+<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="core.q2"><summary>같은 root seed지만 대상 정렬 순서와 Definition 버전이 다르면 결과가 같다고 보장할 수 있을까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">보장할 수 없다. 입력 snapshot, Definition·공식·수치 버전, 대상 정렬, clock domain, 반올림과 이벤트 순서까지 고정해야 같은 실행을 재현할 수 있다.</p></div></details></li>
+<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="core.q3"><summary>DamageCommitted를 UI 피해 표시와 흡혈 효과가 함께 구독한다면 두 처리는 어떻게 달라야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">UI와 로그는 상태를 바꾸지 않는 Observation으로 처리한다. 흡혈은 causationId, 우선순위, 깊이, 멱등 키를 가진 Reaction으로 큐에 넣어 명시적인 순서로 실행한다.</p></div></details></li>
+</ol>
+</section>
 <h2 id="설계-점검">
       설계 점검
      </h2>
@@ -854,6 +864,9 @@
       </a>
 <a href="#안티패턴">
        안티패턴
+      </a>
+<a href="#이해도-확인">
+       이해도 확인
       </a>
 <a href="#설계-점검">
        설계 점검
@@ -1046,6 +1059,9 @@
      </a>
 <a href="#안티패턴">
       안티패턴
+     </a>
+<a href="#이해도-확인">
+      이해도 확인
      </a>
 <a href="#설계-점검">
       설계 점검

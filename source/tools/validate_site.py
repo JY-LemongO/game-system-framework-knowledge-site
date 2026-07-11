@@ -27,6 +27,14 @@ LEARNING_ROUTES = {
     'modules/diagram-gallery.html',
     'modules/glossary.html',
 }
+CORE_LEARNING_ROUTES = {
+    'modules/core-runtime.html': 'core',
+    'modules/stat-system.html': 'stat',
+    'modules/effect-system.html': 'effect',
+    'modules/skill-action-system.html': 'skill',
+    'modules/combat-resolution-system.html': 'combat',
+    'modules/status-system.html': 'status',
+}
 SHELL_SELECTORS = ('.topbar', '.system-dock', '.site-footer', '[data-site-drawer]', '.mobile-bar')
 SHELL_TEXT_PATTERNS = {
     'release label': re.compile(r'\brelease(?:\s+\d+(?:\.\d+)*)?\b', re.I),
@@ -45,6 +53,14 @@ expected_page_count = len(pages)
 if len(page_file_set) != expected_page_count: error('duplicate page file in site-map')
 if page_file_set != LEARNING_ROUTES:
     error(f'site-map differs from the 12 learning routes: missing={sorted(LEARNING_ROUTES-page_file_set)}, extra={sorted(page_file_set-LEARNING_ROUTES)}')
+core_metadata = sorted(
+    (page.get('learningOrder'), page['file'])
+    for page in pages
+    if page.get('learningTrack') == 'core'
+)
+expected_core_metadata = [(index, file) for index, file in enumerate(CORE_LEARNING_ROUTES, start=1)]
+if core_metadata != expected_core_metadata:
+    error(f'core learning metadata differs from the six-page path: {core_metadata}')
 public_html = {'index.html'} | {path.relative_to(ROOT).as_posix() for path in (ROOT/'modules').glob('*.html')}
 if public_html != LEARNING_ROUTES:
     error(f'public HTML differs from the 12 learning routes: missing={sorted(LEARNING_ROUTES-public_html)}, extra={sorted(public_html-LEARNING_ROUTES)}')
@@ -75,6 +91,52 @@ for path in html_paths:
         if pattern.search(shell_text):
             error(f'{path.relative_to(ROOT)} shell retains {label}')
 
+    relative_file = path.relative_to(ROOT).as_posix()
+    if relative_file in CORE_LEARNING_ROUTES:
+        prefix = CORE_LEARNING_ROUTES[relative_file]
+        checkpoints = soup.select('section[data-learning-checkpoint]')
+        if len(checkpoints) != 1:
+            error(f'{relative_file} expected one learning checkpoint, got {len(checkpoints)}')
+        else:
+            checkpoint = checkpoints[0]
+            labelled_by = checkpoint.get('aria-labelledby')
+            if not labelled_by or checkpoint.find(id=labelled_by) is None:
+                error(f'{relative_file} checkpoint has no valid aria-labelledby target')
+            next_section = checkpoint.find_next_sibling()
+            if not next_section or next_section.name != 'h2' or next_section.get('id') != '설계-점검':
+                error(f'{relative_file} checkpoint must appear immediately before design review')
+            questions = checkpoint.select('details[data-checkpoint-question]')
+            if len(questions) != 3:
+                error(f'{relative_file} expected three checkpoint questions, got {len(questions)}')
+            question_ids = []
+            question_texts = []
+            answer_texts = []
+            for question in questions:
+                question_id = question.get('data-question-id', '').strip()
+                question_ids.append(question_id)
+                if not question_id.startswith(f'{prefix}.q'):
+                    error(f'{relative_file} invalid checkpoint question id: {question_id!r}')
+                summaries = question.find_all('summary', recursive=False)
+                if len(summaries) != 1 or not summaries[0].get_text(' ', strip=True):
+                    error(f'{relative_file} checkpoint {question_id!r} requires one non-empty direct summary')
+                else:
+                    question_texts.append(summaries[0].get_text(' ', strip=True))
+                answers = question.select('[data-answer-explanation]')
+                if len(answers) != 1 or not answers[0].get_text(' ', strip=True):
+                    error(f'{relative_file} checkpoint {question_id!r} requires one non-empty answer explanation')
+                else:
+                    answer_texts.append(answers[0].get_text(' ', strip=True))
+                if question.select('a button, button a, summary a, summary button'):
+                    error(f'{relative_file} checkpoint {question_id!r} nests interactive controls')
+            if len(set(question_ids)) != len(question_ids):
+                error(f'{relative_file} checkpoint question ids are not unique')
+            if len(set(question_texts)) != len(question_texts):
+                error(f'{relative_file} checkpoint question texts are not unique')
+            if len(set(answer_texts)) != len(answer_texts):
+                error(f'{relative_file} checkpoint answer explanations are not unique')
+        if len(soup.select('a[href="#이해도-확인"]')) != 2:
+            error(f'{relative_file} checkpoint must appear in desktop and dialog tables of contents')
+
     for tag in soup.select('[href], [src]'):
         attr = 'href' if tag.has_attr('href') else 'src'
         raw = tag.get(attr, '').strip()
@@ -101,6 +163,28 @@ for path in html_paths:
                 soups[target] = target_soup
             if target_soup.find(id=fragment) is None:
                 error(f'{path.relative_to(ROOT)} missing fragment target: {raw}')
+
+home = soups.get(ROOT/'index.html')
+if home:
+    panels = home.select('section[data-learning-progress]')
+    if len(panels) != 1:
+        error(f'index.html expected one learning progress panel, got {len(panels)}')
+    else:
+        panel = panels[0]
+        meter = panel.select_one('progress[data-learning-progress-meter]')
+        if not meter or meter.get('max') != '6' or meter.get('value') != '0' or not meter.get('aria-label'):
+            error('index.html learning progress meter requires max=6, value=0, and an accessible label')
+        if len(panel.select('[data-learning-progress-count]')) != 1:
+            error('index.html learning progress count is missing or duplicated')
+        resume = panel.select_one('a[data-learning-resume]')
+        if not resume or resume.get('href') != 'modules/core-runtime.html':
+            error('index.html initial learning resume link must target Core Runtime')
+        reset = panel.select_one('button[data-learning-reset][type="button"]')
+        if not reset:
+            error('index.html learning reset control must be a button')
+        status = panel.select_one('[data-learning-progress-status][role="status"][aria-live="polite"]')
+        if not status:
+            error('index.html learning progress live status is missing')
 
 # Diagram parity.
 dots = sorted((ROOT/'source/diagrams').glob('*.dot'))
@@ -172,6 +256,25 @@ if runtime:
     if '../assets/js/runtime-kernel.js' not in scripts: error('runtime page does not load browser kernel')
 
 search = json.loads((ROOT/'source/search-index.json').read_text(encoding='utf-8'))
+leaked_answers = [item for item in search if '정답과 해설' in item.get('desc', '')]
+if leaked_answers:
+    error(f'search descriptions expose checkpoint answers: {[item.get("file", "") + item.get("anchor", "") for item in leaked_answers]}')
+required_section_descriptions = {
+    ('index.html', '#학습-방식-선택'),
+    ('modules/core-runtime.html', '#안티패턴'),
+    ('modules/stat-system.html', '#핵심-객체-읽기'),
+    ('modules/effect-system.html', '#핵심-객체-상세'),
+    ('modules/skill-action-system.html', '#fireball-실행-예시'),
+    ('modules/combat-resolution-system.html', '#설계-변형-포인트'),
+    ('modules/status-system.html', '#rage-freeze-poison-예시'),
+}
+search_lookup = {(item.get('file'), item.get('anchor')): item for item in search}
+empty_required_descriptions = sorted(
+    key for key in required_section_descriptions
+    if not search_lookup.get(key, {}).get('desc', '').strip()
+)
+if empty_required_descriptions:
+    error(f'search lost nested-card section descriptions: {empty_required_descriptions}')
 search_pages = [item for item in search if item.get('type') == 'page']
 if len(search_pages) != expected_page_count:
     error(f'search index exposes {len(search_pages)} pages, expected {expected_page_count} from site-map')

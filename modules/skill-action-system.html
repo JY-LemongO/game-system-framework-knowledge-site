@@ -1270,6 +1270,16 @@
        </p>
 </a>
 </div>
+<section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
+<span class="section-kicker">Comprehension check</span>
+<h2 id="이해도-확인">이해도 확인</h2>
+<p class="checkpoint-intro">Skill이 조율해야 할 실행 정책과 Effect·Combat·Status에 넘겨야 할 결과 책임을 나눠서 생각한다.</p>
+<ol class="checkpoint-grid">
+<li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="skill.q1"><summary>스킬 UI가 실제 쿨다운을 보관하고 SkillExecutor가 release 시 대상 HP를 직접 감소시키는 구조가 왜 잘못됐을까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">실제 쿨다운은 SkillRuntime이 소유하고 UI는 표시만 해야 한다. SkillExecutor는 검증·비용·타임라인을 조율하며 HP 변경은 Effect와 Combat 경로로 위임한다.</p></div></details></li>
+<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="skill.q2"><summary>reserve_then_commit Fireball이 release 전에 중단된 경우와 release 후 발사된 경우 비용은 어떻게 달라야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">release 전에는 예약을 취소하고 환불 정책을 적용하며 EffectBundle을 실행하지 않는다. release 후에는 비용이 확정됐으므로 환불하지 않고 쿨다운과 후속 실행은 commit 정책을 따른다.</p></div></details></li>
+<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="skill.q3"><summary>Fireball이 release marker에 도달한 뒤 Burn까지 적용되는 전체 handoff 순서는 무엇일까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Skill → EffectBundle → DamageEffect → Combat commit → DamageCommitted reaction → ApplyStatusEffect → Status 순서다. Skill은 피해 계산이나 Burn 수명을 직접 소유하지 않는다.</p></div></details></li>
+</ol>
+</section>
 <h2 id="설계-점검">
       설계 점검
      </h2>
@@ -1357,6 +1367,9 @@
       </a>
 <a href="#안티패턴">
        안티패턴
+      </a>
+<a href="#이해도-확인">
+       이해도 확인
       </a>
 <a href="#설계-점검">
        설계 점검
@@ -1577,6 +1590,9 @@
      </a>
 <a href="#안티패턴">
       안티패턴
+     </a>
+<a href="#이해도-확인">
+      이해도 확인
      </a>
 <a href="#설계-점검">
       설계 점검
