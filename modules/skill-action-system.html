@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Skill / Action System · GSF System Atlas</title>
-<meta content="비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조" name="description"/>
+<meta content="C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <script>
    (function(){try{var m=localStorage.getItem('gsf-theme')||'system';document.documentElement.dataset.theme=m;if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()
@@ -37,7 +37,7 @@
        System Atlas
       </b>
 <small>
-       Game architecture knowledgebase
+     C# game system knowledgebase
       </small>
 </span>
 </a>
@@ -213,9 +213,10 @@
        Skill / Action System
       </h1>
 <p class="lead">
-       Skill System은 플레이어 입력 또는 AI 의도를 비용, 쿨다운, 타겟팅, 액션 타임라인, EffectBundle 실행으로 변환하는 행동 계층이다. Effect가 “결과”라면 Skill은 그 결과를 언제, 어떤 조건으로 실행할지 결정하는 “행동 패키지”다.
+       Skill System은 입력이나 AI 의도를 C# SkillRequest로 받아 비용, 쿨다운, 타겟팅, 액션 타임라인, EffectBundle 실행으로 변환한다. Effect가 결과 요청이라면 Skill은 그 요청을 언제 어떤 조건으로 보낼지 조율한다.
       </p>
 <div class="badges">
+<span class="badge" data-example-language="csharp">예제 언어 · C#</span>
 <span class="badge">
         SkillDefinition
        </span>
@@ -237,7 +238,7 @@
 </div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>비용·쿨다운·타겟팅·타임라인을 조율하되 피해 계산과 상태 유지를 소유하지 않는 Skill 경계를 설계한다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>C# 요청·결과 타입으로 비용·쿨다운·타겟팅·타임라인을 조율하되 피해 계산과 상태 유지를 소유하지 않는 Skill 경계를 설계한다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>EffectBundle과 EffectContext, Entity·Source 식별 규칙을 먼저 읽는다.</p></article>
 </div>
 <h2 id="skill-system의-책임-경계">
@@ -415,7 +416,7 @@
          SkillExecution
         </td>
 <td>
-         한 번의 cast/channel을 나타내는 실행 인스턴스. executionId, phase, reserved cost, target snapshot, cancellation token을 가진다.
+         한 번의 cast/channel을 나타내는 실행 인스턴스. ExecutionId, Phase, ReservedCost, TargetSnapshot, CancellationToken을 가진다.
         </td>
 </tr>
 <tr>
@@ -431,7 +432,7 @@
          SkillRequest
         </td>
 <td>
-         스킬 사용 요청. caster, skillId, target, aimPosition, inputTime, seed를 포함한다.
+         스킬 사용 요청. CasterId, SkillId, TargetId, RequestedTick, RootSeed를 포함한다.
         </td>
 </tr>
 <tr>
@@ -492,6 +493,66 @@
 </tr>
 </table>
 </div>
+<h3 id="csharp-skill-contracts">C# 핵심 계약</h3>
+<p>SkillRequest는 한 번의 의도를 나타내는 불변 입력이고, ISkillService는 시작·release commit·중단을 조율한다.</p>
+<pre><code class="language-csharp">public enum SkillFailureReason
+{
+    OutOfResource,
+    Cooldown,
+    ControlLocked,
+    InvalidTarget,
+    Interrupted
+}
+
+public sealed class SkillRequest
+{
+    public EntityId CasterId { get; }
+    public string SkillId { get; }
+    public EntityId? TargetId { get; }
+    public long RequestedTick { get; }
+    public uint RootSeed { get; }
+
+    public SkillRequest(
+        EntityId casterId,
+        string skillId,
+        EntityId? targetId,
+        long requestedTick,
+        uint rootSeed)
+    {
+        CasterId = casterId;
+        SkillId = skillId;
+        TargetId = targetId;
+        RequestedTick = requestedTick;
+        RootSeed = rootSeed;
+    }
+}
+
+public sealed class SkillResult
+{
+    public bool Succeeded { get; }
+    public SkillFailureReason? FailureReason { get; }
+    public IReadOnlyList&lt;EffectResult&gt; Effects { get; }
+
+    public SkillResult(
+        bool succeeded,
+        SkillFailureReason? failureReason,
+        EffectResult[] effects)
+    {
+        if (effects == null)
+            throw new ArgumentNullException(nameof(effects));
+
+        Succeeded = succeeded;
+        FailureReason = failureReason;
+        Effects = Array.AsReadOnly((EffectResult[])effects.Clone());
+    }
+}
+
+public interface ISkillService
+{
+    SkillExecution Begin(SkillRequest request);
+    CommittedSkill CommitRelease(SkillExecution execution);
+    SkillResult Interrupt(SkillExecution execution);
+}</code></pre>
 <h2 id="실행-파이프라인">
       실행 파이프라인
      </h2>
@@ -899,7 +960,7 @@
 <p>
       타임라인은 애니메이션 길이와 같지 않다. 게임 규칙상 판정이 발생하는 marker, 입력을 받을 수 있는 cancel window, 중단 시 정책이 별도로 존재해야 한다.
      </p>
-<pre><code>{
+<pre><code class="language-json">{
   "timeline": {
     "castTime": 0.7,
     "phases": [
@@ -1004,7 +1065,7 @@
        SkillDefinition의 정적 데이터와 SkillRuntimeState, SkillMutation 같은 런타임 확장 데이터를 분리한다.
       </figcaption>
 </figure>
-<pre><code>{
+<pre><code class="language-json">{
   "id": "skill.fireball",
   "displayName": "Fireball",
   "tags": ["skill", "spell", "fire", "single-target"],
@@ -1048,7 +1109,7 @@
         1. SkillRequest
        </h3>
 <p>
-        플레이어가 살아 있는 단일 대상을 지정한다. 요청에는 actorId, targetId, skillDefinitionId, requestedTick, rootSeed가 들어간다.
+        플레이어가 살아 있는 단일 대상을 지정한다. 요청에는 CasterId, SkillId, TargetId, RequestedTick, RootSeed가 들어간다.
        </p>
 </div>
 <div class="ti">
@@ -1105,10 +1166,10 @@
          마나 부족
         </td>
 <td>
-         SkillValidator.validateCost
+         SkillValidator.ValidateCost
         </td>
 <td>
-         SkillResult.failedReason = OutOfResource, 비용/쿨다운 없음
+         SkillResult.FailureReason = OutOfResource, 비용/쿨다운 없음
         </td>
 </tr>
 <tr>
@@ -1116,7 +1177,7 @@
          쿨다운 중
         </td>
 <td>
-         SkillValidator.validateCooldown
+         SkillValidator.ValidateCooldown
         </td>
 <td>
          요청 거부, UI는 남은 쿨다운 표시
@@ -1127,7 +1188,7 @@
          침묵 상태
         </td>
 <td>
-         SkillValidator.validateControlState
+         SkillValidator.ValidateControlState
         </td>
 <td>
          스킬 사용 불가. 상태 태그로 분기
@@ -1138,7 +1199,7 @@
          타겟 사거리 밖
         </td>
 <td>
-         SkillValidator.validateTarget
+         SkillValidator.ValidateTarget
         </td>
 <td>
          요청 거부 또는 자동 보정 실패
@@ -1308,8 +1369,8 @@
 </ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/effect-system.html"><span>← 이전</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a>
-<a class="next" href="../modules/combat-resolution-system.html"><span>다음 →</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a>
+<a class="prev" href="../modules/effect-system.html"><span>← 이전</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a>
+<a class="next" href="../modules/combat-resolution-system.html"><span>다음 →</span><b>Combat</b><small>C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -1412,11 +1473,11 @@
 </a>
 </div>
 </section>
-<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>실행 계약을 직접 검증하는 학습 실습</b><small>Replay · Failure probes · Cache · Migration</small><i>→</i></a>
+<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>C# 실행 계약을 검증하는 학습 실습</b><small>JavaScript 브라우저 시뮬레이터</small><i>→</i></a>
 </aside>
 </div>
 <footer class="site-footer">
-<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<div><b>Game System Framework</b></div>
 <a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
@@ -1495,7 +1556,7 @@
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a aria-current="page" class="is-active" href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a aria-current="page" class="is-active" href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache, migration을 JavaScript 시뮬레이터로 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

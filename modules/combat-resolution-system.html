@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Combat Resolution System · GSF System Atlas</title>
-<meta content="명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조" name="description"/>
+<meta content="C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult로 계산하는 구조" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <script>
    (function(){try{var m=localStorage.getItem('gsf-theme')||'system';document.documentElement.dataset.theme=m;if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()
@@ -37,7 +37,7 @@
        System Atlas
       </b>
 <small>
-       Game architecture knowledgebase
+     C# game system knowledgebase
       </small>
 </span>
 </a>
@@ -213,9 +213,10 @@
        Combat Resolution System
       </h1>
 <p class="lead">
-       Combat Resolution System은 DamageEffect가 만든 피해 요청을 명중, 치명타, 방어, 저항, 보호막, 반올림 정책을 거쳐 실제 DamageResult로 바꾸는 계산 계층이다. Skill은 행동을 만들고, Effect는 결과 요청을 만들며, Combat은 피해가 왜 그 숫자로 나왔는지 설명한다.
+       Combat Resolution System은 C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막, 반올림 정책에 통과시켜 불변 DamageResult로 만드는 계산 계층이다. 계산과 상태 변경을 분리해 피해가 왜 그 숫자가 됐는지 추적한다.
       </p>
 <div class="badges">
+<span class="badge" data-example-language="csharp">예제 언어 · C#</span>
 <span class="badge">
         DamageRequest
        </span>
@@ -237,7 +238,7 @@
 </div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>DamageRequest를 단계별로 계산해 DamageResult로 만들고, 계산과 상태 변경의 경계를 설명한다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>C# DamageRequest를 단계별로 계산해 DamageResult로 만들고, 순수 계산과 상태 변경의 경계를 설명한다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Stat 조회, Effect handoff, SourceRef와 이벤트 추적 개념을 먼저 이해한다.</p></article>
 </div>
 <h2 id="combat의-역할">
@@ -363,7 +364,7 @@
          </code>
 </td>
 <td>
-         공격자, 방어자, sourceId, damageType, baseValue, tags, seed를 담는 입력 요청이다.
+         AttackerId, DefenderId, Source, DamageType, BaseValue, Tags, Seed를 담는 C# 입력 요청이다.
         </td>
 </tr>
 <tr>
@@ -468,6 +469,81 @@
 </tr>
 </table>
 </div>
+<h3 id="csharp-combat-contracts">C# 요청·결과 계약</h3>
+<p>Resolve는 입력과 문맥만 읽고 DamageResult를 반환한다. HP와 보호막 변경은 별도의 Commit 서비스가 한 번만 수행한다.</p>
+<pre><code class="language-csharp">public sealed class DamageRequest
+{
+    public EntityId AttackerId { get; }
+    public EntityId DefenderId { get; }
+    public SourceRef Source { get; }
+    public string FormulaId { get; }
+    public string DamageType { get; }
+    public int BaseValue { get; }
+    public int CoefficientBps { get; }
+    public IReadOnlyList&lt;string&gt; Tags { get; }
+    public uint Seed { get; }
+
+    public DamageRequest(
+        EntityId attackerId,
+        EntityId defenderId,
+        SourceRef source,
+        string formulaId,
+        string damageType,
+        int baseValue,
+        int coefficientBps,
+        string[] tags,
+        uint seed)
+    {
+        if (tags == null)
+            throw new ArgumentNullException(nameof(tags));
+
+        AttackerId = attackerId;
+        DefenderId = defenderId;
+        Source = source;
+        FormulaId = formulaId;
+        DamageType = damageType;
+        BaseValue = baseValue;
+        CoefficientBps = coefficientBps;
+        Tags = Array.AsReadOnly((string[])tags.Clone());
+        Seed = seed;
+    }
+}
+
+public sealed class DamageResult
+{
+    public bool Hit { get; }
+    public bool Critical { get; }
+    public int RawDamage { get; }
+    public int ResolvedDamage { get; }
+    public int ShieldAbsorbed { get; }
+    public int FinalHpDamage { get; }
+
+    public DamageResult(
+        bool hit,
+        bool critical,
+        int rawDamage,
+        int resolvedDamage,
+        int shieldAbsorbed,
+        int finalHpDamage)
+    {
+        Hit = hit;
+        Critical = critical;
+        RawDamage = rawDamage;
+        ResolvedDamage = resolvedDamage;
+        ShieldAbsorbed = shieldAbsorbed;
+        FinalHpDamage = finalHpDamage;
+    }
+}
+
+public interface ICombatResolver
+{
+    DamageResult Resolve(DamageRequest request, CombatContext context);
+}
+
+public interface IDamageCommitService
+{
+    AppliedDamage Commit(EntityId defenderId, DamageResult result);
+}</code></pre>
 <h2 id="피해-계산-파이프라인">
       피해 계산 파이프라인
      </h2>
@@ -516,6 +592,21 @@
        DamageResult와 CombatLog를 만들고 DamageCalculated trace를 남긴다. 상태를 바꾸는 이벤트는 아직 발행하지 않는다.
       </li>
 </ol>
+<h3 id="csharp-damage-pipeline">C# 파이프라인 조율</h3>
+<p>각 단계는 같은 DamageDraft를 직접 공유하지 않고 새 값을 반환해 단계별 테스트와 trace를 단순하게 만든다.</p>
+<pre><code class="language-csharp">public DamageResult Resolve(DamageRequest request, CombatContext context)
+{
+    DamageDraft draft = DamageDraft.From(request);
+
+    draft = _hit.Apply(draft, context);
+    draft = _critical.Apply(draft, context);
+    draft = _formula.Apply(draft, context);
+    draft = _defense.Apply(draft, context);
+    draft = _resistance.Apply(draft, context);
+    draft = _shield.Apply(draft, context);
+
+    return draft.ToResult();
+}</code></pre>
 <h2 id="damage-commit-phases">
       판정·계산·적용 단계
      </h2>
@@ -607,7 +698,7 @@
        DamageEffect는 CombatResolver에 계산을 위임한다. CombatResolver는 StatSystem의 최종값과 Status/Tag의 읽기 전용 스냅샷을 CombatContext로 받아 DamagePipeline을 실행하고, EventBus와 DebugTrace에 결과를 남긴다.
       </figcaption>
 </figure>
-<pre><code>{
+<pre><code class="language-json">{
   "effect": "effect.fireball-damage",
   "request": {
     "attacker": "player_001",
@@ -724,14 +815,19 @@
 <h3 id="계산-순서">
         계산 순서
        </h3>
-<pre><code>base = 24 + 120 × 1.2 = 168
-critical = 168 × 1.5 = 252
-resistance = roundHalfUp(252 × 0.80) = 202
-shieldAbsorbed = 40
-finalHpDamage = 202 - 40 = 162</code></pre>
+<pre><code class="language-csharp">int baseDamage = 24 + MultiplyBpsHalfUp(120, 12_000);
+int criticalDamage = MultiplyBpsHalfUp(baseDamage, 15_000);
+int resistedDamage = MultiplyBpsHalfUp(criticalDamage, 8_000);
+int shieldAbsorbed = Math.Min(40, resistedDamage);
+int finalHpDamage = resistedDamage - shieldAbsorbed;
+
+static int MultiplyBpsHalfUp(int value, int bps)
+{
+    return (int)(((long)value * bps + 5_000) / 10_000);
+}</code></pre>
 </div>
 </div>
-<pre><code>{
+<pre><code class="language-json">{
   "damageType": "fire",
   "hit": true,
   "critical": true,
@@ -775,7 +871,7 @@ finalHpDamage = 202 - 40 = 162</code></pre>
         결정론적 랜덤
        </h3>
 <p>
-        DamageRequest의 seed와 RandomStream을 사용하면 리플레이, 서버 검증, 테스트가 가능하다.
+        DamageRequest의 Seed와 RandomStream을 사용하면 리플레이, 서버 검증, 테스트가 가능하다.
        </p>
 </div>
 </div>
@@ -836,7 +932,7 @@ finalHpDamage = 202 - 40 = 162</code></pre>
          밸런스 디버깅과 QA가 어려워진다.
         </td>
 <td>
-         DamageResult에 formulaSteps와 statReads를 남긴다.
+         DamageResult와 연결된 DebugTrace에 FormulaSteps와 StatReads를 남긴다.
         </td>
 </tr>
 </table>
@@ -868,7 +964,7 @@ finalHpDamage = 202 - 40 = 162</code></pre>
        Combat은 스탯을 읽지만 Modifier를 직접 등록하지 않는다.
       </li>
 <li>
-       DamageResult에 최종 피해와 함께 실패 이유, 흡수량, 이벤트, DebugTrace가 포함된다.
+       DamageResult는 Hit, Critical, RawDamage, ResolvedDamage, ShieldAbsorbed, FinalHpDamage를 담고, 실패 이유·이벤트·계산 과정은 별도 CombatLog와 DebugTrace로 연결된다.
       </li>
 <li>
        Fireball 같은 실제 예제에서 계산 근거를 재현할 수 있다.
@@ -876,8 +972,8 @@ finalHpDamage = 202 - 40 = 162</code></pre>
 </ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/skill-action-system.html"><span>← 이전</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a>
-<a class="next" href="../modules/status-system.html"><span>다음 →</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a>
+<a class="prev" href="../modules/skill-action-system.html"><span>← 이전</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a>
+<a class="next" href="../modules/status-system.html"><span>다음 →</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -959,11 +1055,11 @@ finalHpDamage = 202 - 40 = 162</code></pre>
 </a>
 </div>
 </section>
-<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>실행 계약을 직접 검증하는 학습 실습</b><small>Replay · Failure probes · Cache · Migration</small><i>→</i></a>
+<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>C# 실행 계약을 검증하는 학습 실습</b><small>JavaScript 브라우저 시뮬레이터</small><i>→</i></a>
 </aside>
 </div>
 <footer class="site-footer">
-<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<div><b>Game System Framework</b></div>
 <a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
@@ -1042,7 +1138,7 @@ finalHpDamage = 202 - 40 = 162</code></pre>
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a aria-current="page" class="is-active" href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a aria-current="page" class="is-active" href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache, migration을 JavaScript 시뮬레이터로 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

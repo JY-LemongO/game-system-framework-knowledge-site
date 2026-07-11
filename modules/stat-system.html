@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Stat System · GSF System Atlas</title>
-<meta content="스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조" name="description"/>
+<meta content="C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <script>
    (function(){try{var m=localStorage.getItem('gsf-theme')||'system';document.documentElement.dataset.theme=m;if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()
@@ -37,7 +37,7 @@
        System Atlas
       </b>
 <small>
-       Game architecture knowledgebase
+     C# game system knowledgebase
       </small>
 </span>
 </a>
@@ -213,9 +213,10 @@
        Stat System
       </h1>
 <p class="lead">
-       스탯 시스템은 모든 전투·스킬·장비·상태·성장 시스템의 숫자 기반이다. 공통화할 것은 숫자 관리 엔진이고, 게임별로 바뀌어야 하는 것은 스탯 목록과 공식이다.
+       스탯 시스템은 모든 전투·스킬·장비·상태·성장 시스템의 숫자 기반이다. C# 계산기와 질의 인터페이스는 공통화하고, 게임별 스탯 목록과 공식은 데이터와 정책으로 분리한다.
       </p>
 <div class="badges">
+<span class="badge" data-example-language="csharp">예제 언어 · C#</span>
 <span class="badge">
         StatBlock
        </span>
@@ -234,7 +235,7 @@
 </div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>원본 값과 Modifier를 분리하고, 계산 순서·조건·리소스 정책이 재현 가능한 Stat 모델을 설계한다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>원본 값과 Modifier를 C# 타입으로 분리하고, 계산 순서·조건·리소스 정책이 재현 가능한 Stat 모델을 설계한다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Core Runtime의 EntityId, SourceRef, GameContext와 기본적인 수치 연산 순서를 먼저 이해한다.</p></article>
 </div>
 <section class="split">
@@ -337,7 +338,7 @@
         StatInstance
        </h3>
 <p>
-        특정 Entity가 가진 스탯 하나의 런타임 값이다. baseValue, cachedValue, dirty flag, active modifiers를 가진다.
+        특정 Entity가 가진 스탯 하나의 런타임 값이다. C# 속성으로는 BaseValue, CachedValue, IsDirty, Modifiers를 가진다.
        </p>
 </div>
 <div class="card">
@@ -357,13 +358,65 @@
        </p>
 </div>
 </div>
+<h3 id="csharp-stat-model">C# 핵심 모델</h3>
+<p>정의와 보정자는 불변 데이터로 만들고, 계산기는 이 목록을 안정적인 순서로 읽는다.</p>
+<pre><code class="language-csharp">public enum ModifierOperation
+{
+    Add,
+    PercentAdd,
+    More,
+    Less,
+    Override
+}
+
+public sealed class StatModifier
+{
+    public string ModifierId { get; }
+    public string StatId { get; }
+    public ModifierOperation Operation { get; }
+    public decimal Value { get; }
+    public string SourceId { get; }
+    public int Priority { get; }
+    public string StackRule { get; }
+    public IModifierCondition Condition { get; }
+
+    public StatModifier(
+        string modifierId,
+        string statId,
+        ModifierOperation operation,
+        decimal value,
+        string sourceId,
+        int priority,
+        string stackRule = "Stack",
+        IModifierCondition condition = null)
+    {
+        ModifierId = modifierId;
+        StatId = statId;
+        Operation = operation;
+        Value = value;
+        SourceId = sourceId;
+        Priority = priority;
+        StackRule = stackRule;
+        Condition = condition;
+    }
+}
+
+public interface IModifierCondition
+{
+    bool Evaluate(StatContext context);
+}
+
+public interface IStatQuery
+{
+    decimal GetValue(EntityId ownerId, string statId, StatContext context);
+}</code></pre>
 <h2 id="modifier는-왜-중요한가">
       Modifier는 왜 중요한가?
      </h2>
 <p>
       좋은 스탯 시스템은 숫자만 보관하지 않고 “왜 그 숫자가 되었는지”를 추적한다. 공격력 156이라는 결과보다 더 중요한 것은 기본값 100, 철검 +20, 분노 버프 +30%라는 원인이다.
      </p>
-<pre><code>Attack Power Breakdown
+<pre><code class="language-text">Attack Power Breakdown
 Base: 100
 Add:
   Iron Sword +20           source=item.iron-sword.001
@@ -394,7 +447,7 @@ Final: 156</code></pre>
 </div>
 <img alt="Stat 계산 액티비티 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/04_calculation_activity_diagram.svg"/>
 <figcaption class="cap">
-       getValue 호출 후 캐시 확인, Modifier 필터링, 단계별 계산, 이벤트 발행이 이어진다.
+       GetValue 호출 후 캐시 확인, Modifier 필터링, 단계별 계산, 이벤트 발행이 이어진다.
       </figcaption>
 </figure>
 <div class="table-scroll">
@@ -484,7 +537,7 @@ Final: 156</code></pre>
       </b>
       같은 operation과 priority를 가진 Modifier는
       <code>
-       (priority, sourceId, modifierId)
+       (Priority, SourceId, ModifierId)
       </code>
       같은 안정적인 키로 정렬한다. More/Less는 합산이 아니라 항목별 곱으로 정의하고, Override가 여러 개면 승자 규칙을 데이터 계약에 명시한다.
      </div>
@@ -504,15 +557,44 @@ Final: 156</code></pre>
 <p>
       모든 Modifier가 항상 적용되는 것은 아니다. “화상 상태의 적을 공격할 때 치명타 확률 +10%” 같은 효과는 현재 대상, 사용 스킬, 거리, 태그를 알아야 평가할 수 있다.
      </p>
-<pre><code>StatContext
-- owner: attacker
-- target: defender
-- skillId: fire_slash
-- skillTags: [melee, fire, skill]
-- targetTags: [enemy, boss]
-- targetStatuses: [burn]
-- distance: 2.4
-- moment: damage-committed-hit</code></pre>
+<pre><code class="language-csharp">public sealed class StatContext
+{
+    public EntityId OwnerId { get; }
+    public EntityId? TargetId { get; }
+    public string SkillId { get; }
+    public IReadOnlyCollection&lt;string&gt; SkillTags { get; }
+    public IReadOnlyCollection&lt;string&gt; TargetTags { get; }
+    public IReadOnlyCollection&lt;string&gt; TargetStatuses { get; }
+    public decimal Distance { get; }
+    public string Moment { get; }
+
+    public StatContext(
+        EntityId ownerId,
+        EntityId? targetId,
+        string skillId,
+        string[] skillTags,
+        string[] targetTags,
+        string[] targetStatuses,
+        decimal distance,
+        string moment)
+    {
+        if (skillTags == null)
+            throw new ArgumentNullException(nameof(skillTags));
+        if (targetTags == null)
+            throw new ArgumentNullException(nameof(targetTags));
+        if (targetStatuses == null)
+            throw new ArgumentNullException(nameof(targetStatuses));
+
+        OwnerId = ownerId;
+        TargetId = targetId;
+        SkillId = skillId;
+        SkillTags = Array.AsReadOnly((string[])skillTags.Clone());
+        TargetTags = Array.AsReadOnly((string[])targetTags.Clone());
+        TargetStatuses = Array.AsReadOnly((string[])targetStatuses.Clone());
+        Distance = distance;
+        Moment = moment;
+    }
+}</code></pre>
 <p>
       조건부 Modifier를 지원하지 않으면 장비 옵션, 패시브, 로그라이트 보상은 금방 하드코딩으로 무너진다.
      </p>
@@ -639,9 +721,20 @@ Final: 156</code></pre>
 <p>
       파생 스탯은 다른 스탯으로 계산되는 값이다. vitality가 바뀌면 max_hp도 dirty 처리되어야 하고, strength가 바뀌면 attack_power가 재계산되어야 한다.
      </p>
-<pre><code>max_hp = 100 + vitality * 10
-attack_power = weapon_attack + strength * 2
-crit_chance = clamp(0, 1, dexterity * 0.002 + item_bonus)</code></pre>
+<pre><code class="language-csharp">private decimal CalculateMaxHp(StatContext context)
+    =&gt; 100m + GetValue("vitality", context) * 10m;
+
+private decimal CalculateAttackPower(StatContext context)
+    =&gt; GetValue("weapon_attack", context)
+       + GetValue("strength", context) * 2m;
+
+private decimal CalculateCritChance(StatContext context)
+{
+    decimal chance = GetValue("dexterity", context) * 0.002m
+                     + GetValue("item_bonus", context);
+
+    return Math.Min(1m, Math.Max(0m, chance));
+}</code></pre>
 <h2 id="저장로드-원칙">
       저장/로드 원칙
      </h2>
@@ -708,7 +801,7 @@ crit_chance = clamp(0, 1, dexterity * 0.002 + item_bonus)</code></pre>
      </h2>
 <ul class="cross">
 <li>
-       버프가 attackPower += 30처럼 최종값을 직접 수정하는 구조
+       버프가 AttackPower += 30처럼 최종값을 직접 수정하는 구조
       </li>
 <li>
        장비 해제 시 어떤 보정자를 제거해야 하는지 source 추적이 없는 구조
@@ -769,10 +862,10 @@ crit_chance = clamp(0, 1, dexterity * 0.002 + item_bonus)</code></pre>
          Status 제거 → Stat
         </td>
 <td>
-         sourceId=statusInstanceId인 Modifier를 제거한다. 현재 HP나 Shield는 ResourceController가 별도로 관리한다.
+         SourceId=StatusInstanceId인 Modifier를 제거한다. 현재 HP나 Shield는 ResourceController가 별도로 관리한다.
         </td>
 <td>
-         sourceId가 없으면 중첩과 제거 디버그가 어려워진다.
+         SourceId가 없으면 중첩과 제거 디버그가 어려워진다.
         </td>
 </tr>
 <tr>
@@ -788,13 +881,21 @@ crit_chance = clamp(0, 1, dexterity * 0.002 + item_bonus)</code></pre>
 </tr>
 </table>
 </div>
-<pre><code>Rage Status Applied
-  sourceId = status-instance.rage.player_001-42
-  add StatModifier(attack_power, percent_add, +0.30, sourceId)
+<pre><code class="language-csharp">public void ApplyRage(StatusInstance rage)
+{
+    _stats.AddModifier(new StatModifier(
+        modifierId: "modifier.rage.attack-power",
+        statId: "attack_power",
+        operation: ModifierOperation.PercentAdd,
+        value: 0.30m,
+        sourceId: rage.SourceId,
+        priority: 0));
+}
 
-Rage Status Removed
-  removeModifiersBySource(sourceId)
-  recalculate attack_power if dirty</code></pre>
+public void RemoveRage(StatusInstance rage)
+{
+    _stats.RemoveModifiersBySource(rage.SourceId);
+}</code></pre>
 <section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
 <span class="section-kicker">Comprehension check</span>
 <h2 id="이해도-확인">이해도 확인</h2>
@@ -802,7 +903,7 @@ Rage Status Removed
 <ol class="checkpoint-grid">
 <li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="stat.q1"><summary>장비로 max_hp가 100에서 120으로 증가할 때 Stat과 ResourceController는 각각 무엇을 결정해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Stat은 최종 최대치 120을 계산한다. 현재 HP 변경은 ResourceController가 KeepCurrent, KeepRatio, AddDelta 같은 동기화 정책에 따라 처리한다.</p></div></details></li>
 <li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="stat.q2"><summary>Burn 대상 공격 시 치명타 확률 +10% 결과를 Burn이 없는 대상에게도 캐시 재사용하면 무엇이 잘못될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">대상과 상태가 다른데 조건부 값을 재사용하게 된다. 무조건부 레이어만 owner 단위로 캐시하고, 조건부 값은 context fingerprint별로 캐시하거나 다시 계산해야 한다.</p></div></details></li>
-<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="stat.q3"><summary>Rage가 적용되고 제거되는 동안 Status, Stat, Combat은 각각 어떤 역할을 맡아야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Status가 sourceId=statusInstanceId인 Modifier를 등록·제거하고 Stat이 최종 공격력을 계산한다. Combat은 계산된 값을 읽을 뿐 Modifier나 원본 값을 직접 변경하지 않는다.</p></div></details></li>
+<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="stat.q3"><summary>Rage가 적용되고 제거되는 동안 Status, Stat, Combat은 각각 어떤 역할을 맡아야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Status가 SourceId=StatusInstanceId인 Modifier를 등록·제거하고 Stat이 최종 공격력을 계산한다. Combat은 계산된 값을 읽을 뿐 Modifier나 원본 값을 직접 변경하지 않는다.</p></div></details></li>
 </ol>
 </section>
 <h2 id="설계-점검">
@@ -813,7 +914,7 @@ Rage Status Removed
        StatDefinition과 StatInstance가 분리되어 있다.
       </li>
 <li>
-       Modifier는 sourceId, operation, priority, stackRule, condition을 가진다.
+       Modifier는 SourceId, Operation, Priority, StackRule, Condition을 가진다.
       </li>
 <li>
        Base/Add/Percent/More/Override/Clamp 계산 순서가 명시되어 있다.
@@ -830,8 +931,8 @@ Rage Status Removed
 </ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/core-runtime.html"><span>← 이전</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a>
-<a class="next" href="../modules/effect-system.html"><span>다음 →</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a>
+<a class="prev" href="../modules/core-runtime.html"><span>← 이전</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a>
+<a class="next" href="../modules/effect-system.html"><span>다음 →</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -919,11 +1020,11 @@ Rage Status Removed
 </a>
 </div>
 </section>
-<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>실행 계약을 직접 검증하는 학습 실습</b><small>Replay · Failure probes · Cache · Migration</small><i>→</i></a>
+<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>C# 실행 계약을 검증하는 학습 실습</b><small>JavaScript 브라우저 시뮬레이터</small><i>→</i></a>
 </aside>
 </div>
 <footer class="site-footer">
-<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<div><b>Game System Framework</b></div>
 <a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
@@ -1002,7 +1103,7 @@ Rage Status Removed
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a aria-current="page" class="is-active" href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a aria-current="page" class="is-active" href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache, migration을 JavaScript 시뮬레이터로 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

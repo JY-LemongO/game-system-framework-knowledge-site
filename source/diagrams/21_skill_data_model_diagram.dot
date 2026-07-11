@@ -33,9 +33,11 @@ phase, elapsed, marker", fillcolor="#eaf0ff", color="#8292f7"];
   subgraph cluster_log {
     label="Execution Log: 디버그와 리플레이"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
     SkillRequest [label="SkillRequest
-caster, target, seed", fillcolor="#eefbf6", color="#61b99a"];
+CasterId, SkillId, TargetId?
+RequestedTick, RootSeed", fillcolor="#eefbf6", color="#61b99a"];
     SkillResult [label="SkillResult
-status, effectResults", fillcolor="#f0f3f9", color="#99a8bd"];
+Succeeded, FailureReason?
+Effects", fillcolor="#f0f3f9", color="#99a8bd"];
     SkillTrace [label="SkillTrace
 steps, costs, events", fillcolor="#f0f3f9", color="#99a8bd"];
   }

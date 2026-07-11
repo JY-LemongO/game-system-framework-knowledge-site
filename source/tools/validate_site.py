@@ -40,10 +40,39 @@ SHELL_TEXT_PATTERNS = {
     'release label': re.compile(r'\brelease(?:\s+\d+(?:\.\d+)*)?\b', re.I),
     'build-plan label': re.compile(r'\bbuild\s*plan\b', re.I),
     'quality-audit label': re.compile(r'\bquality\s*audit\b', re.I),
+    'product metadata': re.compile(r'\boffline-first\b|\blearning-focused\b', re.I),
+}
+PUBLIC_CONTENT_PATTERNS = {
+    'future implementation label': re.compile(r'\bfuture\s*:|\bphase\s+\d+\b|구현\s*예정|향후\s*구현|로드맵', re.I),
+    'Unity audience marketing': re.compile(r'Unity(?:Engine|\s+Engine)?\s*(?:개발자|프로그래머)|Unity를\s*위한', re.I),
 }
 
 def error(message): errors.append(message)
 def warn(message): warnings.append(message)
+
+def extract_csharp_declaration(soup, declaration):
+    """Return one normalized C# declaration, including its balanced body."""
+    matches = []
+    for block in soup.select('#article-content code.language-csharp'):
+        source = block.get_text('\n')
+        start = source.find(declaration)
+        if start < 0:
+            continue
+        opening = source.find('{', start)
+        if opening < 0:
+            continue
+        depth = 0
+        for index in range(opening, len(source)):
+            if source[index] == '{':
+                depth += 1
+            elif source[index] == '}':
+                depth -= 1
+                if depth == 0:
+                    matches.append(re.sub(r'\s+', ' ', source[start:index + 1]).strip())
+                    break
+    if len(matches) != 1:
+        return None, len(matches)
+    return matches[0], 1
 
 pages = json.loads((ROOT/'source/site-map.json').read_text(encoding='utf-8'))
 html_paths = [ROOT/page['file'] for page in pages]
@@ -91,8 +120,23 @@ for path in html_paths:
         if pattern.search(shell_text):
             error(f'{path.relative_to(ROOT)} shell retains {label}')
 
+    article = soup.select_one('#article-content')
+    article_text = article.get_text(' ', strip=True) if article else ''
+    for label, pattern in PUBLIC_CONTENT_PATTERNS.items():
+        if pattern.search(article_text):
+            error(f'{path.relative_to(ROOT)} article retains {label}')
+
     relative_file = path.relative_to(ROOT).as_posix()
+    language_badges = soup.select('[data-example-language="csharp"]')
+    if len(language_badges) != 1:
+        error(f'{relative_file} expected one C# language badge, got {len(language_badges)}')
+    code_blocks = soup.select('#article-content pre > code')
+    unlabeled_blocks = [block for block in code_blocks if not any(name.startswith('language-') for name in block.get('class', []))]
+    if unlabeled_blocks:
+        error(f'{relative_file} has {len(unlabeled_blocks)} code blocks without an explicit language label')
     if relative_file in CORE_LEARNING_ROUTES:
+        if not soup.select_one('#article-content code.language-csharp'):
+            error(f'{relative_file} has no C# implementation example')
         prefix = CORE_LEARNING_ROUTES[relative_file]
         checkpoints = soup.select('section[data-learning-checkpoint]')
         if len(checkpoints) != 1:
@@ -137,6 +181,14 @@ for path in html_paths:
         if len(soup.select('a[href="#이해도-확인"]')) != 2:
             error(f'{relative_file} checkpoint must appear in desktop and dialog tables of contents')
 
+    page_meta = next((page for page in pages if page['file'] == relative_file), None)
+    page_title = soup.select_one('#article-content h1')
+    if page_meta and page_title and page_title.get_text(' ', strip=True) != page_meta['title']:
+        error(f'{relative_file} h1 does not match site-map title')
+    description = soup.select_one('meta[name="description"]')
+    if page_meta and (not description or description.get('content', '').strip() != page_meta['desc']):
+        error(f'{relative_file} meta description does not match site-map')
+
     for tag in soup.select('[href], [src]'):
         attr = 'href' if tag.has_attr('href') else 'src'
         raw = tag.get(attr, '').strip()
@@ -163,6 +215,62 @@ for path in html_paths:
                 soups[target] = target_soup
             if target_soup.find(id=fragment) is None:
                 error(f'{path.relative_to(ROOT)} missing fragment target: {raw}')
+
+# Repeated public C# contracts must stay byte-for-byte equivalent after whitespace normalization.
+contract_pairs = [
+    ('public sealed class DamageRequest', 'modules/effect-system.html', 'modules/combat-resolution-system.html'),
+    ('public interface IEffectExecutor', 'modules/effect-system.html', 'modules/integration-map.html'),
+    ('public interface ISkillService', 'modules/skill-action-system.html', 'modules/integration-map.html'),
+    ('public interface IStatusService', 'modules/status-system.html', 'modules/integration-map.html'),
+    ('public interface IReactionQueue', 'modules/runtime-reference.html', 'modules/integration-map.html'),
+]
+for declaration, left_file, right_file in contract_pairs:
+    left, left_count = extract_csharp_declaration(soups.get(ROOT/left_file), declaration)
+    right, right_count = extract_csharp_declaration(soups.get(ROOT/right_file), declaration)
+    if left_count != 1 or right_count != 1:
+        error(f'{declaration} expected once in {left_file} and {right_file}, got {left_count}/{right_count}')
+    elif left != right:
+        error(f'{declaration} differs between {left_file} and {right_file}')
+
+status_contract, status_contract_count = extract_csharp_declaration(
+    soups.get(ROOT/'modules/status-system.html'),
+    'public sealed class ApplyStatusRequest',
+)
+if status_contract_count != 1 or 'public SourceRef Source { get; }' not in status_contract:
+    error('ApplyStatusRequest must preserve its structured SourceRef contract')
+
+canonical_property_sets = [
+    ('public sealed class SkillRequest', 'modules/skill-action-system.html', {'CasterId', 'SkillId', 'TargetId', 'RequestedTick', 'RootSeed'}),
+    ('public sealed class EffectContext', 'modules/effect-system.html', {'CasterId', 'InitialTargetId', 'Source', 'RandomSeed'}),
+    ('public sealed class DamageResult', 'modules/combat-resolution-system.html', {'Hit', 'Critical', 'RawDamage', 'ResolvedDamage', 'ShieldAbsorbed', 'FinalHpDamage'}),
+]
+for declaration, file, expected_properties in canonical_property_sets:
+    contract, count = extract_csharp_declaration(soups.get(ROOT/file), declaration)
+    properties = set(re.findall(r'public\s+[\w<>,?\[\]]+\s+(\w+)\s*\{\s*get\s*;', contract or ''))
+    if count != 1 or properties != expected_properties:
+        error(f'{declaration} in {file} has properties {sorted(properties)}, expected {sorted(expected_properties)}')
+
+fireball = soups.get(ROOT/'modules/fireball-case-study.html')
+fireball_orchestration = [
+    block.get_text('\n') for block in fireball.select('#article-content code.language-csharp')
+    if 'FireballResult Execute' in block.get_text()
+] if fireball else []
+if len(fireball_orchestration) != 1:
+    error(f'Fireball orchestration expected once, got {len(fireball_orchestration)}')
+elif ('_effects.Execute' not in fireball_orchestration[0]
+      or 'release.EffectBundle' not in fireball_orchestration[0]
+      or '_combat.Resolve' in fireball_orchestration[0]):
+    error('Fireball orchestration must enter Combat through the Effect layer')
+
+status = soups.get(ROOT/'modules/status-system.html')
+status_tick_examples = [
+    block.get_text('\n') for block in status.select('#article-content code.language-csharp')
+    if 'AdvanceInstance' in block.get_text()
+] if status else []
+if len(status_tick_examples) != 1:
+    error(f'Status tick example expected once, got {len(status_tick_examples)}')
+elif (any(token not in status_tick_examples[0] for token in ('MaxCatchUpTicks', 'RecordCatchUpLimit', 'StatusRemoveReason.CatchUpLimited'))):
+    error('Status tick example must enforce, trace, and classify the per-instance catch-up limit')
 
 home = soups.get(ROOT/'index.html')
 if home:
@@ -194,6 +302,26 @@ if (len(dots),len(svgs),len(pngs)) != (34,34,34): error(f'diagram parity expecte
 for dot in dots:
     if not (ROOT/'assets/diagrams'/f'{dot.stem}.svg').exists(): error(f'missing SVG for {dot.name}')
     if not (ROOT/'assets/diagrams'/f'{dot.stem}.png').exists(): error(f'missing PNG for {dot.name}')
+for diagram_path in dots + svgs:
+    diagram_text = diagram_path.read_text(encoding='utf-8')
+    for label, pattern in PUBLIC_CONTENT_PATTERNS.items():
+        if pattern.search(diagram_text):
+            error(f'{diagram_path.relative_to(ROOT)} retains {label}')
+
+diagram_contract_requirements = {
+    'source/diagrams/10_effect_core_class_diagram.dot': (
+        'IEffectExecutor', 'EffectBundleResult', 'IEffectOperationExecutor',
+        'ReactionDefinition[]', 'CommitThenReact', 'FailureReason',
+    ),
+    'source/diagrams/29_status_tick_activity_diagram.dot': (
+        'MaxCatchUpTicks', 'CatchUpLimited', 'trace dropped ticks', 'next advance',
+    ),
+}
+for relative_path, required_tokens in diagram_contract_requirements.items():
+    diagram_text = (ROOT/relative_path).read_text(encoding='utf-8')
+    missing = [token for token in required_tokens if token not in diagram_text]
+    if missing:
+        error(f'{relative_path} missing contract labels: {missing}')
 
 gallery = soups.get(ROOT/'modules/diagram-gallery.html')
 if gallery:
@@ -245,6 +373,8 @@ runtime_page = next((page for page in pages if page['file'] == 'modules/runtime-
 runtime = soups.get(ROOT/runtime_page['file']) if runtime_page else None
 required = ['[data-runtime-lab]','[data-runtime-form]','[data-runtime-check="duplicate"]','[data-runtime-check="conflict"]','[data-runtime-check="rollback"]','[data-runtime-cache-probe]','[data-runtime-migration-probe]']
 if runtime:
+    if not runtime.select_one('[data-simulator-language="javascript"]'):
+        error('runtime page does not identify the JavaScript simulator')
     runtime_title = runtime.select_one('#article-content .hero h1, #article-content > h1, #article-content h1')
     if not runtime_title:
         error('runtime page missing learning title')

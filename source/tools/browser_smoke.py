@@ -64,6 +64,13 @@ with sync_playwright() as p:
             check(overflow <= 1, f'{viewport_name}:{item["file"]}:no-horizontal-overflow')
             check(not js_errors, f'{viewport_name}:{item["file"]}:no-js-errors' + (f' ({js_errors})' if js_errors else ''))
             check(page.locator('h1').count()==1, f'{viewport_name}:{item["file"]}:one-h1')
+            check(page.locator('[data-example-language="csharp"]').count()==1, f'{viewport_name}:{item["file"]}:csharp-language-badge')
+            csharp_blocks=page.locator('#article-content code.language-csharp')
+            if csharp_blocks.count():
+                check(page.locator('.code-head span').filter(has_text='C#').count()==csharp_blocks.count(), f'{viewport_name}:{item["file"]}:csharp-code-labels')
+            json_blocks=page.locator('#article-content code.language-json')
+            if json_blocks.count():
+                check(page.locator('.code-head span').filter(has_text='JSON').count()==json_blocks.count(), f'{viewport_name}:{item["file"]}:json-code-labels')
             reading_time=page.locator('[data-reading-time]')
             if reading_time.count():
                 check(reading_time.inner_text().startswith('학습 약 '), f'{viewport_name}:{item["file"]}:learning-time-label')

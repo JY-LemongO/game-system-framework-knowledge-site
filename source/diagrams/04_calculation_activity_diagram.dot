@@ -3,14 +3,14 @@ digraph ActivityDiagram {
 	node [color="#425466" fontname="Noto Sans CJK KR" fontsize=11 style="rounded,filled"]
 	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans CJK KR" fontsize=10]
 	start [label=Start fillcolor="#111827" fontcolor=white shape=circle width=0.35]
-	query [label="StatBlock.getValue(statId, context)" fillcolor="#E8F0FE" shape=box]
+	query [label="StatBlock.GetValue(statId, context)" fillcolor="#E8F0FE" shape=box]
 	exists [label="StatInstance exists?" fillcolor="#FFF3CD" shape=diamond]
 	default [label="Return default / error policy" fillcolor="#FCE8E6" shape=box]
 	dirty [label="Cache dirty or context-sensitive?" fillcolor="#FFF3CD" shape=diamond]
 	cache [label="Return cached value" fillcolor="#F1F8E9" shape=box]
 	collect [label="Collect active modifiers
 + remove expired modifiers" fillcolor="#DFF7E4" shape=box]
-	filter [label="Filter by condition(context)" fillcolor="#DFF7E4" shape=box]
+	filter [label="Filter by Condition.Evaluate(context)" fillcolor="#DFF7E4" shape=box]
 	sort [label="Sort by phase, operation, priority" fillcolor="#E0F7FA" shape=box]
 	apply [label="Apply calculation phases
 Base -> Add -> Percent -> More/Less -> Override -> Clamp" fillcolor="#E0F7FA" shape=box]

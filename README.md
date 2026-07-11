@@ -1,6 +1,8 @@
 # Game System Framework · System Atlas
 
-게임 시스템 아키텍처를 순서대로 학습하는 오프라인 지식 사이트다. 최상위 `index.html`을 열면 별도 서버나 빌드 없이 Core Runtime, Stat, Effect, Skill, Combat, Status의 책임과 연결 관계를 읽을 수 있다.
+C# 타입과 계약을 기준으로 게임 시스템 아키텍처를 순서대로 학습하는 오프라인 지식 사이트다. 최상위 `index.html`을 열면 별도 서버나 빌드 없이 Core Runtime, Stat, Effect, Skill, Combat, Status의 책임과 연결 관계를 읽을 수 있다.
+
+코드 예제는 C#, 직렬화·설정·실행 결과 예시는 JSON, Runtime Contract Lab은 JavaScript 브라우저 시뮬레이터를 사용한다.
 
 ## 공개 학습 구성
 
@@ -32,7 +34,7 @@ npm run serve
 ## 학습 자료와 저장소 문서의 경계
 
 - 공개 HTML은 현재 설명하는 개념, 계약, 예제, 실습만 담는다.
-- `source/runtime/`은 Runtime Contract Lab이 사용하는 실행 커널, fixture, 계약 스키마를 보관한다.
+- `source/runtime/`은 Runtime Contract Lab의 JavaScript 시뮬레이터 커널, fixture, 계약 스키마를 보관한다.
 - `source/diagrams/`와 `assets/diagrams/`는 학습 다이어그램의 원본과 출력물을 보관한다.
 - `QA_REPORT.md`, `PHASE3_REFERENCE_IMPLEMENTATION.md`, `PHASE3_IMPLEMENTATION_PLAN.md` 같은 문서는 저장소 내부 검증·계획 기록이며 공개 내비게이션에는 연결하지 않는다.
 
@@ -43,4 +45,4 @@ npm run python:deps
 npm run qa
 ```
 
-`qa`는 런타임 테스트, 검색 색인 재생성, 정적 링크·계약 검증, 체크섬 manifest 확인, 데스크톱·모바일 브라우저 smoke test를 순서대로 실행한다. 파일을 변경한 뒤에는 `npm run manifest`로 `MANIFEST.sha256`을 갱신한다. 검색 색인은 `source/site-map.json`과 공개 HTML을 기준으로 생성하므로 공개 페이지를 추가하거나 제거할 때는 사이트 맵과 문서 pager를 함께 갱신한다.
+`qa`는 런타임 테스트, 내비게이션 문구 일치, 검색 색인 재생성, 정적 링크·계약 검증, 체크섬 manifest 확인, 데스크톱·모바일 브라우저 smoke test를 순서대로 실행한다. 파일을 변경한 뒤에는 `npm run site-shell`로 drawer·pager 설명을, `npm run manifest`로 `MANIFEST.sha256`을 갱신한다. 검색 색인은 `source/site-map.json`과 공개 HTML을 기준으로 생성한다.

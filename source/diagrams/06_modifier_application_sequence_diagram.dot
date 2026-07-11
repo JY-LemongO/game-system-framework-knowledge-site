@@ -5,23 +5,23 @@ digraph G {
   rankdir=TB;
   start [shape=circle, width=.26, label="", fillcolor="#182033", color="#182033"];
   status [label="StatusSystem
-addModifier(rageAttack +30%)", fillcolor="#eefbf6", color="#5ac39b"];
+ AddModifier(rageAttack +30%)", fillcolor="#eefbf6", color="#5ac39b"];
   stat [label="StatBlock
 receive modifier request", fillcolor="#eaf0ff", color="#8292f7"];
   reg [label="ModifierRegistry
 merge by source + stackRule", fillcolor="#fff8e7", color="#e4ad4f"];
   dirty [label="StatBlock
-markDirty(attack_power)", fillcolor="#eaf0ff", color="#8292f7"];
+ MarkDirty(attack_power)", fillcolor="#eaf0ff", color="#8292f7"];
   event1 [label="EventBus
-publish ModifierAdded", fillcolor="#f8fafc"];
+ Publish(ModifierAdded)", fillcolor="#f8fafc"];
   query [label="UI / Combat
-getValue(attack_power, context)", fillcolor="#f4efff", color="#a884e8"];
+ GetValue(attack_power, context)", fillcolor="#f4efff", color="#a884e8"];
   pipe [label="CalculationPipeline
 collect · filter · sort modifiers", fillcolor="#ffffff"];
   result [label="StatValue
 final value + breakdown", fillcolor="#eefbf6", color="#5ac39b"];
   event2 [label="EventBus
-publish StatChanged if changed", fillcolor="#f8fafc"];
+ Publish(StatChanged) if changed", fillcolor="#f8fafc"];
   cache [label="UI / Combat
 refresh tooltip / combat cache", fillcolor="#f4efff", color="#a884e8"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];

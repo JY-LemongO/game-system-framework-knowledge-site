@@ -9,62 +9,62 @@ digraph G {
   SkillDefinition [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e0ad4e">
 <TR><TD BGCOLOR="#fff7e6"><B><FONT POINT-SIZE="16">SkillDefinition</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ skillId</TD></TR><TR><TD ALIGN="LEFT">+ tags: Tag[]</TD></TR><TR><TD ALIGN="LEFT">+ costs[]</TD></TR><TR><TD ALIGN="LEFT">+ cooldown</TD></TR><TR><TD ALIGN="LEFT">+ targeting</TD></TR><TR><TD ALIGN="LEFT">+ timeline</TD></TR><TR><TD ALIGN="LEFT">+ effectBundle</TD></TR>
+<TR><TD ALIGN="LEFT">+ SkillId</TD></TR><TR><TD ALIGN="LEFT">+ Tags: Tag[]</TD></TR><TR><TD ALIGN="LEFT">+ Costs[]</TD></TR><TR><TD ALIGN="LEFT">+ Cooldown</TD></TR><TR><TD ALIGN="LEFT">+ Targeting</TD></TR><TR><TD ALIGN="LEFT">+ Timeline</TD></TR><TR><TD ALIGN="LEFT">+ EffectBundle</TD></TR>
 </TABLE>>];
   SkillRuntime [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#8292f7">
 <TR><TD BGCOLOR="#eaf0ff"><B><FONT POINT-SIZE="16">SkillRuntime</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ cooldownRemaining</TD></TR><TR><TD ALIGN="LEFT">+ charges</TD></TR><TR><TD ALIGN="LEFT">+ currentCast?</TD></TR><TR><TD ALIGN="LEFT">+ lastUsedTime</TD></TR>
+<TR><TD ALIGN="LEFT">+ CooldownRemaining</TD></TR><TR><TD ALIGN="LEFT">+ Charges</TD></TR><TR><TD ALIGN="LEFT">+ CurrentCast?</TD></TR><TR><TD ALIGN="LEFT">+ LastUsedTime</TD></TR>
 </TABLE>>];
   SkillBook [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#8292f7">
 <TR><TD BGCOLOR="#eaf0ff"><B><FONT POINT-SIZE="16">SkillBook</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ owner: EntityId</TD></TR><TR><TD ALIGN="LEFT">+ learnedSkills</TD></TR><TR><TD ALIGN="LEFT">+ getRuntime()</TD></TR>
+<TR><TD ALIGN="LEFT">+ Owner: EntityId</TD></TR><TR><TD ALIGN="LEFT">+ LearnedSkills</TD></TR><TR><TD ALIGN="LEFT">+ GetRuntime()</TD></TR>
 </TABLE>>];
   SkillRequest [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a">
 <TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">SkillRequest</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ caster</TD></TR><TR><TD ALIGN="LEFT">+ skillId</TD></TR><TR><TD ALIGN="LEFT">+ targetRef?</TD></TR><TR><TD ALIGN="LEFT">+ aimPosition?</TD></TR><TR><TD ALIGN="LEFT">+ seed</TD></TR>
+<TR><TD ALIGN="LEFT">+ CasterId</TD></TR><TR><TD ALIGN="LEFT">+ SkillId</TD></TR><TR><TD ALIGN="LEFT">+ TargetId?</TD></TR><TR><TD ALIGN="LEFT">+ RequestedTick</TD></TR><TR><TD ALIGN="LEFT">+ RootSeed</TD></TR>
 </TABLE>>];
   SkillValidator [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0">
 <TR><TD BGCOLOR="#f3eefc"><B><FONT POINT-SIZE="16">SkillValidator</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ validateLearned()</TD></TR><TR><TD ALIGN="LEFT">+ validateCost()</TD></TR><TR><TD ALIGN="LEFT">+ validateCooldown()</TD></TR><TR><TD ALIGN="LEFT">+ validateTarget()</TD></TR><TR><TD ALIGN="LEFT">+ validateState()</TD></TR>
+<TR><TD ALIGN="LEFT">+ ValidateLearned()</TD></TR><TR><TD ALIGN="LEFT">+ ValidateCost()</TD></TR><TR><TD ALIGN="LEFT">+ ValidateCooldown()</TD></TR><TR><TD ALIGN="LEFT">+ ValidateTarget()</TD></TR><TR><TD ALIGN="LEFT">+ ValidateState()</TD></TR>
 </TABLE>>];
   CostPolicy [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e07b91">
 <TR><TD BGCOLOR="#fff0f3"><B><FONT POINT-SIZE="16">CostPolicy</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ resource</TD></TR><TR><TD ALIGN="LEFT">+ amount</TD></TR><TR><TD ALIGN="LEFT">+ payTiming</TD></TR><TR><TD ALIGN="LEFT">+ refundPolicy</TD></TR>
+<TR><TD ALIGN="LEFT">+ Resource</TD></TR><TR><TD ALIGN="LEFT">+ Amount</TD></TR><TR><TD ALIGN="LEFT">+ PayTiming</TD></TR><TR><TD ALIGN="LEFT">+ RefundPolicy</TD></TR>
 </TABLE>>];
   CooldownPolicy [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e07b91">
 <TR><TD BGCOLOR="#fff0f3"><B><FONT POINT-SIZE="16">CooldownPolicy</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ duration</TD></TR><TR><TD ALIGN="LEFT">+ group?</TD></TR><TR><TD ALIGN="LEFT">+ charges?</TD></TR><TR><TD ALIGN="LEFT">+ startsAt</TD></TR>
+<TR><TD ALIGN="LEFT">+ Duration</TD></TR><TR><TD ALIGN="LEFT">+ Group?</TD></TR><TR><TD ALIGN="LEFT">+ Charges?</TD></TR><TR><TD ALIGN="LEFT">+ StartsAt</TD></TR>
 </TABLE>>];
   TargetingSpec [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#54b7cf">
 <TR><TD BGCOLOR="#e9fbff"><B><FONT POINT-SIZE="16">TargetingSpec</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ type</TD></TR><TR><TD ALIGN="LEFT">+ range</TD></TR><TR><TD ALIGN="LEFT">+ lineOfSight</TD></TR><TR><TD ALIGN="LEFT">+ previewShape?</TD></TR>
+<TR><TD ALIGN="LEFT">+ Type</TD></TR><TR><TD ALIGN="LEFT">+ Range</TD></TR><TR><TD ALIGN="LEFT">+ LineOfSight</TD></TR><TR><TD ALIGN="LEFT">+ PreviewShape?</TD></TR>
 </TABLE>>];
   ActionTimeline [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#54b7cf">
 <TR><TD BGCOLOR="#e9fbff"><B><FONT POINT-SIZE="16">ActionTimeline</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ phases[]</TD></TR><TR><TD ALIGN="LEFT">+ markers[]</TD></TR><TR><TD ALIGN="LEFT">+ cancelWindows[]</TD></TR><TR><TD ALIGN="LEFT">+ interruptRules</TD></TR>
+<TR><TD ALIGN="LEFT">+ Phases[]</TD></TR><TR><TD ALIGN="LEFT">+ Markers[]</TD></TR><TR><TD ALIGN="LEFT">+ CancelWindows[]</TD></TR><TR><TD ALIGN="LEFT">+ InterruptRules</TD></TR>
 </TABLE>>];
   EffectBundle [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e0ad4e">
 <TR><TD BGCOLOR="#fff7e6"><B><FONT POINT-SIZE="16">EffectBundle</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ effects[]</TD></TR><TR><TD ALIGN="LEFT">+ executionPolicy</TD></TR><TR><TD ALIGN="LEFT">+ stopPolicy</TD></TR>
+<TR><TD ALIGN="LEFT">+ Effects[]</TD></TR><TR><TD ALIGN="LEFT">+ ExecutionPolicy</TD></TR><TR><TD ALIGN="LEFT">+ StopPolicy</TD></TR>
 </TABLE>>];
-  SkillExecutor [shape=plain, label=<
+  ISkillService [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#99a8bd">
-<TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">SkillExecutor</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ execute(request)</TD></TR><TR><TD ALIGN="LEFT">+ startTimeline()</TD></TR><TR><TD ALIGN="LEFT">+ buildEffectContext()</TD></TR><TR><TD ALIGN="LEFT">+ publishEvents()</TD></TR>
+<TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">&lt;&lt;interface&gt;&gt; ISkillService</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT">+ Begin(request)</TD></TR><TR><TD ALIGN="LEFT">+ CommitRelease(execution)</TD></TR><TR><TD ALIGN="LEFT">+ Interrupt(execution)</TD></TR>
 </TABLE>>];
   SkillResult [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#99a8bd">
 <TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">SkillResult</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ status</TD></TR><TR><TD ALIGN="LEFT">+ failureReason?</TD></TR><TR><TD ALIGN="LEFT">+ effectResults[]</TD></TR><TR><TD ALIGN="LEFT">+ debugTrace</TD></TR>
+<TR><TD ALIGN="LEFT">+ Succeeded</TD></TR><TR><TD ALIGN="LEFT">+ FailureReason?</TD></TR><TR><TD ALIGN="LEFT">+ Effects: IReadOnlyList&lt;EffectResult&gt;</TD></TR>
 </TABLE>>];
   SkillBook -> SkillRuntime [label="owns 0..*"];
   SkillDefinition -> CostPolicy [label="has"];
@@ -72,13 +72,13 @@ digraph G {
   SkillDefinition -> TargetingSpec [label="has"];
   SkillDefinition -> ActionTimeline [label="has"];
   SkillDefinition -> EffectBundle [label="executes"];
-  SkillRequest -> SkillExecutor [label="input"];
-  SkillExecutor -> SkillValidator [label="validate"];
-  SkillExecutor -> SkillRuntime [label="read/write"];
+  SkillRequest -> ISkillService [label="input"];
+  ISkillService -> SkillValidator [label="validate"];
+  ISkillService -> SkillRuntime [label="read/write"];
   SkillValidator -> CostPolicy [label="cost"];
   SkillValidator -> CooldownPolicy [label="cooldown"];
   SkillValidator -> TargetingSpec [label="target"];
-  SkillExecutor -> ActionTimeline [label="advance"];
-  SkillExecutor -> EffectBundle [label="on marker"];
-  SkillExecutor -> SkillResult [label="returns"];
+  ISkillService -> ActionTimeline [label="advance"];
+  ISkillService -> EffectBundle [label="on marker"];
+  ISkillService -> SkillResult [label="returns"];
 }

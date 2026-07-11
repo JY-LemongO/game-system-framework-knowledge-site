@@ -10,7 +10,7 @@ digraph G {
   Telemetry [shape=component, fillcolor="#f7f8fb", label="Observation Adapters\nUI · Audio · Trace · Analytics"];
 
   Contracts [fillcolor="#eefbf6", label="Contract Boundary\nCommandEnvelope · DomainEvent\nVersioned Document"];
-  Kernel [shape=component, fillcolor="#eaf0ff", penwidth=2.0, label="Phase 3 Runtime Kernel\nResolve · Commit · Reaction\nStatus Tick · Cache · Migration"];
+  Kernel [shape=component, fillcolor="#eaf0ff", penwidth=2.0, label="Runtime Kernel\nResolve · Commit · Reaction\nStatus Tick · Cache · Migration"];
   Replay [shape=note, fillcolor="#fff7e6", label="Replay Fixture\nInput + Versions + Seed\nExpected Hash"];
 
   Input -> Contracts [label="command"];

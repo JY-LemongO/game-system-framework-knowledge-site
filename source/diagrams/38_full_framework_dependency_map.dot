@@ -10,13 +10,10 @@ digraph G {
   Skill [shape=component, fillcolor="#f3eefc", label="Skill / Action\nCost · Cooldown · Timeline\nEffectBundle"];
   Combat [shape=component, fillcolor="#fff0f3", label="Combat Resolution\nHit · Critical · Armor\nResistance · Shield"];
   Status [shape=component, fillcolor="#e9fbff", label="Status System\nDuration · Stack · Tick\nModifier · PeriodicEffect"];
-  Equipment [shape=component, style="rounded,dashed,filled", fillcolor="#f8fafc", label="Future: Equipment / Item\nModifier Provider\nTriggeredEffect"];
-  Progression [shape=component, style="rounded,dashed,filled", fillcolor="#f8fafc", label="Future: Progression / Reward\nUnlock · Talent\nSkillMutation"];
   Fireball [shape=note, fillcolor="#ffffff", label="Fireball Vertical Slice\nSkill → Effect → Combat\nStatus → EventLog"];
 
   { rank=same; Stat; Effect; Skill; }
   { rank=same; Combat; Status; }
-  { rank=same; Equipment; Progression; }
 
   Core -> Stat;
   Core -> Effect;
@@ -31,11 +28,6 @@ digraph G {
   Combat -> Stat [style=dashed, label="read"];
   Status -> Stat [style=dashed, label="modifier"];
   Status -> Effect [style=dashed, label="periodic"];
-
-  Equipment -> Stat [style=dashed];
-  Equipment -> Effect [style=dashed];
-  Progression -> Skill [style=dashed];
-  Progression -> Stat [style=dashed];
 
   Skill -> Fireball [style=dotted];
   Effect -> Fireball [style=dotted];

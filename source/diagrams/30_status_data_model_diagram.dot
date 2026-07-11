@@ -30,7 +30,7 @@ digraph G {
     StatusInstance [label="StatusInstance
 - instanceId
 - target
-- appliedBySourceId
+- Source: SourceRef
 - modifierSourceId=instanceId"];
     StackState [label="StackState
 - count

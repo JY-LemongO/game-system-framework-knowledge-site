@@ -5,16 +5,16 @@ digraph G {
   rankdir=TB;
 
   start [shape=circle, width=.26, label="", fillcolor="#182033", color="#182033"];
-  dmg [label="DamageEffect\nbuild DamageRequest", fillcolor="#eefbf6", color="#5ac39b"];
-  req [label="DamageRequest\nattacker · defender · sourceId · damageType · seed", fillcolor="#f8fafc"];
-  resolver [label="CombatResolver\nresolve(request)", fillcolor="#eaf0ff", color="#8292f7"];
-  stat [label="StatSystem\nread attacker / defender final values", fillcolor="#fff8e7", color="#e4ad4f"];
-  status [label="Status Query\nread immunity / vulnerability tags", fillcolor="#f4efff", color="#a884e8"];
+  dmg [label="DamageEffect\nBuild DamageRequest", fillcolor="#eefbf6", color="#5ac39b"];
+  req [label="DamageRequest\nAttackerId · DefenderId · FormulaId\nSource · DamageType · BaseValue\nCoefficientBps · Tags · Seed", fillcolor="#f8fafc"];
+  resolver [label="CombatResolver\nResolve(request)", fillcolor="#eaf0ff", color="#8292f7"];
+  stat [label="StatSystem\nRead attacker / defender final values", fillcolor="#fff8e7", color="#e4ad4f"];
+  status [label="Status Query\nRead immunity / vulnerability tags", fillcolor="#f4efff", color="#a884e8"];
   pipe [label="DamagePipeline\nhit → critical → formula → defense → resistance → shield", fillcolor="#ffffff"];
-  result [label="DamageResult\nfinalHpDamage · shieldAbsorbed · debugTrace", fillcolor="#eefbf6", color="#5ac39b"];
-  resource [label="ResourceController\napply HP loss by project policy", fillcolor="#fff1f2", color="#e07b91"];
+  result [label="DamageResult\nHit · Critical · RawDamage\nResolvedDamage · ShieldAbsorbed · FinalHpDamage", fillcolor="#eefbf6", color="#5ac39b"];
+  resource [label="ResourceController\nApply HP loss by project policy", fillcolor="#fff1f2", color="#e07b91"];
   event [label="EventBus after commit\nDamageCommitted / EntityDefeated", fillcolor="#f8fafc"];
-  trace [label="DebugTrace\nappend calculation breakdown", fillcolor="#f8fafc"];
+  trace [label="DebugTrace\nAppend calculation breakdown", fillcolor="#f8fafc"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];
 
   start -> dmg -> req -> resolver -> pipe -> result -> resource -> event -> trace -> end;

@@ -9,10 +9,10 @@ digraph G {
   C [fillcolor="#f3eefc", color="#ab8fe0", label="3. SkillValidator\n비용 · 쿨다운 · 상태 · 사거리 검증"];
   D [fillcolor="#fff7e6", color="#e0ad4e", label="4. CostPolicy\n비용 예약 또는 선지불"];
   E [fillcolor="#e9fbff", color="#54b7cf", label="5. ActionTimeline\nwindup → release marker"];
-  F [fillcolor="#eefbf6", color="#61b99a", label="6. EffectContext 생성\ncaster · source · target · seed · tags"];
+  F [fillcolor="#eefbf6", color="#61b99a", label="6. EffectContext 생성\nCasterId · InitialTargetId · Source · RandomSeed"];
   G [fillcolor="#fff0f3", color="#e07b91", label="7. EffectService\nEffectBundle 실행"];
   H [fillcolor="#fff0f3", color="#e07b91", label="8. EffectResult 수집\nDamage / Status 결과 포함"];
-  I [fillcolor="#f0f3f9", color="#99a8bd", label="9. SkillResult 작성\n성공 · 실패 · 중단 · debugTrace"];
+  I [fillcolor="#f0f3f9", color="#99a8bd", label="9. SkillResult 작성\nSucceeded · FailureReason · Effects"];
   J [fillcolor="#eefbf6", color="#61b99a", label="10. commit 이후 EventBus\nSkillCommitted / SkillInterrupted"];
 
   A -> B -> C -> D -> E -> F -> G -> H -> I -> J;

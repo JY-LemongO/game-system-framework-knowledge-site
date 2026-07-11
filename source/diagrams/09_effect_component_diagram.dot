@@ -28,7 +28,8 @@ base + stat scaling", fillcolor="#fff7e6", color="#e0ad4e"];
     EffectRequest [label="EffectRequest
 실행 요청", fillcolor="#eaf0ff", color="#8292f7"];
     EffectContext [label="EffectContext
-source·target·skill·seed", fillcolor="#eaf0ff", color="#8292f7"];
+CasterId · InitialTargetId
+Source · RandomSeed", fillcolor="#eaf0ff", color="#8292f7"];
     EffectPipeline [label="EffectPipeline
 Validate→Target→Value→Apply", fillcolor="#eaf0ff", color="#8292f7"];
     TargetResolver [label="TargetResolver
@@ -64,11 +65,11 @@ EffectApplied 등", fillcolor="#eefbf6", color="#61b99a"];
   EffectPipeline -> ValueResolver;
   EffectPipeline -> EffectExecutor;
   TargetResolver -> EffectResult;
-  ValueResolver -> StatSystem [label="getValue(ctx)"];
+  ValueResolver -> StatSystem [label="GetValue(ctx)"];
   EffectExecutor -> CombatSystem [label="DamageEffect"];
   EffectExecutor -> StatusSystem [label="ApplyStatus"];
   EffectExecutor -> StatSystem [label="AddModifier/Resource"];
   EffectExecutor -> EffectResult;
-  EffectResult -> EventBus [label="publish"];
+  EffectResult -> EventBus [label="Publish"];
   EffectPipeline -> EffectLog;
 }

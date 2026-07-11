@@ -20,19 +20,26 @@ digraph G {
   }
   subgraph cluster_runtime { label="Runtime Data"; color="#dbe3ef"; style="rounded";
     DamageRequest [label="DamageRequest
-- attacker
-- defender
-- baseValue
-- sourceId"];
+- AttackerId
+- DefenderId
+- Source: SourceRef
+- FormulaId
+- DamageType
+- BaseValue
+- CoefficientBps
+- Tags
+- Seed"];
     CombatContext [label="CombatContext
 - position
 - tags
 - randomStream"];
     DamageResult [label="DamageResult
-- finalDamage
-- hit
-- critical
-- shieldAbsorbed"];
+- Hit
+- Critical
+- RawDamage
+- ResolvedDamage
+- ShieldAbsorbed
+- FinalHpDamage"];
     CombatLog [label="CombatLog
 - formulaSteps
 - statReads

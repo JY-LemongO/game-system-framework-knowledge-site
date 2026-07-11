@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Runtime Contract Lab · GSF System Atlas</title>
-<meta content="결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실행 실습" name="description"/>
+<meta content="C# 실행 계약의 replay, atomic commit, reaction, cache, migration을 JavaScript 시뮬레이터로 관찰하는 실습" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <script>
    (function(){try{var m=localStorage.getItem('gsf-theme')||'system';document.documentElement.dataset.theme=m;if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()
@@ -37,7 +37,7 @@
        System Atlas
       </b>
 <small>
-       Game architecture knowledgebase
+     C# game system knowledgebase
       </small>
 </span>
 </a>
@@ -189,17 +189,34 @@
 <article class="content-area doc-article runtime-reference" id="article-content">
 <section class="hero runtime-hero" data-accent="violet">
 <span class="eyebrow">Executable Learning Lab</span><h1>Runtime Contract<br/>Lab</h1>
-<p class="lead">설계 문장을 실행 결과로 확인한다. Fireball replay와 실패 probe를 조작하며 resolve·commit·reaction·status tick, context cache, schema migration의 의미를 한 페이지에서 비교한다.</p>
-<div class="badges"><span class="badge">Deterministic replay</span><span class="badge">Atomic commit</span><span class="badge">Bounded reaction</span><span class="badge">Schema migration</span><span class="badge">v3.3.0-reference</span><span class="badge">5 JSON contracts</span></div>
+<p class="lead">C# 계약이 보장해야 할 실행 의미를 브라우저 시뮬레이터로 확인한다. Fireball replay와 실패 probe를 조작하며 resolve·commit·reaction·status tick, context cache, schema migration을 비교한다.</p>
+<div class="badges"><span class="badge" data-example-language="csharp">기준 언어 · C#</span><span class="badge" data-simulator-language="javascript">시뮬레이터 · JavaScript</span><span class="badge">Deterministic replay</span><span class="badge">Atomic commit</span><span class="badge">Bounded reaction</span><span class="badge">Schema migration</span></div>
 <div class="hero-actions"><a class="button primary" href="#fireball-workbench">Workbench 실행</a><a class="button secondary" href="../modules/fireball-case-study.html">사례 먼저 읽기</a></div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>동일 입력의 replay, 원자적 commit, 제한된 reaction, context cache, migration 결과를 직접 관찰한다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>C# 구현이 보장할 동일 입력 replay, 원자적 commit, 제한된 reaction, context cache, migration 결과를 직접 관찰한다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Fireball 사례와 resolve·commit 구분을 먼저 읽고, 각 실습에서 바뀌는 입력과 출력을 비교한다.</p></article>
 </div>
 
 <h2 id="실행-아키텍처">실행 아키텍처</h2>
-<p>runtime kernel 안의 규칙은 UI나 저장소를 직접 알지 않는다. 외부 시스템은 command, snapshot, committed result, observation event 포트로만 연결한다.</p>
+<p>C# 도메인 커널은 UI나 저장소를 직접 알지 않는다. 이 페이지의 JavaScript 시뮬레이터도 같은 command, snapshot, committed result, observation event 경계를 재현한다.</p>
+<h3 id="csharp-runtime-boundary">C# 실행 경계</h3>
+<p>Resolve는 불변 snapshot에서 계획을 만들고, Commit은 사전 조건을 다시 확인한 뒤 상태와 outbox를 함께 확정한다.</p>
+<pre><code class="language-csharp">public interface IRuntimeResolver
+{
+    ResolutionPlan Resolve(RuntimeSnapshot snapshot, CombatCommand command);
+}
+
+public interface IRuntimeCommitter
+{
+    CommitResult Commit(ResolutionPlan plan);
+}
+
+public interface IReactionQueue
+{
+    void Enqueue(ReactionCommand command);
+    int Drain(ReactionBudget budget);
+}</code></pre>
 <div class="diagram runtime-diagram">
 <div class="dh"><div><span class="section-kicker">Ports &amp; adapters</span><strong>Kernel을 제품 인프라와 분리하는 경계</strong></div><div class="da"><a href="../assets/diagrams/39_runtime_ports_and_adapters.svg" rel="noopener" target="_blank">SVG</a><a href="../source/diagrams/39_runtime_ports_and_adapters.dot">DOT</a></div></div>
 <img alt="입력, 저장소, 엔진, 관찰 adapter와 runtime kernel의 port 구조" class="zoomable" loading="lazy" src="../assets/diagrams/39_runtime_ports_and_adapters.svg"/>
@@ -215,10 +232,10 @@
 <img alt="command에서 pure resolve, atomic commit, outbox, reaction, status tick으로 이어지는 흐름" class="zoomable" loading="lazy" src="../assets/diagrams/40_resolve_commit_reaction_sequence.svg"/>
 </div>
 <h2 id="fireball-workbench">Fireball Replay Workbench</h2>
-<p>아래 입력은 실제 kernel에 전달된다. 같은 입력을 반복 실행하면 replay hash와 trace hash가 유지되고, seed나 전투 수치를 바꾸면 첫 divergent decision부터 결과가 달라진다.</p>
+<p>아래 입력은 이 페이지의 JavaScript 시뮬레이터에 전달된다. 같은 입력을 반복 실행하면 replay hash와 trace hash가 유지되고, seed나 전투 수치를 바꾸면 첫 divergent decision부터 결과가 달라진다.</p>
 <section class="runtime-lab" data-runtime-lab="">
 <header class="runtime-lab-head">
-<div><span class="section-kicker">Shared browser / Node kernel</span><h3>Deterministic Fireball</h3></div>
+<div><span class="section-kicker">JavaScript · Browser/Node simulator</span><h3>Deterministic Fireball</h3></div>
 <div class="runtime-live"><span></span>LIVE</div>
 </header>
 <form class="runtime-form" data-runtime-form="">
@@ -249,8 +266,8 @@
 <section><header><span>Decision trace</span><small data-runtime-trace-count="">0 stages</small></header><ol class="runtime-trace" data-runtime-trace=""></ol></section>
 <section><header><span>Committed events</span><small>post-commit only</small></header><ol class="runtime-events" data-runtime-events=""></ol></section>
 </div>
-<details class="runtime-json"><summary>Immutable outcome / plan JSON</summary><pre><code data-runtime-plan="">{}</code></pre></details>
-<details class="runtime-json"><summary>Final state JSON</summary><pre><code data-runtime-state="">{}</code></pre></details>
+<details class="runtime-json"><summary>Immutable outcome / plan JSON</summary><pre><code class="language-json" data-runtime-plan="">{}</code></pre></details>
+<details class="runtime-json"><summary>Final state JSON</summary><pre><code class="language-json" data-runtime-state="">{}</code></pre></details>
 </section>
 <h2 id="failure-probes">Hardening Probes</h2>
 <p>happy path만 보여주지 않고 실제로 가장 위험한 세 실패를 같은 kernel에서 재현한다. 실패 전후 state hash가 같아야 probe를 통과한다.</p>
@@ -265,14 +282,14 @@
 <header><div><span class="section-kicker">Cache correctness</span><h3>같은 질의는 hit, 다른 context는 miss</h3></div><button class="button secondary" data-runtime-cache-run="" type="button">패턴 다시 실행</button></header>
 <div class="mini-lab-status"><strong data-runtime-cache-status="">Ready</strong><span data-runtime-cache-pattern="">MISS → HIT → MISS</span></div>
 <div class="mini-lab-grid"><div><span>Compute calls</span><strong data-runtime-cache-computes="">—</strong></div><div><span>Returned values</span><strong data-runtime-cache-values="">—</strong></div><div><span>Fingerprint</span><code data-runtime-cache-fingerprint="">—</code></div></div>
-<pre><code data-runtime-cache-details="">{}</code></pre>
+<pre><code class="language-json" data-runtime-cache-details="">{}</code></pre>
 </section>
 <h2 id="migration-lab">Schema Migration Lab</h2>
 <p>저장 문서는 임의 버전으로 바로 뛰지 않고 vN→vN+1 edge를 순서대로 통과한다. 각 단계는 source를 변경하지 않으며 before/after hash를 audit trail에 남긴다.</p>
 <section class="runtime-mini-lab" data-runtime-migration-probe="">
 <header><div><span class="section-kicker">N−2 compatibility</span><h3>Player save v1 → v2 → v3</h3></div><button class="button secondary" data-runtime-migration-run="" type="button">Migration 실행</button></header>
 <div class="mini-lab-status"><strong data-runtime-migration-status="">Ready</strong><span data-runtime-migration-path="">v1 → v2 → v3</span></div>
-<div class="migration-columns"><div><span>Source v1</span><pre><code data-runtime-migration-before="">{}</code></pre></div><div><span>Current v3</span><pre><code data-runtime-migration-after="">{}</code></pre></div></div>
+<div class="migration-columns"><div><span>Source v1</span><pre><code class="language-json" data-runtime-migration-before="">{}</code></pre></div><div><span>Current v3</span><pre><code class="language-json" data-runtime-migration-after="">{}</code></pre></div></div>
 <ol class="migration-audit" data-runtime-migration-audit=""></ol>
 </section>
 <h2 id="deterministic-envelope">결정론 envelope</h2>
@@ -290,8 +307,8 @@
 </tbody></table></div>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/fireball-case-study.html"><span>← 이전</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a>
-<a class="next" href="../modules/diagram-gallery.html"><span>다음 →</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a>
+<a class="prev" href="../modules/fireball-case-study.html"><span>← 이전</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a>
+<a class="next" href="../modules/diagram-gallery.html"><span>다음 →</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -302,7 +319,7 @@
 </aside>
 </div>
 <footer class="site-footer">
-<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<div><b>Game System Framework</b></div>
 <a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
@@ -381,7 +398,7 @@
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a aria-current="page" class="is-active" href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a aria-current="page" class="is-active" href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache, migration을 JavaScript 시뮬레이터로 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

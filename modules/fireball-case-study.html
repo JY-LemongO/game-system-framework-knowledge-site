@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Fireball Case Study · GSF System Atlas</title>
-<meta content="하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름" name="description"/>
+<meta content="Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <script>
    (function(){try{var m=localStorage.getItem('gsf-theme')||'system';document.documentElement.dataset.theme=m;if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()
@@ -37,7 +37,7 @@
        System Atlas
       </b>
 <small>
-       Game architecture knowledgebase
+     C# game system knowledgebase
       </small>
 </span>
 </a>
@@ -213,9 +213,10 @@
        Fireball Case Study
       </h1>
 <p class="lead">
-       Fireball은 Skill, Effect, Combat, Status, Stat, Core Runtime이 한 번에 연결되는 대표 예제다. 이 페이지는 “스킬을 눌렀다”가 어떻게 마나 소모, 시전 타임라인, 피해 계산, Burn 상태, tick 피해, 이벤트 로그로 이어지는지 끝까지 추적한다.
+       Fireball은 Skill, Effect, Combat, Status, Stat, Core Runtime의 C# 계약이 한 번에 연결되는 대표 예제다. SkillRequest에서 시작해 마나 commit, 피해 계산, Burn 적용과 tick, 이벤트 기록까지 요청·결과 타입의 흐름을 추적한다.
       </p>
 <div class="badges">
+<span class="badge" data-example-language="csharp">예제 언어 · C#</span>
 <span class="badge">
         SkillRequest
        </span>
@@ -237,7 +238,7 @@
 </div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>하나의 입력이 Skill·Effect·Combat·Status를 통과하는 전체 실행과 실패 분기를 추적한다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>하나의 C# command가 Skill·Effect·Combat·Status를 통과하는 전체 실행과 실패 분기를 추적한다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>각 시스템의 요청·결과 객체와 SourceRef, commit 이후 이벤트 개념을 먼저 이해한다.</p></article>
 </div>
 <h2 id="fireball-전체-흐름">
@@ -281,13 +282,27 @@
 <p>
       Fireball은 전체 프레임워크의 수직 슬라이스다. Skill은 행동 사용 가능 여부와 실행 타이밍을 담당하고, Effect는 DamageEffect와 ApplyStatusEffect(effect.apply-burn)를 요청하며, Combat은 피해를 계산하고, Status는 Burn을 유지한다. 아래 모든 수치는 Runtime Contract Lab의 단일 fixture와 같다.
      </p>
+<h3 id="csharp-fireball-orchestration">C# 실행 조율</h3>
+<p>아래 조율 코드는 Skill release에서 확정된 EffectBundle 전체를 IEffectExecutor에 넘긴다. Effects와 Reactions, commit_then_react 정책이 함께 전달되므로 Skill은 Combat이나 Burn 적용을 직접 호출하지 않는다.</p>
+<pre><code class="language-csharp">public FireballResult Execute(FireballCommand command)
+{
+    SkillExecution execution = _skills.Begin(command.SkillRequest);
+    CommittedSkill release = _skills.CommitRelease(execution);
+
+    EffectContext context = command.CreateEffectContext(release);
+    EffectBundleResult result = _effects.Execute(
+        release.EffectBundle,
+        context);
+
+    return new FireballResult(release, result);
+}</code></pre>
 <h2 id="1-skillrequest">
       1. SkillRequest
      </h2>
 <p>
-      플레이어가 대상을 지정하면 불변 Skill command가 생성된다. actor와 이번 실행을 나타내는 command/source, target, definition 버전, simulation tick, root seed를 담는다. 이때 아직 마나가 차감되거나 피해가 적용되지 않는다.
+      플레이어가 대상을 지정하면 불변 Skill command가 생성된다. Actor와 이번 실행을 나타내는 Command/Source, Target, DefinitionVersion, SimulationTick, RootSeed를 담는다. 이때 아직 마나가 차감되거나 피해가 적용되지 않는다.
      </p>
-<pre><code>{
+<pre><code class="language-json">{
   "commandId": "command.fireball.cast.0001",
   "actorId": "entity.caster",
   "targetId": "entity.target",
@@ -319,7 +334,7 @@
          SkillBook에서 skill.fireball 보유 확인
         </td>
 <td>
-         SkillResult.failedReason = NotLearned
+         SkillResult.FailureReason = NotLearned
         </td>
 </tr>
 <tr>
@@ -327,7 +342,7 @@
          마나가 충분한가
         </td>
 <td>
-         mana current ≥ 20
+         Mana.Current ≥ 20
         </td>
 <td>
          OutOfResource
@@ -338,7 +353,7 @@
          쿨다운 중인가
         </td>
 <td>
-         cooldownRemaining = 0
+         CooldownRemaining = 0
         </td>
 <td>
          cooldown-active
@@ -378,7 +393,7 @@
       release marker에 도달하면 SkillExecutor는 EffectContext를 만들고 EffectBundle을 실행한다. Fireball은 피해를 먼저 commit한 뒤 그 도메인 사실로 Burn 적용 reaction을 만든다. Burn이 면역으로 실패해도 이미 commit된 피해 결과는 유지되도록
       <code>commit_then_react</code> 정책을 사용한다.
      </p>
-<pre><code>{
+<pre><code class="language-json">{
   "effectBundle": {
     "policy": "commit_then_react",
     "effects": ["effect.fireball-damage"],
@@ -502,11 +517,16 @@
 </tr>
 </table>
 </div>
-<pre><code>base = 24 + 120 × 1.2 = 168
-critical = 168 × 1.5 = 252
-resistance = roundHalfUp(252 × 0.80) = 202
-shieldAbsorbed = 40
-finalHpDamage = 202 - 40 = 162</code></pre>
+<pre><code class="language-csharp">int baseDamage = 24 + MultiplyBpsHalfUp(120, 12_000);
+int criticalDamage = MultiplyBpsHalfUp(baseDamage, 15_000);
+int resistedDamage = MultiplyBpsHalfUp(criticalDamage, 8_000);
+int shieldAbsorbed = Math.Min(40, resistedDamage);
+int finalHpDamage = resistedDamage - shieldAbsorbed;
+
+static int MultiplyBpsHalfUp(int value, int bps)
+{
+    return (int)(((long)value * bps + 5_000) / 10_000);
+}</code></pre>
 <h2 id="5-status-application">
       5. Status Application
      </h2>
@@ -527,9 +547,9 @@ finalHpDamage = 202 - 40 = 162</code></pre>
       </figcaption>
 </figure>
 <p>
-      이 fixture의 Burn은 6 simulation tick 동안 유지되고 +2, +4, +6에 periodic DamageEffect를 실행한다. 재적용은 중첩을 늘리지 않고 지속시간만 refresh한다. applyOn=hit이므로 보호막이 최초 피해를 모두 흡수해도 대상이 살아 있으면 적용된다. 적용 원천은 skill execution SourceRef로 추적하고 tick 예약은 statusInstanceId로 정리한다.
+      이 fixture의 Burn은 6 simulation tick 동안 유지되고 +2, +4, +6에 periodic DamageEffect를 실행한다. 재적용은 중첩을 늘리지 않고 지속시간만 refresh한다. applyOn=hit이므로 보호막이 최초 피해를 모두 흡수해도 대상이 살아 있으면 적용된다. 적용 원천은 skill execution SourceRef로 추적하고 tick 예약은 StatusInstanceId로 정리한다.
      </p>
-<pre><code>{
+<pre><code class="language-json">{
   "status": "status.burn",
   "durationTicks": 6,
   "stackCount": 1,
@@ -567,9 +587,9 @@ finalHpDamage = 202 - 40 = 162</code></pre>
       7. Event / DebugTrace
      </h2>
 <p>
-      Fireball의 모든 실행 결과는 executionId, correlationId, definitionVersion으로 묶여야 한다. seed만으로 재현한다고 가정하지 않고 입력/스탯 스냅샷과 정렬·반올림 정책을 함께 남긴다.
+      Fireball의 모든 실행 결과는 ExecutionId, CorrelationId, DefinitionVersion으로 묶여야 한다. Seed만으로 재현한다고 가정하지 않고 입력/스탯 스냅샷과 정렬·반올림 정책을 함께 남긴다.
      </p>
-<pre><code>sourceId: command.fireball.cast.0001
+<pre><code class="language-text">sourceId: command.fireball.cast.0001
 SkillCommitted
   actor=entity.caster, manaSpent=20, cooldownReadyTick=18300
 DamageCalculated trace
@@ -656,7 +676,7 @@ StatusExpired
          Combat ShieldResolver
         </td>
 <td>
-         DamageResult.shieldAbsorbed 기록. applyOn=hit이면 full shield에서도 Burn 적용
+         DamageResult.ShieldAbsorbed 기록. applyOn=hit이면 full shield에서도 Burn 적용
         </td>
 </tr>
 <tr>
@@ -695,8 +715,8 @@ StatusExpired
 </div>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/integration-map.html"><span>← 이전</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a>
-<a class="next" href="../modules/runtime-reference.html"><span>다음 →</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a>
+<a class="prev" href="../modules/integration-map.html"><span>← 이전</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a>
+<a class="next" href="../modules/runtime-reference.html"><span>다음 →</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache, migration을 JavaScript 시뮬레이터로 관찰하는 실습</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -775,11 +795,11 @@ StatusExpired
 </a>
 </div>
 </section>
-<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>실행 계약을 직접 검증하는 학습 실습</b><small>Replay · Failure probes · Cache · Migration</small><i>→</i></a>
+<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>C# 실행 계약을 검증하는 학습 실습</b><small>JavaScript 브라우저 시뮬레이터</small><i>→</i></a>
 </aside>
 </div>
 <footer class="site-footer">
-<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<div><b>Game System Framework</b></div>
 <a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
@@ -858,7 +878,7 @@ StatusExpired
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a aria-current="page" class="is-active" href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a aria-current="page" class="is-active" href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache, migration을 JavaScript 시뮬레이터로 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

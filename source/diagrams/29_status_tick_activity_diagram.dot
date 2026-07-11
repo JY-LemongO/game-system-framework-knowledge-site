@@ -6,15 +6,26 @@ digraph G {
   start [shape=circle, width=.28, label="", fillcolor="#182033", color="#182033"];
   due [label="Simulation Tick Reached"];
   active [shape=diamond, label="Status still active?"];
+  cap [shape=diamond, label="Catch-up count below
+MaxCatchUpTicks?"];
+  capExpired [shape=diamond, label="ExpiresAt <= now?"];
+  limitedRemove [label="Remove status
+reason = CatchUpLimited
+trace dropped ticks"];
+  defer [label="Leave overdue tick
+for next advance"];
   context [label="Build EffectContext
-source=statusInstanceId
-target=owner
-stackCount included"];
+Source: SourceRef
+TargetId = owner
+StackCount included"];
   execute [label="Build DamageRequest
-resolve + commit via Combat"];
+Resolve + Commit
+through Combat"];
   update [label="Update remaining duration
-advance nextTickAt"];
+advance NextTickAt
+increment catch-up count"];
   expire [shape=diamond, label="Expired?"];
+  backlog [shape=diamond, label="Overdue tick remains?"];
   schedule [label="Schedule next tick"];
   remove [label="Remove status
 remove modifiers
@@ -22,9 +33,17 @@ publish StatusExpired"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];
   start -> due -> active;
   active -> remove [label="no"];
-  active -> context [label="yes"];
+  active -> cap [label="yes"];
+  cap -> capExpired [label="no"];
+  capExpired -> limitedRemove [label="yes"];
+  limitedRemove -> end;
+  capExpired -> defer [label="no"];
+  defer -> end;
+  cap -> context [label="yes"];
   context -> execute -> update -> expire;
-  expire -> schedule [label="no"];
+  expire -> backlog [label="no"];
+  backlog -> cap [label="yes"];
+  backlog -> schedule [label="no"];
   schedule -> end;
   expire -> remove [label="yes"];
   remove -> end;

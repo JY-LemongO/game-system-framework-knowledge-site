@@ -24,13 +24,15 @@ barrier first, redirect, absorb"];
   round [label="Clamp / Round
 minimum, maximum, integer policy"];
   result [label="Build DamageResult
-finalHpDamage, logs, events"];
-  miss [label="Build Miss / Block Result
-finalHpDamage = 0"];
+six canonical result fields"];
+  miss [label="Build Miss / Block DamageResult
+FinalHpDamage = 0"];
+  trace [label="Build CombatLog / DebugTrace
+formula steps · stat reads · events"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];
   start -> validate -> hit -> hitFail;
   hitFail -> miss [label="yes"];
   hitFail -> crit [label="no"];
-  crit -> base -> off -> def -> resist -> shield -> round -> result -> end;
-  miss -> end;
+  crit -> base -> off -> def -> resist -> shield -> round -> result -> trace -> end;
+  miss -> trace;
 }

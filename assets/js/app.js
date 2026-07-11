@@ -320,9 +320,22 @@
     const code = $('code', pre);
     const className = code?.className || pre.className || '';
     const classMatch = className.match(/(?:language-|lang-)([\w#+.-]+)/i);
-    if (classMatch) return classMatch[1];
+    if (classMatch) {
+      const language = classMatch[1].toLowerCase();
+      const labels = {
+        csharp: 'C#',
+        cs: 'C#',
+        json: 'JSON',
+        javascript: 'JavaScript',
+        js: 'JavaScript',
+        text: 'Trace / output',
+        formula: 'Formula'
+      };
+      return labels[language] || classMatch[1];
+    }
     const sample = (code?.textContent || pre.textContent || '').trim();
-    if (/^(class|interface|enum|record|struct|public|private|protected|using|namespace)\b/m.test(sample)) return 'contract / pseudo code';
+    if (/^(class|interface|enum|record|struct|public|private|protected|internal|using|namespace)\b/m.test(sample)) return 'C#';
+    if (/^[\[{]/.test(sample)) return 'JSON';
     if (/^(GET|POST|PUT|PATCH|DELETE)\s+\//m.test(sample)) return 'api';
     if (/^[\w.-]+:\s/m.test(sample) && !/[;{}]/.test(sample)) return 'data / schema';
     return 'example';

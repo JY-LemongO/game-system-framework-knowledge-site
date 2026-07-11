@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Core Runtime / System Contract · GSF System Atlas</title>
-<meta content="Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약" name="description"/>
+<meta content="C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <script>
    (function(){try{var m=localStorage.getItem('gsf-theme')||'system';document.documentElement.dataset.theme=m;if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()
@@ -37,7 +37,7 @@
        System Atlas
       </b>
 <small>
-       Game architecture knowledgebase
+     C# game system knowledgebase
       </small>
 </span>
 </a>
@@ -213,9 +213,10 @@
        Core Runtime / System Contract
       </h1>
 <p class="lead">
-       Core Runtime은 Stat, Effect, Skill, Combat, Status가 같은 언어로 대화하게 만드는 기반 계층이다. EntityId, Tag, SourceId, EventBus, Context, Time, RandomSeed를 한 곳에서 정의해 각 시스템의 책임을 깨끗하게 분리한다.
+       Core Runtime은 Stat, Effect, Skill, Combat, Status가 같은 계약으로 대화하게 만드는 기반 계층이다. EntityId는 C# 값 타입으로, SourceRef는 불변 참조 타입으로, 시간·랜덤·이벤트는 작은 인터페이스로 정의한다.
       </p>
 <div class="badges">
+<span class="badge" data-example-language="csharp">예제 언어 · C#</span>
 <span class="badge">
         EntityId
        </span>
@@ -237,7 +238,7 @@
 </div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>여러 시스템이 공유할 식별자·시간·랜덤·이벤트 계약을 구분하고, 도메인 규칙과 기반 규약의 경계를 설명한다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>공유 식별자는 C# 값 타입으로, 시간·랜덤·이벤트는 인터페이스로 표현하고 도메인 규칙과 기반 규약의 경계를 설명한다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>객체 참조와 안정적인 ID의 차이, 이벤트 발행과 직접 호출의 차이를 알고 있으면 좋다.</p></article>
 </div>
 <h2 id="왜-core-runtime이-필요한가">
@@ -275,7 +276,7 @@
 </tr>
 <tr>
 <td>
-         TagSet, GameContext, EventBus 같은 시스템 간 계약
+         TagSet, GameContext, IEventBus 같은 시스템 간 계약
         </td>
 <td>
          스킬 사용 가능 여부와 쿨다운 정책
@@ -283,7 +284,7 @@
 </tr>
 <tr>
 <td>
-         TimeService, Tick, Duration 기준 제공
+         IGameClock, Tick, Duration 기준 제공
         </td>
 <td>
          상태 중첩이나 상태별 해제 규칙
@@ -291,7 +292,7 @@
 </tr>
 <tr>
 <td>
-         RandomStream과 seed 분기 규칙
+         IRandomStream과 Seed 분기 규칙
         </td>
 <td>
          장비 옵션 생성 확률표 자체
@@ -299,7 +300,7 @@
 </tr>
 <tr>
 <td>
-         Definition / Runtime 분리 기준과 DataRegistry 조회
+         Definition / Runtime 분리 기준과 IDataRegistry 조회
         </td>
 <td>
          UI 버튼, 아이콘, 전투 텍스트 렌더링
@@ -343,7 +344,7 @@
         EntityId / EntityRef
        </h3>
 <p>
-        플레이어, 몬스터, 투사체, 소환수, 함정처럼 월드에 존재하는 대상을 안정적으로 참조한다. 런타임 객체 포인터를 직접 저장하지 않고, 필요할 때 EntityRegistry로 해석한다.
+        플레이어, 몬스터, 투사체, 소환수, 함정처럼 월드에 존재하는 대상을 안정적으로 참조한다. C# 객체 참조를 직접 저장하지 않고, 필요할 때 IEntityRegistry로 해석한다.
        </p>
 </div>
 <div class="card">
@@ -353,9 +354,9 @@
 <p>
         Modifier, Effect, Status, Equipment, Reward가 어디서 왔는지 추적한다. 장비 해제나 상태 제거 시
         <code>
-         sourceId
+         SourceId
         </code>
-         기준으로 관련 Modifier를 안전하게 제거할 수 있다. 공개 계약의 ID는 <code>namespace.segment</code> 형태로 통일하고, SourceRef는 kind, definitionId, instanceId를 분리한다.
+         기준으로 관련 Modifier를 안전하게 제거할 수 있다. 공개 계약의 ID는 <code>namespace.segment</code> 형태로 통일하고, SourceRef는 Kind, DefinitionId, InstanceId를 분리한다.
        </p>
 </div>
 <div class="card">
@@ -390,12 +391,12 @@
         GameContext
        </h3>
 <p>
-        actor, target, position, source, tags, random, time, custom payload를 묶는 실행 문맥이다. StatContext, EffectContext, SkillContext는 모두 GameContext의 특화 형태로 볼 수 있다.
+        ActorId, TargetId, Position, Source, Tags, Random, Time, CustomPayload를 묶는 실행 문맥이다. StatContext, EffectContext, SkillContext는 모두 GameContext의 특화 형태로 볼 수 있다.
        </p>
 </div>
 <div class="card">
 <h3 id="eventbus">
-        EventBus
+        IEventBus
        </h3>
 <p>
         SkillCommitted, DamageCommitted, StatusApplied 같은 commit 이후 이벤트를 발행한다. 시스템 간 직접 호출을 줄이고 장비 발동 효과, 업적, 로그, UI 알림을 느슨하게 연결한다.
@@ -403,10 +404,10 @@
 </div>
 <div class="card">
 <h3 id="randomstream">
-        RandomStream
+        IRandomStream
        </h3>
 <p>
-        명중, 치명타, 장비 발동 확률처럼 랜덤이 필요한 판정을 시드 기반 스트림으로 처리한다. 테스트, 리플레이, 서버 검증, 밸런스 시뮬레이션에 중요하다.
+        명중, 치명타, 장비 발동 확률처럼 랜덤이 필요한 판정을 Seed 기반 스트림으로 처리한다. 테스트, 리플레이, 서버 검증, 밸런스 시뮬레이션에 중요하다.
        </p>
 </div>
 </div>
@@ -448,7 +449,7 @@
          StatInstance, SkillRuntime, StatusInstance, ItemInstance
         </td>
 <td>
-         특정 Entity나 세션에 종속되는 현재 상태다. 저장/로드 대상이며 instanceId와 원천 sourceId를 분리해 추적한다.
+         특정 Entity나 세션에 종속되는 현재 상태다. 저장/로드 대상이며 InstanceId와 원천 SourceId를 분리해 추적한다.
         </td>
 </tr>
 <tr>
@@ -475,7 +476,8 @@
 </tr>
 </table>
 </div>
-<pre><code>{
+<p>다음 JSON은 C# 런타임 객체를 저장·리플레이 경계에서 직렬화한 데이터 예시다.</p>
+<pre><code class="language-json">{
   "entityId": "entity.player_001",
   "source": {
     "sourceId": "status-instance.burn.8231",
@@ -510,10 +512,10 @@
 </tr>
 <tr>
 <td>
-         EntityRegistry
+         IEntityRegistry
         </td>
 <td>
-         resolve(entityId), exists(entityId), queryByTag(tag)
+         TryResolve(EntityId, out EntityRef), Exists(EntityId), QueryByTag(Tag)
         </td>
 <td>
          Effect의 TargetSelector가 대상 후보를 찾는다.
@@ -521,10 +523,10 @@
 </tr>
 <tr>
 <td>
-         DataRegistry
+         IDataRegistry
         </td>
 <td>
-         getDefinition(type, id), validateSchema(id)
+         GetDefinition&lt;TDefinition&gt;(DefinitionId), ValidateSchema(DefinitionId)
         </td>
 <td>
          SkillExecutor가 SkillDefinition과 EffectBundle을 조회한다.
@@ -532,10 +534,10 @@
 </tr>
 <tr>
 <td>
-         EventBus
+         IEventBus
         </td>
 <td>
-         publish(event), subscribe(eventType, handler)
+         Publish&lt;TEvent&gt;(TEvent), Subscribe&lt;TEvent&gt;(Action&lt;TEvent&gt;)
         </td>
 <td>
          장비의 TriggeredEffect가 DamageCommitted(hit=true)에 반응한다.
@@ -543,10 +545,10 @@
 </tr>
 <tr>
 <td>
-         TimeService
+         IGameClock
         </td>
 <td>
-         now(), deltaTime(), scheduleTick()
+         CurrentTick, Schedule(long tick, Action callback)
         </td>
 <td>
          StatusSystem이 지속시간과 tick을 관리한다.
@@ -554,10 +556,10 @@
 </tr>
 <tr>
 <td>
-         RandomService
+         IRandomStream
         </td>
 <td>
-         stream(seed), rollChance(p), range(min,max)
+         RollBps(int probabilityBps), Range(int min, int max)
         </td>
 <td>
          CombatResolver가 명중과 치명타를 결정론적으로 판정한다.
@@ -565,10 +567,10 @@
 </tr>
 <tr>
 <td>
-         DebugTrace
+         IDebugTrace
         </td>
 <td>
-         beginScope(), addStep(), attachBreakdown()
+         BeginScope(), AddStep(), AttachBreakdown()
         </td>
 <td>
          Stat 계산식, Skill 실행, Effect 결과를 한 로그로 묶는다.
@@ -576,6 +578,58 @@
 </tr>
 </table>
 </div>
+<h3 id="csharp-core-contracts">C# 계약 예제</h3>
+<p>식별자는 문자열을 그대로 전달하지 않고 값 타입으로 감싸며, 시간·랜덤·이벤트는 소비자가 필요한 최소 인터페이스로 주입한다.</p>
+<pre><code class="language-csharp">public readonly struct EntityId : IEquatable&lt;EntityId&gt;
+{
+    public string Value { get; }
+
+    public EntityId(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("EntityId is required.", nameof(value));
+
+        Value = value;
+    }
+
+    public bool Equals(EntityId other) =&gt;
+        string.Equals(Value, other.Value, StringComparison.Ordinal);
+    public override bool Equals(object obj) =&gt; obj is EntityId other &amp;&amp; Equals(other);
+    public override int GetHashCode() =&gt;
+        StringComparer.Ordinal.GetHashCode(Value ?? string.Empty);
+}
+
+public sealed class SourceRef
+{
+    public string Kind { get; }
+    public string DefinitionId { get; }
+    public string InstanceId { get; }
+
+    public SourceRef(string kind, string definitionId, string instanceId)
+    {
+        Kind = kind;
+        DefinitionId = definitionId;
+        InstanceId = instanceId;
+    }
+}
+
+public interface IGameClock
+{
+    long CurrentTick { get; }
+    void Schedule(long tick, Action callback);
+}
+
+public interface IRandomStream
+{
+    bool RollBps(int probabilityBps);
+    int Range(int minInclusive, int maxExclusive);
+}
+
+public interface IEventBus
+{
+    void Publish&lt;TEvent&gt;(TEvent gameEvent);
+    IDisposable Subscribe&lt;TEvent&gt;(Action&lt;TEvent&gt; handler);
+}</code></pre>
 <h2 id="sourceid와-추적성">
       SourceId와 추적성
      </h2>
@@ -593,9 +647,9 @@
 <p>
         검을 장착하면
         <code>
-         itemInstanceId
+         ItemInstanceId
         </code>
-        를 sourceId로 하는 공격력 Modifier가 등록된다. 해제할 때 같은 sourceId로 모두 제거한다.
+        를 SourceId로 하는 공격력 Modifier가 등록된다. 해제할 때 같은 SourceId로 모두 제거한다.
        </p>
 </div>
 <div class="card">
@@ -606,11 +660,11 @@
         상태 Source
        </h3>
 <p>
-        Burn을 누가 걸었는지는 skill cast sourceId로 남기고, Burn의 tick 예약이나 Rage/Freeze가 제공하는 Modifier는
+        Burn을 누가 걸었는지는 skill execution SourceId로 남기고, Burn의 tick 예약이나 Rage/Freeze가 제공하는 Modifier는
         <code>
-         statusInstanceId
+         StatusInstanceId
         </code>
-        를 sourceId로 가진다.
+        를 SourceId로 가진다.
        </p>
 </div>
 <div class="card">
@@ -633,7 +687,7 @@
       결정론과 테스트
      </h2>
 <p>
-      전투 시스템은 디버그하기 어렵기 때문에 “같은 입력이면 같은 결과”를 최대한 보장해야 한다. RandomStream은 전역 랜덤을 바로 호출하지 않고, castId, attackerId, targetId, eventIndex 같은 값을 조합해 분기별 랜덤 스트림을 만든다.
+      전투 시스템은 디버그하기 어렵기 때문에 “같은 입력이면 같은 결과”를 최대한 보장해야 한다. IRandomStream은 전역 랜덤을 바로 호출하지 않고, CastId, AttackerId, TargetId, EventIndex 같은 값을 조합해 분기별 랜덤 스트림을 만든다.
      </p>
 <div class="table-scroll">
 <table class="data-table">
@@ -647,7 +701,7 @@
 </tr>
 <tr>
 <td>
-         동일 seed 반복 실행
+         동일 Seed 반복 실행
         </td>
 <td>
          명중, 치명타, 확률 발동 결과가 동일해야 한다.
@@ -666,7 +720,7 @@
          Source 제거
         </td>
 <td>
-         상태나 장비 제거 시 해당 sourceId의 Modifier만 제거되어야 한다.
+         상태나 장비 제거 시 해당 SourceId의 Modifier만 제거되어야 한다.
         </td>
 </tr>
 <tr>
@@ -674,7 +728,7 @@
          리플레이
         </td>
 <td>
-         command, 입력 스냅샷, definition/formula/numeric 버전, root seed, 정렬 정책을 포함한 replay envelope로 결과를 재현해야 한다.
+         Command, 입력 스냅샷, Definition/Formula/Numeric 버전, RootSeed, 정렬 정책을 포함한 replay envelope로 결과를 재현해야 한다.
         </td>
 </tr>
 </table>
@@ -683,13 +737,13 @@
 <b>
        재현성 조건.
       </b>
-      seed만 같다고 결과가 같아지는 것은 아니다. Definition 버전, 입력 스냅샷, 대상 정렬, clock domain, 부동소수점/반올림 정책, 이벤트 순서까지 고정해야 재현 가능한 시뮬레이션이 된다.
+      Seed만 같다고 결과가 같아지는 것은 아니다. Definition 버전, 입력 스냅샷, 대상 정렬, ClockDomain, 부동소수점/반올림 정책, 이벤트 순서까지 고정해야 재현 가능한 시뮬레이션이 된다.
      </div>
 <h2 id="event-reaction-ordering">
       Event와 Reaction의 실행 순서
      </h2>
 <p>
-      EventBus는 관찰과 후속 반응을 분리해야 한다. UI·로그용 알림은 즉시 관찰해도 되지만, 흡혈·반사·장비 발동처럼 게임 상태를 바꾸는 반응은 우선순위와 재진입 방지 규칙이 있는
+      IEventBus는 관찰과 후속 반응을 분리해야 한다. UI·로그용 알림은 즉시 관찰해도 되지만, 흡혈·반사·장비 발동처럼 게임 상태를 바꾸는 반응은 우선순위와 재진입 방지 규칙이 있는
       <code>
        ReactionQueue
       </code>
@@ -719,7 +773,7 @@
           UI, 로그, 분석처럼 결과를 바꾸지 않는 구독
          </td>
 <td>
-          eventId, correlationId
+          EventId, CorrelationId
          </td>
 </tr>
 <tr>
@@ -730,7 +784,7 @@
           흡혈, 반사, TriggeredEffect처럼 새 명령을 만드는 후속 처리
          </td>
 <td>
-          causationId, priority, depth, idempotencyKey
+          CausationId, Priority, Depth, IdempotencyKey
          </td>
 </tr>
 <tr>
@@ -776,7 +830,7 @@
         문자열 Source 난립
        </h3>
 <p>
-        sourceId가 임의 문자열이면 제거와 추적이 불안정하다. sourceType, definitionId, instanceId를 가진 구조화된 SourceRef를 사용한다.
+        SourceId가 임의 문자열이면 제거와 추적이 불안정하다. Kind, DefinitionId, InstanceId를 가진 구조화된 SourceRef를 사용한다.
        </p>
 </div>
 <div class="card">
@@ -784,7 +838,7 @@
         이벤트에 게임 규칙 숨기기
        </h3>
 <p>
-        핵심 규칙을 이벤트 리스너에만 숨기면 실행 순서가 불명확해진다. EventBus는 후속 반응과 관찰용으로 쓰고 핵심 판정은 명시적 파이프라인에 둔다.
+        핵심 규칙을 이벤트 리스너에만 숨기면 실행 순서가 불명확해진다. IEventBus는 후속 반응과 관찰용으로 쓰고 핵심 판정은 명시적 파이프라인에 둔다.
        </p>
 </div>
 </div>
@@ -793,9 +847,9 @@
 <h2 id="이해도-확인">이해도 확인</h2>
 <p class="checkpoint-intro">답을 펼치기 전에 Core가 제공해야 할 공통 계약과 각 도메인 시스템이 소유할 규칙을 먼저 구분해 본다.</p>
 <ol class="checkpoint-grid">
-<li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="core.q1"><summary>Fireball의 치명타 확률과 배율 공식을 Core Runtime의 RandomStream 안에 넣어도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">넣으면 안 된다. Core는 seed 분기와 결정론적 난수 API만 제공하고, 치명타 규칙과 공식은 Combat 정책이 소유해야 한다.</p></div></details></li>
-<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="core.q2"><summary>같은 root seed지만 대상 정렬 순서와 Definition 버전이 다르면 결과가 같다고 보장할 수 있을까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">보장할 수 없다. 입력 snapshot, Definition·공식·수치 버전, 대상 정렬, clock domain, 반올림과 이벤트 순서까지 고정해야 같은 실행을 재현할 수 있다.</p></div></details></li>
-<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="core.q3"><summary>DamageCommitted를 UI 피해 표시와 흡혈 효과가 함께 구독한다면 두 처리는 어떻게 달라야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">UI와 로그는 상태를 바꾸지 않는 Observation으로 처리한다. 흡혈은 causationId, 우선순위, 깊이, 멱등 키를 가진 Reaction으로 큐에 넣어 명시적인 순서로 실행한다.</p></div></details></li>
+<li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="core.q1"><summary>Fireball의 치명타 확률과 배율 공식을 Core Runtime의 IRandomStream 안에 넣어도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">넣으면 안 된다. Core는 Seed 분기와 결정론적 난수 API만 제공하고, 치명타 규칙과 공식은 Combat 정책이 소유해야 한다.</p></div></details></li>
+<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="core.q2"><summary>같은 RootSeed지만 대상 정렬 순서와 Definition 버전이 다르면 결과가 같다고 보장할 수 있을까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">보장할 수 없다. 입력 snapshot, Definition·공식·수치 버전, 대상 정렬, ClockDomain, 반올림과 이벤트 순서까지 고정해야 같은 실행을 재현할 수 있다.</p></div></details></li>
+<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="core.q3"><summary>DamageCommitted를 UI 피해 표시와 흡혈 효과가 함께 구독한다면 두 처리는 어떻게 달라야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">UI와 로그는 상태를 바꾸지 않는 Observation으로 처리한다. 흡혈은 CausationId, 우선순위, 깊이, 멱등 키를 가진 Reaction으로 큐에 넣어 명시적인 순서로 실행한다.</p></div></details></li>
 </ol>
 </section>
 <h2 id="설계-점검">
@@ -809,22 +863,22 @@
        Definition Data와 Runtime State가 분리되어 있고 원본 정의를 직접 수정하지 않는다.
       </li>
 <li>
-       EventBus 이벤트 이름과 payload 최소 규격이 문서화되어 있다.
+       IEventBus 이벤트 이름과 Payload 최소 규격이 문서화되어 있다.
       </li>
 <li>
-       RandomStream이 seed 기반으로 재현 가능하게 동작한다.
+       IRandomStream이 Seed 기반으로 재현 가능하게 동작한다.
       </li>
 <li>
        DebugTrace가 Skill, Effect, Stat, Combat 로그를 하나의 원인 체인으로 묶을 수 있다.
       </li>
 <li>
-       장비, 상태, 보상 제거 시 sourceId 기준으로 관련 런타임 변경을 되돌릴 수 있다.
+       장비, 상태, 보상 제거 시 SourceId 기준으로 관련 런타임 변경을 되돌릴 수 있다.
       </li>
 </ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../index.html"><span>← 이전</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a>
-<a class="next" href="../modules/stat-system.html"><span>다음 →</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a>
+<a class="prev" href="../index.html"><span>← 이전</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a>
+<a class="next" href="../modules/stat-system.html"><span>다음 →</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -899,11 +953,11 @@
 
 </div>
 </section>
-<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>실행 계약을 직접 검증하는 학습 실습</b><small>Replay · Failure probes · Cache · Migration</small><i>→</i></a>
+<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>C# 실행 계약을 검증하는 학습 실습</b><small>JavaScript 브라우저 시뮬레이터</small><i>→</i></a>
 </aside>
 </div>
 <footer class="site-footer">
-<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<div><b>Game System Framework</b></div>
 <a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
@@ -982,7 +1036,7 @@
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a aria-current="page" class="is-active" href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a aria-current="page" class="is-active" href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache, migration을 JavaScript 시뮬레이터로 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

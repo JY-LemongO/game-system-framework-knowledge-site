@@ -5,78 +5,78 @@ digraph ExtensionClassDiagram {
 	StatDefinitionRepository [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#FFF3CD"><FONT POINT-SIZE="12"><B>StatDefinitionRepository</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- definitions: Map&lt;StatId, StatDefinition&gt;</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ get(id): StatDefinition</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ load(dataSource)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ validateAll()</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- definitions: Dictionary&lt;StatId, StatDefinition&gt;</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Get(id): StatDefinition</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Load(dataSource)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ ValidateAll()</FONT></TD></TR>
 </TABLE>
 >]
 	DerivedStatDefinition [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#FFF3CD"><FONT POINT-SIZE="12"><B>DerivedStatDefinition</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ id: StatId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ dependencies: StatId[]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ formula: IStatFormula</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ cachePolicy: CachePolicy</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ evaluate(block, ctx): decimal</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Id: StatId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Dependencies: StatId[]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Formula: IStatFormula</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ CachePolicy: CachePolicy</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Evaluate(block, ctx): decimal</FONT></TD></TR>
 </TABLE>
 >]
 	IStatFormula [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#F7F7F7"><FONT POINT-SIZE="12">&lt;&lt;interface&gt;&gt;<BR/><B>IStatFormula</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ id: FormulaId</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ evaluate(input): decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ dependencies(): StatId[]</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Id: FormulaId</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Evaluate(input): decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Dependencies(): StatId[]</FONT></TD></TR>
 </TABLE>
 >]
 	ResourceController [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#FCE8E6"><FONT POINT-SIZE="12"><B>ResourceStatController</B></FONT></TD></TR>
 <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- currentStatId: StatId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- maxStatId: StatId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- policy: ResourcePolicy</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ spend(amount): bool</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ restore(amount)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ onMaxChanged(old,max)</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Spend(amount): bool</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Restore(amount)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ OnMaxChanged(oldMax, newMax)</FONT></TD></TR>
 </TABLE>
 >]
 	ResourcePolicy [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#FCE8E6"><FONT POINT-SIZE="12"><B>ResourcePolicy</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ maxChanged: MaxChangedPolicy</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ allowOvercap: bool</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ regenRule: RegenRule?</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ adjustCurrent(oldMax,newMax,current): decimal</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ MaxChanged: MaxChangedPolicy</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ AllowOvercap: bool</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ RegenRule: RegenRule?</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ AdjustCurrent(oldMax, newMax, current): decimal</FONT></TD></TR>
 </TABLE>
 >]
 	StatEventBus [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#E0F7FA"><FONT POINT-SIZE="12"><B>StatEventBus</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- subscribers: Multimap&lt;EventType, Handler&gt;</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ publish(event)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ subscribe(type, handler)</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- subscribers: Dictionary&lt;EventType, List&lt;Handler&gt;&gt;</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Publish(domainEvent)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Subscribe(type, handler)</FONT></TD></TR>
 </TABLE>
 >]
 	StatChangedEvent [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#E0F7FA"><FONT POINT-SIZE="12"><B>StatChangedEvent</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ ownerId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ statId: StatId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ oldValue: decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ newValue: decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ cause: ChangeCause</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ OwnerId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ StatId: StatId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ OldValue: decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ NewValue: decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Cause: ChangeCause</FONT></TD></TR>
 <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10"> </FONT></TD></TR>
 </TABLE>
 >]
 	StatSnapshot [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#F1F8E9"><FONT POINT-SIZE="12"><B>StatSnapshot</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ ownerId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ baseValues: Map</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ activeModifiers: ModifierState[]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ resourceValues: Map</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ restore(targetBlock)</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ OwnerId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ BaseValues: IReadOnlyDictionary&lt;StatId, decimal&gt;</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ ActiveModifiers: ModifierState[]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ ResourceValues: IReadOnlyDictionary&lt;StatId, decimal&gt;</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Restore(targetBlock)</FONT></TD></TR>
 </TABLE>
 >]
 	StatSaveAdapter [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#F1F8E9"><FONT POINT-SIZE="12"><B>StatSaveAdapter</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ version: int</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ toSnapshot(block): StatSnapshot</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ applySnapshot(snapshot, block)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ migrate(snapshot)</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Version: int</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ ToSnapshot(block): StatSnapshot</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ ApplySnapshot(snapshot, block)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Migrate(snapshot)</FONT></TD></TR>
 </TABLE>
 >]
 	DebugBreakdown [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#F3E5F5"><FONT POINT-SIZE="12"><B>StatDebugBreakdown</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ statId: StatId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ base: decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ phaseLines: BreakdownLine[]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ final: decimal</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ toText()</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ toTableRows()</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ StatId: StatId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ BaseValue: decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ PhaseLines: BreakdownLine[]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ FinalValue: decimal</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ ToText()</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ ToTableRows()</FONT></TD></TR>
 </TABLE>
 >]
 	StatDependencyGraph [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#FFFDE7"><FONT POINT-SIZE="12"><B>StatDependencyGraph</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- edges: Map&lt;StatId, StatId[]&gt;</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ markDependentsDirty(statId)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ detectCycles()</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- edges: Dictionary&lt;StatId, StatId[]&gt;</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ MarkDependentsDirty(statId)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ DetectCycles()</FONT></TD></TR>
 </TABLE>
 >]
 	StatDefinitionRepository -> DerivedStatDefinition [label="stores 0..*" arrowhead=diamond]
