@@ -186,24 +186,42 @@
     const output = $('[data-reading-time]');
     const article = $('#article-content');
     if (!output || !article) return;
+
+    function textUnits(text = '') {
+      const compact = String(text).replace(/\s+/g, ' ').trim();
+      if (!compact) return 0;
+      const latinWords = (compact.match(/[A-Za-z0-9_+#.-]+/g) || []).length;
+      const koreanChars = (compact.match(/[\uAC00-\uD7AF]/g) || []).length;
+      const spacedWords = compact.split(/\s+/).filter(Boolean).length;
+      const otherWords = Math.max(0, spacedWords - latinWords);
+      return latinWords + otherWords + koreanChars / 2.4;
+    }
+
     const clone = article.cloneNode(true);
-    $$('pre, code, svg, .doc-pager', clone).forEach(node => node.remove());
-    const text = clone.textContent.replace(/\s+/g, ' ').trim();
-    const latinWords = (text.match(/[A-Za-z0-9_+#.-]+/g) || []).length;
-    const koreanChars = (text.match(/[가-힣]/g) || []).length;
-    const otherWords = Math.max(0, text.split(/\s+/).length - latinWords);
-    const units = latinWords + otherWords + koreanChars / 2.4;
-    const minutes = Math.max(1, Math.round(units / 240));
-    output.textContent = `약 ${minutes}분`;
-    output.title = '본문 기준 예상 읽기 시간';
+    $$('pre, table, svg, .diagram, .doc-pager, dialog, button', clone).forEach(node => node.remove());
+
+    const proseMinutes = textUnits(clone.textContent) / 220;
+    const tableMinutes = $$('table', article)
+      .reduce((total, table) => total + textUnits(table.textContent) / 120, 0);
+    const codeMinutes = $$('pre', article).reduce((total, pre) => {
+      const lines = pre.textContent.split(/\r?\n/).filter(line => line.trim()).length;
+      return total + (lines ? Math.max(0.5, lines / 35) : 0);
+    }, 0);
+    const diagramMinutes = $$('.diagram', article).length * 0.75;
+    const minutes = Math.max(1, Math.ceil(proseMinutes + tableMinutes + codeMinutes + diagramMinutes));
+
+    output.textContent = `학습 약 ${minutes}분`;
+    output.title = '본문, 코드, 표, 다이어그램을 포함한 예상 학습 시간';
   }
 
   function initialiseHeadingAnchors() {
     const article = $('#article-content');
     if (!article) return;
     $$('h2[id], h3[id]', article).forEach(heading => {
+      if (heading.closest('a, button')) return;
       if ($('.heading-anchor', heading)) return;
       const headingTitle = heading.textContent.trim();
+      if (!heading.hasAttribute('aria-label')) heading.setAttribute('aria-label', headingTitle);
       const button = document.createElement('button');
       button.className = 'heading-anchor';
       button.type = 'button';
@@ -243,8 +261,14 @@
     if (!headings.length) return;
 
     function activate(id) {
-      links.forEach(link => link.classList.remove('is-active'));
-      (map.get(id) || []).forEach(link => link.classList.add('is-active'));
+      links.forEach(link => {
+        link.classList.remove('is-active');
+        link.removeAttribute('aria-current');
+      });
+      (map.get(id) || []).forEach(link => {
+        link.classList.add('is-active');
+        link.setAttribute('aria-current', 'location');
+      });
     }
 
     if (!('IntersectionObserver' in window)) {
@@ -446,9 +470,18 @@
       if (!tokenScore) return 0;
       score += tokenScore;
     }
-    if (entry.type === 'page') score += 10;
+    if (entry.type === 'page') score += 100;
+    if (entry.type === 'section' && entry.file === 'modules/diagram-gallery.html') score -= 25;
     if (entry.file === currentFile) score += 5;
     return score;
+  }
+
+  function compactDescription(value = '', maxLength = 132) {
+    const compact = String(value).replace(/\s+/g, ' ').trim();
+    if (compact.length <= maxLength) return compact;
+    const clipped = compact.slice(0, maxLength + 1);
+    const wordBoundary = clipped.lastIndexOf(' ');
+    return `${clipped.slice(0, wordBoundary > maxLength * 0.65 ? wordBoundary : maxLength).trim()}…`;
   }
 
   function initialiseCommandPalette() {
@@ -460,6 +493,26 @@
     if (!dialog || !input || !results) return;
     let activeIndex = 0;
     let currentResults = [];
+    const siteOrder = new Map((Array.isArray(data.pages) ? data.pages : []).map((page, index) => [page.file, index]));
+    const status = document.createElement('p');
+    status.className = 'sr-only command-result-status';
+    status.id = 'command-result-status';
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    status.setAttribute('aria-atomic', 'true');
+    results.after(status);
+
+    if (!results.id) results.id = 'command-results';
+    results.setAttribute('role', 'listbox');
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-haspopup', 'listbox');
+    input.setAttribute('aria-controls', results.id);
+    input.setAttribute('aria-expanded', 'false');
+    input.setAttribute('autocomplete', 'off');
+    const describedBy = new Set((input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+    describedBy.add(status.id);
+    input.setAttribute('aria-describedby', [...describedBy].join(' '));
 
     const commandKey = navigator.platform?.toLowerCase().includes('mac') ? '⌘ K' : 'Ctrl K';
     $$('.command-trigger kbd, .drawer-search kbd').forEach(kbd => { kbd.textContent = commandKey; });
@@ -485,9 +538,9 @@
       const title = document.createElement('b');
       title.textContent = entry.title || entry.short || 'Untitled';
       const description = document.createElement('small');
-      description.textContent = entry.type === 'section'
+      description.textContent = compactDescription(entry.type === 'section'
         ? `${entry.short || ''}${entry.desc ? ` · ${entry.desc}` : ''}`
-        : entry.desc || entry.group || '';
+        : entry.desc || entry.group || '');
       copy.append(title, description);
       const arrow = document.createElement('i');
       arrow.textContent = '↵';
@@ -517,13 +570,28 @@
     function render(value = '') {
       const query = normalise(value);
       currentResults = entries
-        .map(entry => ({ entry, score: scoreSearchEntry(entry, query) }))
+        .map((entry, sourceIndex) => ({ entry, sourceIndex, score: scoreSearchEntry(entry, query) }))
         .filter(item => item.score > 0)
-        .sort((a, b) => b.score - a.score || ((a.entry.type === 'page') === (b.entry.type === 'page') ? 0 : (a.entry.type === 'page' ? -1 : 1)) || String(a.entry.title).localeCompare(String(b.entry.title), 'ko'))
+        .sort((a, b) => {
+          if (!query) {
+            const aOrder = Number.isFinite(a.entry.pageOrder) ? a.entry.pageOrder : (siteOrder.get(a.entry.file) ?? a.sourceIndex);
+            const bOrder = Number.isFinite(b.entry.pageOrder) ? b.entry.pageOrder : (siteOrder.get(b.entry.file) ?? b.sourceIndex);
+            return aOrder - bOrder;
+          }
+          return b.score - a.score ||
+            ((a.entry.type === 'page') === (b.entry.type === 'page') ? 0 : (a.entry.type === 'page' ? -1 : 1)) ||
+            (siteOrder.get(a.entry.file) ?? a.sourceIndex) - (siteOrder.get(b.entry.file) ?? b.sourceIndex) ||
+            String(a.entry.title).localeCompare(String(b.entry.title), 'ko');
+        })
         .slice(0, query ? 18 : 12)
         .map(item => item.entry);
       activeIndex = 0;
       results.replaceChildren();
+      const resultSummary = query
+        ? (currentResults.length ? `${currentResults.length}개의 검색 결과가 있습니다.` : '검색 결과가 없습니다.')
+        : `${currentResults.length}개의 학습 페이지가 학습 순서대로 표시됩니다.`;
+      status.textContent = resultSummary;
+      results.setAttribute('aria-label', resultSummary);
       if (!currentResults.length) {
         const empty = document.createElement('p');
         empty.className = 'command-empty';
@@ -542,6 +610,7 @@
       const drawer = $('[data-site-drawer]');
       if (drawer?.open) closeDialog(drawer, false);
       openDialog(dialog, opener);
+      input.setAttribute('aria-expanded', 'true');
       input.value = '';
       render('');
       requestAnimationFrame(() => {
@@ -551,6 +620,10 @@
     }
 
     $$('[data-search-open]').forEach(button => button.addEventListener('click', () => open(button)));
+    dialog.addEventListener('close', () => {
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+    });
     input.addEventListener('input', () => render(input.value));
     input.addEventListener('keydown', event => {
       if (event.key === 'Escape') {
@@ -804,8 +877,48 @@
     });
   }
 
+  function initialiseTableAccessibility() {
+    const article = $('#article-content');
+    if (!article) return;
+    const headings = $$('h2[id], h3[id]', article);
+
+    $$('table', article).forEach((table, index) => {
+      let label = $('caption', table);
+      if (label) {
+        if (!label.id) label.id = `table-caption-${index + 1}`;
+      } else {
+        label = headings.filter(heading =>
+          Boolean(heading.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING)
+        ).at(-1);
+      }
+
+      if (!label) {
+        label = document.createElement('caption');
+        label.className = 'sr-only';
+        label.id = `table-caption-${index + 1}`;
+        label.textContent = `학습 자료 표 ${index + 1}`;
+        table.prepend(label);
+      }
+      if (label.id) table.setAttribute('aria-labelledby', label.id);
+
+      const headerRow = $('thead tr', table) || $('tr', table);
+      $$('th', headerRow || table).forEach(cell => {
+        if (!cell.hasAttribute('scope')) cell.setAttribute('scope', 'col');
+      });
+      $$('tbody tr', table).forEach(row => {
+        const rowHeader = $(':scope > th', row);
+        if (rowHeader && !headerRow?.contains(rowHeader) && !rowHeader.hasAttribute('scope')) {
+          rowHeader.setAttribute('scope', 'row');
+        }
+      });
+      $$('th:not([scope])', table).forEach(cell => {
+        cell.setAttribute('scope', cell.closest('thead') ? 'col' : 'row');
+      });
+    });
+  }
+
   function initialisePrintAndImages() {
-    $$('[data-print], .print-page').forEach(button => button.addEventListener('click', () => print()));
+    $$('[data-print], [data-print-page], .print-page').forEach(button => button.addEventListener('click', () => print()));
     $$('#article-content img').forEach((image, index) => {
       if (!image.hasAttribute('decoding')) image.decoding = 'async';
       if (!image.hasAttribute('loading') && index > 0) image.loading = 'lazy';
@@ -817,13 +930,26 @@
 
   function initialiseCurrentNavigation() {
     const current = currentFile.replace(/^\.\//, '');
-    $$('a[href]').forEach(link => {
+    const navigationLinks = $$([
+      '.top-nav a[href]',
+      '.drawer-groups a[href]',
+      '.mobile-bar a[href]',
+      '.system-dock a[href]'
+    ].join(','));
+
+    navigationLinks.forEach(link => {
       const href = link.getAttribute('href');
+      link.removeAttribute('aria-current');
+      link.classList.remove('is-active');
       if (!href || href.startsWith('#') || /^(?:https?:|mailto:|tel:|javascript:)/i.test(href)) return;
-      const clean = href.split('#')[0].replace(/^\.\//, '').replace(/^\.\.\//, '');
-      if (clean === current || (current.startsWith('modules/') && `modules/${clean.replace(/^modules\//, '')}` === current)) {
-        if (link.closest('.top-nav, .drawer-groups')) link.setAttribute('aria-current', 'page');
-      }
+      const clean = href.split('#')[0]
+        .replace(/^\.\//, '')
+        .replace(/^(?:\.\.\/)+/, '');
+      const matches = clean === current ||
+        (current.startsWith('modules/') && `modules/${clean.replace(/^modules\//, '')}` === current);
+      if (!matches) return;
+      link.setAttribute('aria-current', 'page');
+      link.classList.add('is-active');
     });
   }
 
@@ -1082,6 +1208,7 @@
   initialiseDiagramViewer();
   initialiseCalculator();
   initialiseSteppers();
+  initialiseTableAccessibility();
   initialisePrintAndImages();
   initialiseCurrentNavigation();
   initialiseRuntimeReference();

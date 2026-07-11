@@ -42,18 +42,10 @@
 </span>
 </a>
 <nav aria-label="주요 탐색" class="top-nav">
-<a href="../index.html">
-      Atlas
-     </a>
-<a href="../modules/integration-map.html">
-      Architecture
-     </a>
-<a href="../modules/fireball-case-study.html">
-      Case study
-     </a>
-<a data-runtime-nav="" href="../modules/runtime-reference.html">Runtime</a><a href="../modules/implementation-roadmap.html">
-      Build plan
-     </a>
+<a href="../index.html">Atlas</a>
+<a href="../modules/integration-map.html">Architecture</a>
+<a href="../modules/fireball-case-study.html">Case study</a>
+<a data-runtime-nav="" href="../modules/runtime-reference.html">Runtime lab</a>
 </nav>
 <div class="top-actions">
 <button aria-haspopup="dialog" class="command-trigger" data-search-open="" type="button">
@@ -220,7 +212,7 @@
 <h1>
        Diagram Gallery
       </h1>
-<p class="lead">전체 UML 다이어그램을 검색하고 확대해서 보는 레퍼런스 페이지다. Release 3.2에서는 실행 가능한 Runtime Reference의 port, atomic commit, deterministic replay 다이어그램 3종을 추가해 설계와 코드의 연결을 확인할 수 있다.</p>
+<p class="lead">시스템별 UML 다이어그램을 검색하고 확대해서 비교하는 레퍼런스다. 클래스 관계, 실행 순서, 생명주기, 데이터 모델을 같은 관점에서 확인할 수 있다.</p>
 <div class="badges"><span class="badge">Runtime</span>
 <span class="badge">
         Core
@@ -252,7 +244,8 @@
       각 썸네일은 화면 폭에 맞게 축소되어 보이고, 클릭하면 확대 모달에서 자세히 확인할 수 있다. 검색창에는 combat, status, burn, damage, sequence, lifecycle 같은 키워드를 넣으면 된다.
      </p>
 <div class="filter">
-<input class="input" data-filter="diagrams" placeholder="검색: core, stat, effect, skill, combat, status, damage, burn"/>
+<label class="sr-only" for="diagram-filter">다이어그램 검색</label>
+<input class="input" data-filter="diagrams" id="diagram-filter" placeholder="검색: core, stat, effect, skill, combat, status, damage, burn" type="search"/>
 </div>
 <section class="gallery" data-group="diagrams">
 <div class="thumb" data-item="Stat 핵심 클래스 Stat StatBlock, StatInstance, StatModifier, Pipeline 관계">
@@ -470,9 +463,6 @@
 <a class="small" href="../assets/diagrams/11_effect_execution_sequence_diagram.svg" target="_blank">
          SVG
         </a>
-<a class="small" href="../assets/diagrams/11_effect_execution_sequence_diagram.png" target="_blank">
-         PNG
-        </a>
 </div>
 </div>
 <div class="thumb" data-item="Target 선택 활동 Effect 후보 수집, 필터, 정렬, 제한 흐름">
@@ -531,26 +521,6 @@
          SVG
         </a>
 <a class="small" href="../assets/diagrams/14_effect_lifecycle_state_diagram.png" target="_blank">
-         PNG
-        </a>
-</div>
-</div>
-<div class="thumb" data-item="Fireball 기존 통합 Case Study Fireball이 Stat과 Effect를 통과하는 흐름 burn 화상">
-<img alt="Fireball 기존 통합" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/15_fireball_effect_integration_diagram.svg"/>
-<h3 id="Fireball-기존-통합">
-        Fireball 기존 통합
-       </h3>
-<p class="cap">
-<span class="tag">
-         Case Study
-        </span>
-        Fireball이 Stat과 Effect를 통과하는 흐름
-       </p>
-<div class="da">
-<a class="small" href="../assets/diagrams/15_fireball_effect_integration_diagram.svg" target="_blank">
-         SVG
-        </a>
-<a class="small" href="../assets/diagrams/15_fireball_effect_integration_diagram.png" target="_blank">
          PNG
         </a>
 </div>
@@ -630,9 +600,6 @@
 <a class="small" href="../assets/diagrams/19_skill_execution_sequence_diagram.svg" target="_blank">
          SVG
         </a>
-<a class="small" href="../assets/diagrams/19_skill_execution_sequence_diagram.png" target="_blank">
-         PNG
-        </a>
 </div>
 </div>
 <div class="thumb" data-item="Action Timeline Skill 비용 예약, 선딜, release marker, 후딜, 쿨다운 흐름">
@@ -669,9 +636,6 @@
 <div class="da">
 <a class="small" href="../assets/diagrams/21_skill_data_model_diagram.svg" target="_blank">
          SVG
-        </a>
-<a class="small" href="../assets/diagrams/21_skill_data_model_diagram.png" target="_blank">
-         PNG
         </a>
 </div>
 </div>
@@ -729,9 +693,6 @@
 <div class="da">
 <a class="small" href="../assets/diagrams/24_damage_execution_sequence_diagram.svg" target="_blank">
          SVG
-        </a>
-<a class="small" href="../assets/diagrams/24_damage_execution_sequence_diagram.png" target="_blank">
-         PNG
         </a>
 </div>
 </div>
@@ -810,9 +771,6 @@
 <a class="small" href="../assets/diagrams/28_status_apply_sequence_diagram.svg" target="_blank">
          SVG
         </a>
-<a class="small" href="../assets/diagrams/28_status_apply_sequence_diagram.png" target="_blank">
-         PNG
-        </a>
 </div>
 </div>
 <div class="thumb" data-item="Status tick 활동 Status DoT, HoT, aura periodic effect 실행 흐름 burn 화상 sequence">
@@ -829,9 +787,6 @@
 <div class="da">
 <a class="small" href="../assets/diagrams/29_status_tick_activity_diagram.svg" target="_blank">
          SVG
-        </a>
-<a class="small" href="../assets/diagrams/29_status_tick_activity_diagram.png" target="_blank">
-         PNG
         </a>
 </div>
 </div>
@@ -878,28 +833,8 @@
 <div class="thumb" data-item="Runtime Ports &amp; Adapters Runtime 입력, 저장소, 엔진, 관찰 adapter와 reference kernel의 경계"><img alt="Runtime Ports &amp; Adapters" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/39_runtime_ports_and_adapters.svg"/><h3 id="39_runtime_ports_and_adapters">Runtime Ports &amp; Adapters</h3><p class="cap"><span class="tag">Runtime</span>입력, 저장소, 엔진, 관찰 adapter와 reference kernel의 경계</p><div class="da"><a class="small" href="../assets/diagrams/39_runtime_ports_and_adapters.svg" target="_blank">SVG</a><a class="small" href="../assets/diagrams/39_runtime_ports_and_adapters.png" target="_blank">PNG</a></div></div><div class="thumb" data-item="Resolve · Commit · Reaction Runtime pure resolve, optimistic precondition, atomic commit, bounded reaction의 실행 순서"><img alt="Resolve · Commit · Reaction" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/40_resolve_commit_reaction_sequence.svg"/><h3 id="40_resolve_commit_reaction_sequence">Resolve · Commit · Reaction</h3><p class="cap"><span class="tag">Runtime</span>pure resolve, optimistic precondition, atomic commit, bounded reaction의 실행 순서</p><div class="da"><a class="small" href="../assets/diagrams/40_resolve_commit_reaction_sequence.svg" target="_blank">SVG</a><a class="small" href="../assets/diagrams/40_resolve_commit_reaction_sequence.png" target="_blank">PNG</a></div></div><div class="thumb" data-item="Deterministic Replay Envelope Runtime 입력, 버전, 정렬 정책, trace hash를 포함하는 replay 계약"><img alt="Deterministic Replay Envelope" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/41_deterministic_replay_envelope.svg"/><h3 id="41_deterministic_replay_envelope">Deterministic Replay Envelope</h3><p class="cap"><span class="tag">Runtime</span>입력, 버전, 정렬 정책, trace hash를 포함하는 replay 계약</p><div class="da"><a class="small" href="../assets/diagrams/41_deterministic_replay_envelope.svg" target="_blank">SVG</a><a class="small" href="../assets/diagrams/41_deterministic_replay_envelope.png" target="_blank">PNG</a></div></div></section>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/fireball-case-study.html">
-<span>
-       ← 이전
-      </span>
-<b>
-       Fireball 예제
-      </b>
-<small>
-       하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름
-      </small>
-</a>
-<a class="next" href="../modules/glossary.html">
-<span>
-       다음 →
-      </span>
-<b>
-       용어집
-      </b>
-<small>
-       반복되는 시스템 설계 용어와 UML 기초 문법
-      </small>
-</a>
+<a class="prev" href="../modules/runtime-reference.html"><span>← 이전</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a>
+<a class="next" href="../modules/glossary.html"><span>다음 →</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -951,26 +886,12 @@
 </a>
 </div>
 </section>
-<a class="readiness-card" href="../modules/runtime-reference.html">
-<span>Runtime reference</span>
-<b>실행 가능한 Phase 3 기준 구현</b>
-<small>21 tests · Replay · Failure probes</small>
-<i>
-      →
-     </i>
-</a>
+<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>실행 계약을 직접 검증하는 학습 실습</b><small>Replay · Failure probes · Cache · Migration</small><i>→</i></a>
 </aside>
 </div>
 <footer class="site-footer">
-<div>
-<b>
-     Game System Framework
-    </b>
-<span>Offline-first · Executable reference · Release 3.2</span>
-</div>
-<a href="../modules/quality-audit.html">
-    Quality audit
-   </a>
+<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
 <a href="../index.html">
@@ -1048,7 +969,7 @@
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a aria-current="page" class="is-active" href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section><section class="drawer-group"><h3>Implementation</h3><div><a href="../modules/phase3-readiness.html"><span>Readiness</span><b>Phase 3 준비</b><small>설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준</small></a><a href="../modules/runtime-reference.html"><span>Executable</span><b>Runtime Reference</b><small>결정론적 Fireball, atomic commit, bounded reaction, contextual cache, schema migration의 실행 가능한 기준 구현</small></a><a href="../modules/implementation-roadmap.html"><span>Build Plan</span><b>로드맵</b><small>MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서</small></a><a href="../modules/skill-combat-next.html"><span>Next</span><b>다음 확장</b><small>다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안</small></a></div></section><section class="drawer-group"><h3>Maintenance</h3><div><a href="../modules/quality-audit.html"><span>QA</span><b>품질 점검</b><small>UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a aria-current="page" class="is-active" href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
@@ -1069,7 +990,7 @@
       ESC
      </button>
 </header>
-<input aria-controls="command-results" autocomplete="off" class="command-input" id="command-input" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
+<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
 <div class="command-hints">
 <span>
       ↑↓ 이동

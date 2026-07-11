@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createRuntime() {
   'use strict';
 
-  const RUNTIME_VERSION = '3.2.0-reference';
+  const RUNTIME_VERSION = '3.3.0-reference';
   const CONTRACT_SCHEMA_VERSION = 1;
   const REPLAY_FORMAT_VERSION = 1;
   const RNG_ALGORITHM_VERSION = 'mulberry32-keyed-v1';
@@ -113,6 +113,19 @@
     requireString(value, label);
     domainAssert(ID_PATTERN.test(value), 'INVALID_ID', 'contract', `${label} must be a namespaced identifier.`, { label, value });
     return value;
+  }
+
+  function createSourceRef(value) {
+    domainAssert(isPlainObject(value), 'INVALID_SOURCE_REF', 'contract', 'sourceRef must be a plain object.');
+    const unknownFields = Object.keys(value).filter(key => !['kind', 'definitionId', 'instanceId'].includes(key)).sort(compareText);
+    domainAssert(unknownFields.length === 0, 'INVALID_SOURCE_REF', 'contract', 'sourceRef contains unsupported fields.', { unknownFields });
+    const kind = requireString(value.kind, 'sourceRef.kind');
+    domainAssert(/^[a-z][a-z0-9-]*$/.test(kind), 'INVALID_SOURCE_KIND', 'contract', 'sourceRef.kind must be a lowercase kebab-case identifier.', { kind });
+    return deepFreeze({
+      kind,
+      definitionId: requireId(value.definitionId, 'sourceRef.definitionId'),
+      instanceId: requireId(value.instanceId, 'sourceRef.instanceId'),
+    });
   }
 
   function multiplyBps(value, basisPoints) {
@@ -464,7 +477,7 @@
       tick: 18_240,
       dataVersion: 'data.2026.07',
       definitionVersion: 'definitions.fireball.v3',
-      formulaVersion: 'combat.fire.v2',
+      formulaVersion: 'combat.fire.v3',
       caster: { id: 'entity.caster', hp: 600, maxHp: 600, mana: 100, maxMana: 100, spellPower: 120 },
       target: { id: 'entity.target', hp: 500, maxHp: 500, shield: 40, maxShield: 200, fireResistanceBps: 2_000 },
       skill: { definitionId: 'skill.fireball', baseDamage: 24, coefficientBps: 12_000, hitChanceBps: 9_200, critChanceBps: 2_800, critMultiplierBps: 15_000, manaCost: 20, cooldownTicks: 60 },
@@ -492,7 +505,9 @@
     requireId(input.burn.definitionId, 'burn.definitionId');
     for (const value of ['hp', 'maxHp', 'mana', 'maxMana', 'spellPower']) requireInteger(input.caster[value], `caster.${value}`, 0);
     for (const value of ['hp', 'maxHp', 'shield', 'maxShield', 'fireResistanceBps']) requireInteger(input.target[value], `target.${value}`, 0, value === 'fireResistanceBps' ? BASIS_POINTS : Number.MAX_SAFE_INTEGER);
-    for (const value of ['baseDamage', 'coefficientBps', 'hitChanceBps', 'critChanceBps', 'critMultiplierBps', 'manaCost', 'cooldownTicks']) requireInteger(input.skill[value], `skill.${value}`, 0, value.endsWith('Bps') ? 100_000 : Number.MAX_SAFE_INTEGER);
+    for (const value of ['baseDamage', 'manaCost', 'cooldownTicks']) requireInteger(input.skill[value], `skill.${value}`, 0);
+    for (const value of ['coefficientBps', 'critMultiplierBps']) requireInteger(input.skill[value], `skill.${value}`, 0, 100_000);
+    for (const value of ['hitChanceBps', 'critChanceBps']) requireInteger(input.skill[value], `skill.${value}`, 0, BASIS_POINTS);
     for (const value of ['ratioBps', 'durationTicks', 'intervalTicks', 'maxCatchUpTicks']) requireInteger(input.burn[value], `burn.${value}`, value === 'intervalTicks' || value === 'maxCatchUpTicks' ? 1 : 0, value === 'ratioBps' ? 100_000 : Number.MAX_SAFE_INTEGER);
     domainAssert(input.caster.hp <= input.caster.maxHp && input.caster.mana <= input.caster.maxMana, 'INVALID_INITIAL_RESOURCE', 'input', 'Caster resources exceed maxima.');
     domainAssert(input.target.hp <= input.target.maxHp && input.target.shield <= input.target.maxShield, 'INVALID_INITIAL_RESOURCE', 'input', 'Target resources exceed maxima.');
@@ -526,10 +541,53 @@
     });
   }
 
+  function resolveDamageAgainstTarget({ actorId, sourceId, sourceRef, target, damageType, rawDamage }) {
+    requireId(actorId, 'damage.actorId');
+    requireId(sourceId, 'damage.sourceId');
+    const normalizedSourceRef = createSourceRef(sourceRef);
+    domainAssert(isPlainObject(target), 'INVALID_DAMAGE_TARGET', 'resolve', 'Damage target must be a runtime entity snapshot.');
+    requireId(target.id, 'damage.targetId');
+    requireString(damageType, 'damage.damageType');
+    requireInteger(rawDamage, 'damage.rawDamage', 0);
+    const resistanceStat = `${damageType}ResistanceBps`;
+    const resistanceBps = requireInteger(target.stats?.[resistanceStat] ?? 0, `damage.${resistanceStat}`, 0, BASIS_POINTS);
+    const resolvedDamage = multiplyBps(rawDamage, BASIS_POINTS - resistanceBps);
+    const shieldAbsorbed = Math.min(target.resources.shield, resolvedDamage);
+    const remaining = Math.max(0, resolvedDamage - shieldAbsorbed);
+    const hpDamage = Math.min(target.resources.hp, remaining);
+    return deepFreeze({
+      actorId,
+      sourceId,
+      sourceRef: normalizedSourceRef,
+      targetId: target.id,
+      damageType,
+      rawDamage,
+      resistanceBps,
+      resolvedDamage,
+      shieldAbsorbed,
+      hpDamage,
+      overkill: Math.max(0, remaining - hpDamage),
+      targetHpAfter: target.resources.hp - hpDamage,
+    });
+  }
+
+  function createDefeatPayload(outcome, details = {}) {
+    return {
+      entityId: outcome.targetId,
+      targetId: outcome.targetId,
+      actorId: outcome.actorId,
+      sourceId: outcome.sourceId,
+      sourceRef: deepClone(outcome.sourceRef),
+      damageType: outcome.damageType,
+      ...deepClone(details),
+    };
+  }
+
   function resolveFireball({ snapshot, command, input, rng, trace = null }) {
     const caster = snapshot.entities[input.caster.id];
     const target = snapshot.entities[input.target.id];
     domainAssert(Boolean(caster && target), 'INVALID_SNAPSHOT', 'resolve', 'Caster and target must be present.');
+    domainAssert(target.resources.hp > 0, 'TARGET_NOT_ALIVE', 'resolve', 'Target must be alive before skill resolution.', { targetId: target.id });
     domainAssert(caster.resources.mana >= input.skill.manaCost, 'INSUFFICIENT_MANA', 'resolve', 'Caster lacks mana.');
     const hitKey = [command.correlationId, 'fireball.hit', target.id];
     const critKey = [command.correlationId, 'fireball.critical', target.id];
@@ -539,37 +597,27 @@
     const critical = hit && critRollBps < input.skill.critChanceBps;
     let rawDamage = hit ? input.skill.baseDamage + multiplyBps(caster.stats.spellPower, input.skill.coefficientBps) : 0;
     if (critical) rawDamage = multiplyBps(rawDamage, input.skill.critMultiplierBps);
-    const resolvedDamage = hit ? multiplyBps(rawDamage, BASIS_POINTS - target.stats.fireResistanceBps) : 0;
-    const shieldAbsorbed = Math.min(target.resources.shield, resolvedDamage);
-    const remaining = Math.max(0, resolvedDamage - shieldAbsorbed);
-    const hpDamage = Math.min(target.resources.hp, remaining);
-    const overkill = Math.max(0, remaining - hpDamage);
-    const burnTickDamage = hit && hpDamage > 0 ? Math.max(1, multiplyBps(hpDamage, input.burn.ratioBps)) : 0;
+    const sourceRef = createSourceRef({ kind: 'skill-execution', definitionId: input.skill.definitionId, instanceId: command.commandId });
+    const damage = resolveDamageAgainstTarget({ actorId: caster.id, sourceId: command.commandId, sourceRef, target, damageType: 'fire', rawDamage });
+    const burnRawTickDamage = hit && rawDamage > 0 && input.burn.ratioBps > 0 ? Math.max(1, multiplyBps(rawDamage, input.burn.ratioBps)) : 0;
     const outcome = deepFreeze({
-      sourceId: caster.id,
-      targetId: target.id,
+      ...deepClone(damage),
       skillDefinitionId: input.skill.definitionId,
-      damageType: 'fire',
       hit,
       critical,
-      rawDamage,
-      resolvedDamage,
-      shieldAbsorbed,
-      hpDamage,
-      overkill,
-      targetHpAfter: target.resources.hp - hpDamage,
-      burn: { definitionId: input.burn.definitionId, tickDamage: burnTickDamage, durationTicks: input.burn.durationTicks, intervalTicks: input.burn.intervalTicks, applyWhenTargetAlive: target.resources.hp - hpDamage > 0 },
+      burn: { definitionId: input.burn.definitionId, rawTickDamage: burnRawTickDamage, durationTicks: input.burn.durationTicks, intervalTicks: input.burn.intervalTicks, applyWhenTargetAlive: hit && damage.targetHpAfter > 0 },
     });
     const operations = [
       { order: 10, kind: 'resource.delta', entityId: caster.id, resource: 'mana', delta: -input.skill.manaCost, key: 'cost' },
       { order: 20, kind: 'cooldown.set', entityId: caster.id, definitionId: input.skill.definitionId, readyTick: input.tick + input.skill.cooldownTicks, key: 'cooldown' },
     ];
-    if (shieldAbsorbed) operations.push({ order: 30, kind: 'resource.delta', entityId: target.id, resource: 'shield', delta: -shieldAbsorbed, key: 'shield' });
-    if (hpDamage) operations.push({ order: 40, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -hpDamage, key: 'hp' });
+    if (damage.shieldAbsorbed) operations.push({ order: 30, kind: 'resource.delta', entityId: target.id, resource: 'shield', delta: -damage.shieldAbsorbed, key: 'shield' });
+    if (damage.hpDamage) operations.push({ order: 40, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -damage.hpDamage, key: 'hp' });
     const eventBlueprints = [
-      { type: 'SkillCommitted', payload: { actorId: caster.id, targetId: target.id, skillDefinitionId: input.skill.definitionId, cooldownReadyTick: input.tick + input.skill.cooldownTicks } },
+      { type: 'SkillCommitted', payload: { actorId: caster.id, sourceId: command.commandId, sourceRef: deepClone(sourceRef), targetId: target.id, skillDefinitionId: input.skill.definitionId, cooldownReadyTick: input.tick + input.skill.cooldownTicks } },
       { type: hit ? 'DamageCommitted' : 'DamageMissed', payload: { ...deepClone(outcome) } },
     ];
+    if (target.resources.hp > 0 && damage.targetHpAfter === 0) eventBlueprints.push({ type: 'EntityDefeated', payload: createDefeatPayload(outcome, { periodic: false }) });
     const planBase = { schemaVersion: CONTRACT_SCHEMA_VERSION, commandId: command.commandId, commitTick: input.tick, preconditions: [{ entityId: caster.id, expectedVersion: caster.version }, { entityId: target.id, expectedVersion: target.version }], operations, eventBlueprints };
     const plan = deepFreeze({ ...planBase, planId: `plan.${hashHex(planBase)}` });
     trace?.record('random_decisions', input.tick, { hitRollBps, critRollBps, hit, critical, hitKey, critKey });
@@ -592,9 +640,9 @@
     for (const event of events) {
       if (event.type !== 'DamageCommitted') continue;
       const burn = event.payload.burn;
-      if (!burn?.tickDamage || !burn.applyWhenTargetAlive) continue;
+      if (!burn?.applyWhenTargetAlive) continue;
       const reactionId = `reaction.${hashHex([event.eventId, 'apply-burn'])}`;
-      queue.enqueue({ reactionId, idempotencyKey: `idempotency.${hashHex([event.eventId, input.burn.definitionId])}`, kind: 'apply-status', priority: 100, stableOrderKey: `${event.payload.targetId}:${input.burn.definitionId}`, depth: 1, budgetCost: 1, payload: { sourceId: event.payload.sourceId, targetId: event.payload.targetId, definitionId: input.burn.definitionId, tickDamage: burn.tickDamage, durationTicks: burn.durationTicks, intervalTicks: burn.intervalTicks, maxCatchUpTicks: input.burn.maxCatchUpTicks, correlationId: event.correlationId, causationId: event.eventId, dataVersion: input.dataVersion } });
+      queue.enqueue({ reactionId, idempotencyKey: `idempotency.${hashHex([event.eventId, input.burn.definitionId])}`, kind: 'apply-status', priority: 100, stableOrderKey: `${event.payload.targetId}:${input.burn.definitionId}`, depth: 1, budgetCost: 1, payload: { actorId: event.payload.actorId, sourceId: event.payload.sourceId, sourceRef: deepClone(event.payload.sourceRef), targetId: event.payload.targetId, definitionId: input.burn.definitionId, rawTickDamage: burn.rawTickDamage, durationTicks: burn.durationTicks, intervalTicks: burn.intervalTicks, maxCatchUpTicks: input.burn.maxCatchUpTicks, correlationId: event.correlationId, causationId: event.eventId, dataVersion: input.dataVersion } });
       trace?.record('reaction_enqueued', event.occurredTick, { reactionId, kind: 'apply-status' });
     }
   }
@@ -605,8 +653,8 @@
     const target = store.getEntity(payload.targetId);
     const appliedTick = store.tick;
     const instanceId = `status-instance.${hashHex([reaction.reactionId, payload.targetId, appliedTick])}`;
-    const status = { instanceId, definitionId: payload.definitionId, sourceRef: payload.sourceId, targetId: payload.targetId, correlationId: payload.correlationId, causationId: payload.causationId, dataVersion: payload.dataVersion, appliedTick, nextTickAt: appliedTick + payload.intervalTicks, expireTick: appliedTick + payload.durationTicks, intervalTicks: payload.intervalTicks, tickDamage: payload.tickDamage, maxCatchUpTicks: payload.maxCatchUpTicks };
-    const command = createCommandEnvelope({ commandId: `command.${hashHex([reaction.reactionId, 'status-apply'])}`, actorId: payload.sourceId, requestedTick: appliedTick, correlationId: payload.correlationId, causationId: payload.causationId, dataVersion: payload.dataVersion, payload: { targetId: payload.targetId, status } });
+    const status = { instanceId, definitionId: payload.definitionId, actorId: payload.actorId, sourceId: payload.sourceId, sourceRef: createSourceRef(payload.sourceRef), targetId: payload.targetId, correlationId: payload.correlationId, causationId: payload.causationId, dataVersion: payload.dataVersion, appliedTick, nextTickAt: appliedTick + payload.intervalTicks, expireTick: appliedTick + payload.durationTicks, intervalTicks: payload.intervalTicks, rawTickDamage: payload.rawTickDamage, maxCatchUpTicks: payload.maxCatchUpTicks };
+    const command = createCommandEnvelope({ commandId: `command.${hashHex([reaction.reactionId, 'status-apply'])}`, actorId: payload.actorId, requestedTick: appliedTick, correlationId: payload.correlationId, causationId: payload.causationId, dataVersion: payload.dataVersion, payload: { targetId: payload.targetId, status } });
     const planBase = { schemaVersion: CONTRACT_SCHEMA_VERSION, commandId: command.commandId, commitTick: appliedTick, preconditions: [{ entityId: target.id, expectedVersion: target.version }], operations: [{ order: 10, kind: 'status.add', entityId: target.id, status, key: instanceId }], eventBlueprints: [{ type: 'StatusApplied', payload: { targetId: target.id, status } }] };
     return store.commit(command, { ...planBase, planId: `plan.${hashHex(planBase)}` }, trace);
   }
@@ -620,6 +668,48 @@
     return statuses.sort((left, right) => left.status.nextTickAt - right.status.nextTickAt || compareText(left.entityId, right.entityId) || compareText(left.status.instanceId, right.status.instanceId));
   }
 
+  function createStatusExpiredPayload(status, endedTick, reason, details = {}) {
+    return {
+      actorId: status.actorId,
+      sourceId: status.sourceId,
+      sourceRef: deepClone(status.sourceRef),
+      targetId: status.targetId,
+      statusInstanceId: status.instanceId,
+      definitionId: status.definitionId,
+      expireTick: status.expireTick,
+      scheduledExpireTick: status.expireTick,
+      endedTick,
+      reason,
+      ...deepClone(details),
+    };
+  }
+
+  function collectStatusActions(store, targetTick, perStatusCount) {
+    const actions = [];
+    let catchUpLimited = false;
+    for (const item of listStatuses(store)) {
+      const status = item.status;
+      const entity = store.getEntity(item.entityId);
+      if (entity.resources.hp <= 0) {
+        actions.push({ kind: 'expire', priority: 0, actionTick: store.tick, entityId: item.entityId, status, reason: 'target-defeated', catchUpLimited: false });
+        continue;
+      }
+      const count = perStatusCount.get(status.instanceId) ?? 0;
+      const tickDue = status.nextTickAt <= targetTick && status.nextTickAt <= status.expireTick;
+      if (tickDue && count < status.maxCatchUpTicks) {
+        actions.push({ kind: 'tick', priority: 1, actionTick: status.nextTickAt, entityId: item.entityId, status });
+        continue;
+      }
+      if (tickDue && count >= status.maxCatchUpTicks) catchUpLimited = true;
+      if (status.expireTick <= targetTick) {
+        const limited = tickDue && count >= status.maxCatchUpTicks;
+        actions.push({ kind: 'expire', priority: 2, actionTick: status.expireTick, entityId: item.entityId, status, reason: limited ? 'catch-up-limited' : 'duration-expired', catchUpLimited: limited });
+      }
+    }
+    actions.sort((left, right) => left.actionTick - right.actionTick || left.priority - right.priority || compareText(left.entityId, right.entityId) || compareText(left.status.instanceId, right.status.instanceId));
+    return { actions, catchUpLimited };
+  }
+
   function advanceStatuses(store, targetTick, trace = null) {
     requireInteger(targetTick, 'targetTick', store.tick);
     const commits = [];
@@ -627,39 +717,42 @@
     let catchUpLimited = false;
     let guard = 0;
     while (guard < 10_000) {
-      guard += 1;
-      const candidate = listStatuses(store).find(item => item.status.nextTickAt <= targetTick && item.status.nextTickAt <= item.status.expireTick);
+      const schedule = collectStatusActions(store, targetTick, perStatusCount);
+      catchUpLimited ||= schedule.catchUpLimited;
+      const candidate = schedule.actions[0];
       if (!candidate) break;
+      guard += 1;
       const status = candidate.status;
-      const count = perStatusCount.get(status.instanceId) ?? 0;
-      if (count >= status.maxCatchUpTicks) {
-        catchUpLimited = true;
-        break;
-      }
       const entity = store.getEntity(candidate.entityId);
-      const actualDamage = Math.min(entity.resources.hp, status.tickDamage);
-      const shouldExpire = status.nextTickAt >= status.expireTick;
-      const command = createCommandEnvelope({ commandId: `command.${hashHex([status.instanceId, 'tick', status.nextTickAt])}`, actorId: status.sourceRef, requestedTick: status.nextTickAt, correlationId: status.correlationId, causationId: status.causationId, dataVersion: status.dataVersion, payload: { targetId: entity.id, statusInstanceId: status.instanceId } });
+      const commitTick = Math.max(candidate.actionTick, store.tick);
+      if (candidate.kind === 'expire') {
+        const command = createCommandEnvelope({ commandId: `command.${hashHex([status.instanceId, 'expire', status.expireTick, candidate.reason])}`, actorId: status.actorId, requestedTick: commitTick, correlationId: status.correlationId, causationId: status.causationId, dataVersion: status.dataVersion, payload: { targetId: entity.id, statusInstanceId: status.instanceId, sourceId: status.sourceId, sourceRef: status.sourceRef, reason: candidate.reason } });
+        const expiration = createStatusExpiredPayload(status, commitTick, candidate.reason, candidate.catchUpLimited ? { catchUpLimited: true } : {});
+        const planBase = { schemaVersion: CONTRACT_SCHEMA_VERSION, commandId: command.commandId, commitTick, preconditions: [{ entityId: entity.id, expectedVersion: entity.version }], operations: [{ order: 10, kind: 'status.remove', entityId: entity.id, instanceId: status.instanceId, key: 'expire' }], eventBlueprints: [{ type: 'StatusExpired', payload: expiration }] };
+        commits.push(store.commit(command, { ...planBase, planId: `plan.${hashHex(planBase)}` }, trace));
+        continue;
+      }
+      const count = perStatusCount.get(status.instanceId) ?? 0;
+      const damage = resolveDamageAgainstTarget({ actorId: status.actorId, sourceId: status.sourceId, sourceRef: status.sourceRef, target: entity, damageType: 'fire', rawDamage: status.rawTickDamage });
+      const defeated = entity.resources.hp > 0 && damage.targetHpAfter === 0;
+      const shouldExpire = status.nextTickAt >= status.expireTick || defeated;
+      const command = createCommandEnvelope({ commandId: `command.${hashHex([status.instanceId, 'tick', status.nextTickAt])}`, actorId: status.actorId, requestedTick: commitTick, correlationId: status.correlationId, causationId: status.causationId, dataVersion: status.dataVersion, payload: { targetId: entity.id, statusInstanceId: status.instanceId, sourceId: status.sourceId, sourceRef: status.sourceRef } });
       const operations = [];
-      if (actualDamage) operations.push({ order: 10, kind: 'resource.delta', entityId: entity.id, resource: 'hp', delta: -actualDamage, key: 'tick-damage' });
-      operations.push(shouldExpire || entity.resources.hp - actualDamage <= 0
-        ? { order: 20, kind: 'status.remove', entityId: entity.id, instanceId: status.instanceId, key: 'expire' }
-        : { order: 20, kind: 'status.patch', entityId: entity.id, instanceId: status.instanceId, patch: { nextTickAt: status.nextTickAt + status.intervalTicks }, key: 'schedule-next' });
-      const events = [{ type: 'StatusTicked', payload: { targetId: entity.id, statusInstanceId: status.instanceId, definitionId: status.definitionId, hpDamage: actualDamage, tickAt: status.nextTickAt } }];
-      if (shouldExpire || entity.resources.hp - actualDamage <= 0) events.push({ type: 'StatusExpired', payload: { targetId: entity.id, statusInstanceId: status.instanceId, definitionId: status.definitionId, expireTick: status.expireTick } });
-      const planBase = { schemaVersion: CONTRACT_SCHEMA_VERSION, commandId: command.commandId, commitTick: status.nextTickAt, preconditions: [{ entityId: entity.id, expectedVersion: entity.version }], operations, eventBlueprints: events };
+      if (damage.shieldAbsorbed) operations.push({ order: 10, kind: 'resource.delta', entityId: entity.id, resource: 'shield', delta: -damage.shieldAbsorbed, key: 'tick-shield' });
+      if (damage.hpDamage) operations.push({ order: 20, kind: 'resource.delta', entityId: entity.id, resource: 'hp', delta: -damage.hpDamage, key: 'tick-hp' });
+      operations.push(shouldExpire
+        ? { order: 30, kind: 'status.remove', entityId: entity.id, instanceId: status.instanceId, key: 'expire' }
+        : { order: 30, kind: 'status.patch', entityId: entity.id, instanceId: status.instanceId, patch: { nextTickAt: status.nextTickAt + status.intervalTicks }, key: 'schedule-next' });
+      const tickDamageOutcome = { ...deepClone(damage), statusInstanceId: status.instanceId, statusDefinitionId: status.definitionId, periodic: true, tickAt: status.nextTickAt };
+      const events = [
+        { type: 'DamageCommitted', payload: tickDamageOutcome },
+        { type: 'StatusTicked', payload: { actorId: status.actorId, sourceId: status.sourceId, sourceRef: deepClone(status.sourceRef), targetId: entity.id, statusInstanceId: status.instanceId, definitionId: status.definitionId, rawDamage: damage.rawDamage, resolvedDamage: damage.resolvedDamage, shieldAbsorbed: damage.shieldAbsorbed, hpDamage: damage.hpDamage, tickAt: status.nextTickAt } },
+      ];
+      if (defeated) events.push({ type: 'EntityDefeated', payload: createDefeatPayload(damage, { periodic: true, statusInstanceId: status.instanceId, statusDefinitionId: status.definitionId }) });
+      if (shouldExpire) events.push({ type: 'StatusExpired', payload: createStatusExpiredPayload(status, commitTick, defeated ? 'target-defeated' : 'duration-expired') });
+      const planBase = { schemaVersion: CONTRACT_SCHEMA_VERSION, commandId: command.commandId, commitTick, preconditions: [{ entityId: entity.id, expectedVersion: entity.version }], operations, eventBlueprints: events };
       commits.push(store.commit(command, { ...planBase, planId: `plan.${hashHex(planBase)}` }, trace));
       perStatusCount.set(status.instanceId, count + 1);
-    }
-    if (catchUpLimited) {
-      for (const candidate of listStatuses(store).filter(item => item.status.expireTick <= targetTick)) {
-        const entity = store.getEntity(candidate.entityId);
-        const status = entity.statuses[candidate.status.instanceId];
-        if (!status) continue;
-        const command = createCommandEnvelope({ commandId: `command.${hashHex([status.instanceId, 'catchup-expire', targetTick])}`, actorId: status.sourceRef, requestedTick: targetTick, correlationId: status.correlationId, causationId: status.causationId, dataVersion: status.dataVersion, payload: { targetId: entity.id, statusInstanceId: status.instanceId } });
-        const planBase = { schemaVersion: CONTRACT_SCHEMA_VERSION, commandId: command.commandId, commitTick: targetTick, preconditions: [{ entityId: entity.id, expectedVersion: entity.version }], operations: [{ order: 10, kind: 'status.remove', entityId: entity.id, instanceId: status.instanceId, key: 'catchup-expire' }], eventBlueprints: [{ type: 'StatusExpired', payload: { targetId: entity.id, statusInstanceId: status.instanceId, definitionId: status.definitionId, expireTick: status.expireTick, catchUpLimited: true } }] };
-        commits.push(store.commit(command, { ...planBase, planId: `plan.${hashHex(planBase)}` }, trace));
-      }
     }
     store.tick = Math.max(store.tick, targetTick);
     const tickCount = [...perStatusCount.values()].reduce((sum, value) => sum + value, 0);
@@ -686,7 +779,10 @@
     const replayHash = hashHex(replayBody);
     const target = finalState.entities[input.target.id];
     const allResources = Object.values(finalState.entities).every(entity => entity.resources.hp >= 0 && entity.resources.mana >= 0 && entity.resources.shield >= 0);
-    const accountedDamage = impact.resolution.outcome.shieldAbsorbed + impact.resolution.outcome.hpDamage + impact.resolution.outcome.overkill;
+    const damageGaps = impact.store.outbox
+      .filter(event => event.type === 'DamageCommitted')
+      .map(event => event.payload.resolvedDamage - event.payload.shieldAbsorbed - event.payload.hpDamage - event.payload.overkill);
+    const conservationGap = damageGaps.reduce((sum, gap) => sum + gap, 0);
     return deepFreeze({
       runtimeVersion: RUNTIME_VERSION,
       header,
@@ -703,8 +799,8 @@
       replayHash,
       invariants: {
         nonNegativeResources: allResources,
-        damageConservation: accountedDamage === impact.resolution.outcome.resolvedDamage,
-        conservationGap: impact.resolution.outcome.resolvedDamage - accountedDamage,
+        damageConservation: damageGaps.every(gap => gap === 0),
+        conservationGap,
         statusRemovedAfterExpiry: !input.simulateStatusTicks || Object.keys(target.statuses).length === 0,
       },
     });
@@ -762,8 +858,8 @@
   return deepFreeze({
     RUNTIME_VERSION, CONTRACT_SCHEMA_VERSION, REPLAY_FORMAT_VERSION, RNG_ALGORITHM_VERSION, NUMERIC_POLICY_VERSION, BASIS_POINTS,
     DomainError, KeyedRandom, TraceRecorder, StateStore, ReactionQueue, ContextualStatCache, SchemaMigrationRegistry,
-    canonicalStringify, hashHex, hash32, multiplyBps, createContextFingerprint, createCommandEnvelope, createDomainEventEnvelope,
-    defaultScenarioInput, normalizeScenarioInput, createInitialState, createFireballCommand, resolveFireball, enqueueReactions,
+    canonicalStringify, hashHex, hash32, multiplyBps, createSourceRef, createContextFingerprint, createCommandEnvelope, createDomainEventEnvelope,
+    defaultScenarioInput, normalizeScenarioInput, createInitialState, createFireballCommand, resolveDamageAgainstTarget, resolveFireball, enqueueReactions,
     applyStatusReaction, advanceStatuses, executeImpact, runFireballScenario, verifyReplay,
     demonstrateDuplicateCommand, demonstrateVersionConflict, demonstrateAtomicRollback,
   });

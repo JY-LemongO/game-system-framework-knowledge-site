@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import unquote
 from playwright.sync_api import sync_playwright
 import base64, mimetypes
+from browser_launch import launch_chromium
 
 ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT/'PREVIEW'; OUT.mkdir(exist_ok=True)
@@ -31,7 +32,7 @@ def inline_page(file):
     return '<!DOCTYPE html>\n'+str(soup)
 
 with sync_playwright() as p:
-    browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
+    browser=launch_chromium(p)
     context=browser.new_context(viewport={'width':1440,'height':1000},device_scale_factor=1)
     page=context.new_page(); page.set_content(inline_page('modules/runtime-reference.html'),wait_until='load'); page.wait_for_timeout(250)
     page.screenshot(path=str(OUT/'runtime-reference-desktop.png'),full_page=False)

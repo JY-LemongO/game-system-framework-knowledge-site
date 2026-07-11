@@ -152,8 +152,8 @@
 <g id="node10" class="node">
 <title>event</title>
 <path fill="#f8fafc" stroke="#bac7db" stroke-width="1.4" d="M434,-217C434,-217 183,-217 183,-217 177,-217 171,-211 171,-205 171,-205 171,-185 171,-185 171,-179 177,-173 183,-173 183,-173 434,-173 434,-173 440,-173 446,-179 446,-185 446,-185 446,-205 446,-205 446,-211 440,-217 434,-217"/>
-<text text-anchor="middle" x="308.5" y="-198.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">EventBus</text>
-<text text-anchor="middle" x="308.5" y="-183.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">OnDamageResolved / OnDamageDealt</text>
+<text text-anchor="middle" x="308.5" y="-198.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">EventBus after commit</text>
+<text text-anchor="middle" x="308.5" y="-183.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">DamageCommitted / EntityDefeated</text>
 </g>
 <!-- resource&#45;&gt;event -->
 <g id="edge7" class="edge">

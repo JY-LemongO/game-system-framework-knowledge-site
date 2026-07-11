@@ -13,7 +13,7 @@ digraph G {
   G [fillcolor="#fff0f3", color="#e07b91", label="7. EffectService\nEffectBundle 실행"];
   H [fillcolor="#fff0f3", color="#e07b91", label="8. EffectResult 수집\nDamage / Status 결과 포함"];
   I [fillcolor="#f0f3f9", color="#99a8bd", label="9. SkillResult 작성\n성공 · 실패 · 중단 · debugTrace"];
-  J [fillcolor="#eefbf6", color="#61b99a", label="10. EventBus 발행\nOnSkillUsed / OnSkillFailed"];
+  J [fillcolor="#eefbf6", color="#61b99a", label="10. commit 이후 EventBus\nSkillCommitted / SkillInterrupted"];
 
   A -> B -> C -> D -> E -> F -> G -> H -> I -> J;
   C -> I [label="validation failed", style=dashed, color="#dc2626", fontcolor="#dc2626"];

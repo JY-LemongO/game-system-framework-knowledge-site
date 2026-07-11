@@ -1,13 +1,13 @@
 {
   "fixtureVersion": 1,
   "name": "default-fireball-golden",
-  "runtimeVersion": "3.2.0-reference",
+  "runtimeVersion": "3.3.0-reference",
   "input": {
     "rootSeed": 61710,
     "tick": 18240,
     "dataVersion": "data.2026.07",
     "definitionVersion": "definitions.fireball.v3",
-    "formulaVersion": "combat.fire.v2",
+    "formulaVersion": "combat.fire.v3",
     "caster": {
       "id": "entity.caster",
       "hp": 600,
@@ -44,8 +44,8 @@
     "simulateStatusTicks": true
   },
   "expected": {
-    "replayHash": "62b74418205d61ea",
-    "traceHash": "a41533f05cc6dc53",
+    "replayHash": "a72446632e7feb18",
+    "traceHash": "7e06f8efb5922e0d",
     "finalState": {
       "tick": 18246,
       "entities": {
@@ -73,7 +73,7 @@
           "id": "entity.target",
           "version": 6,
           "resources": {
-            "hp": 281,
+            "hp": 266,
             "maxHp": 500,
             "mana": 0,
             "maxMana": 0,
@@ -90,21 +90,28 @@
       }
     },
     "outcome": {
-      "sourceId": "entity.caster",
+      "actorId": "entity.caster",
+      "sourceId": "command.fireball.cast.0001",
+      "sourceRef": {
+        "kind": "skill-execution",
+        "definitionId": "skill.fireball",
+        "instanceId": "command.fireball.cast.0001"
+      },
       "targetId": "entity.target",
-      "skillDefinitionId": "skill.fireball",
       "damageType": "fire",
-      "hit": true,
-      "critical": true,
       "rawDamage": 252,
+      "resistanceBps": 2000,
       "resolvedDamage": 202,
       "shieldAbsorbed": 40,
       "hpDamage": 162,
       "overkill": 0,
       "targetHpAfter": 338,
+      "skillDefinitionId": "skill.fireball",
+      "hit": true,
+      "critical": true,
       "burn": {
         "definitionId": "status.burn",
-        "tickDamage": 19,
+        "rawTickDamage": 30,
         "durationTicks": 6,
         "intervalTicks": 2,
         "applyWhenTargetAlive": true
@@ -114,8 +121,11 @@
       "SkillCommitted",
       "DamageCommitted",
       "StatusApplied",
+      "DamageCommitted",
       "StatusTicked",
+      "DamageCommitted",
       "StatusTicked",
+      "DamageCommitted",
       "StatusTicked",
       "StatusExpired"
     ],

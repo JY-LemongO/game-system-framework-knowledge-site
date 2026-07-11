@@ -42,18 +42,10 @@
 </span>
 </a>
 <nav aria-label="주요 탐색" class="top-nav">
-<a href="../index.html">
-      Atlas
-     </a>
-<a href="../modules/integration-map.html">
-      Architecture
-     </a>
-<a aria-current="page" href="../modules/fireball-case-study.html">
-      Case study
-     </a>
-<a data-runtime-nav="" href="../modules/runtime-reference.html">Runtime</a><a href="../modules/implementation-roadmap.html">
-      Build plan
-     </a>
+<a href="../index.html">Atlas</a>
+<a href="../modules/integration-map.html">Architecture</a>
+<a aria-current="page" href="../modules/fireball-case-study.html">Case study</a>
+<a data-runtime-nav="" href="../modules/runtime-reference.html">Runtime lab</a>
 </nav>
 <div class="top-actions">
 <button aria-haspopup="dialog" class="command-trigger" data-search-open="" type="button">
@@ -244,6 +236,10 @@
        </span>
 </div>
 </section>
+<div aria-label="학습 안내" class="grid cols2 learning-brief">
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>하나의 입력이 Skill·Effect·Combat·Status를 통과하는 전체 실행과 실패 분기를 추적한다.</p></article>
+<article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>각 시스템의 요청·결과 객체와 SourceRef, commit 이후 이벤트 개념을 먼저 이해한다.</p></article>
+</div>
 <h2 id="fireball-전체-흐름">
       Fireball 전체 흐름
      </h2>
@@ -282,40 +278,22 @@
        EventLog
       </span>
 </div>
-<figure class="diagram">
-<div class="dh">
-<strong>
-        Fireball 기존 통합 다이어그램
-       </strong>
-<div class="da">
-<a class="small" href="../assets/diagrams/15_fireball_effect_integration_diagram.svg" target="_blank">
-         SVG
-        </a>
-<a class="small" href="../assets/diagrams/15_fireball_effect_integration_diagram.png" target="_blank">
-         PNG
-        </a>
-</div>
-</div>
-<img alt="Fireball 기존 통합 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/15_fireball_effect_integration_diagram.svg"/>
-<figcaption class="cap">
-       기존 Fireball 다이어그램은 Stat과 Effect 중심의 흐름을 보여준다. Release 2에서는 이 흐름이 Combat과 Status까지 확장된다.
-      </figcaption>
-</figure>
 <p>
-      기존 예제가 Stat과 Effect의 연결을 설명했다면, 이제 Fireball은 전체 프레임워크의 수직 슬라이스다. Skill은 행동 사용 가능 여부와 실행 타이밍을 담당하고, Effect는 DamageEffect와 ApplyStatusEffect(effect_apply_burn)를 실행하며, Combat은 피해를 계산하고, Status는 Burn을 유지한다.
+      Fireball은 전체 프레임워크의 수직 슬라이스다. Skill은 행동 사용 가능 여부와 실행 타이밍을 담당하고, Effect는 DamageEffect와 ApplyStatusEffect(effect.apply-burn)를 요청하며, Combat은 피해를 계산하고, Status는 Burn을 유지한다. 아래 모든 수치는 Runtime Contract Lab의 단일 fixture와 같다.
      </p>
 <h2 id="1-skillrequest">
       1. SkillRequest
      </h2>
 <p>
-      플레이어가 지면 위치를 지정하면 SkillRequest가 생성된다. 요청에는 caster, skillId, aimPosition, inputTime, seed가 포함된다. 이때 아직 마나가 차감되거나 피해가 적용되지 않는다.
+      플레이어가 대상을 지정하면 불변 Skill command가 생성된다. actor와 이번 실행을 나타내는 command/source, target, definition 버전, simulation tick, root seed를 담는다. 이때 아직 마나가 차감되거나 피해가 적용되지 않는다.
      </p>
 <pre><code>{
-  "caster": "player_001",
-  "skillId": "skill_fireball",
-  "aimPosition": { "x": 14.5, "y": 0.0, "z": 7.0 },
-  "inputTime": 1042.315,
-  "seed": 930144
+  "commandId": "command.fireball.cast.0001",
+  "actorId": "entity.caster",
+  "targetId": "entity.target",
+  "skillDefinitionId": "skill.fireball",
+  "requestedTick": 18240,
+  "rootSeed": 61710
 }</code></pre>
 <h2 id="2-skillvalidator-cost-timeline">
       2. SkillValidator / Cost / Timeline
@@ -338,7 +316,7 @@
          배운 스킬인가
         </td>
 <td>
-         SkillBook에서 skill_fireball 보유 확인
+         SkillBook에서 skill.fireball 보유 확인
         </td>
 <td>
          SkillResult.failedReason = NotLearned
@@ -349,7 +327,7 @@
          마나가 충분한가
         </td>
 <td>
-         mana current ≥ 25
+         mana current ≥ 20
         </td>
 <td>
          OutOfResource
@@ -363,7 +341,7 @@
          cooldownRemaining = 0
         </td>
 <td>
-         OnCooldown
+         cooldown-active
         </td>
 </tr>
 <tr>
@@ -382,7 +360,7 @@
          사거리와 시야
         </td>
 <td>
-         range ≤ 18, lineOfSight true
+         target 존재, target HP &gt; 0
         </td>
 <td>
          InvalidTarget
@@ -391,24 +369,25 @@
 </table>
 </div>
 <p>
-      검증이 통과되면 CostPolicy가 시전 시작 시 마나 25를 지불하고, ActionTimeline이 0.7초 뒤 release marker를 발생시킨다.
+      검증이 통과되면 CostPolicy가 마나 20을 예약한다. release marker에서 비용·쿨다운·EffectBundle을 하나의 commit plan으로 확정하며, 중간 operation이 실패하면 모두 폐기한다.
      </p>
 <h2 id="3-effectbundle">
       3. EffectBundle
      </h2>
 <p>
-      release marker에 도달하면 SkillExecutor는 EffectContext를 만들고 EffectBundle을 실행한다. Fireball은 피해와 화상 부여를 순서대로 실행하지만, Burn이 면역으로 실패해도 피해 결과는 유지되도록
-      <code>
-       ordered_partial
-      </code>
-      정책을 사용한다.
+      release marker에 도달하면 SkillExecutor는 EffectContext를 만들고 EffectBundle을 실행한다. Fireball은 피해를 먼저 commit한 뒤 그 도메인 사실로 Burn 적용 reaction을 만든다. Burn이 면역으로 실패해도 이미 commit된 피해 결과는 유지되도록
+      <code>commit_then_react</code> 정책을 사용한다.
      </p>
 <pre><code>{
   "effectBundle": {
-    "policy": "ordered_partial",
-    "effects": [
-      "effect_fireball_damage",
-      "effect_apply_burn"
+    "policy": "commit_then_react",
+    "effects": ["effect.fireball-damage"],
+    "reactions": [
+      {
+        "on": "DamageCommitted",
+        "when": "hit &amp;&amp; targetAlive",
+        "effect": "effect.apply-burn"
+      }
     ]
   }
 }</code></pre>
@@ -436,14 +415,7 @@
 </figure>
 <p>
       예시 값은 다음과 같다.
-      <code>
-       spell_power
-      </code>
-      와
-      <code>
-       fire_damage_bonus
-      </code>
-      는 StatSystem에서 읽고, 대상의
+      <code>spell_power</code>는 CombatFormula가 공격자 Stat snapshot에서 읽고, 대상의
       <code>
        fire_resistance
       </code>
@@ -467,7 +439,7 @@
          base damage
         </td>
 <td>
-         40
+         24
         </td>
 <td>
          EffectDefinition
@@ -478,7 +450,7 @@
          spell_power
         </td>
 <td>
-         70
+         120
         </td>
 <td>
          attacker StatSystem
@@ -492,18 +464,18 @@
          1.2
         </td>
 <td>
-         Skill/Effect scaling
+         CombatFormulaDefinition
         </td>
 </tr>
 <tr>
 <td>
-         fire_damage_bonus
+         critical multiplier
         </td>
 <td>
-         +20%
+         1.5
         </td>
 <td>
-         attacker StatSystem 또는 Status/Equipment Modifier
+         결정론적 CriticalResolver
         </td>
 </tr>
 <tr>
@@ -511,7 +483,7 @@
          fire_resistance
         </td>
 <td>
-         15%
+         20%
         </td>
 <td>
          defender StatSystem
@@ -522,7 +494,7 @@
          shield
         </td>
 <td>
-         20
+         40
         </td>
 <td>
          defender Resource/Status
@@ -530,11 +502,11 @@
 </tr>
 </table>
 </div>
-<pre><code>base = 40 + 70 × 1.2 = 124
-124 × 1.2 fire bonus = 148.8
-148.8 × 0.85 fire resistance = 126.48
-126.48 - 20 shield = 106.48
-finalHpDamage = floor(106.48) = 106</code></pre>
+<pre><code>base = 24 + 120 × 1.2 = 168
+critical = 168 × 1.5 = 252
+resistance = roundHalfUp(252 × 0.80) = 202
+shieldAbsorbed = 40
+finalHpDamage = 202 - 40 = 162</code></pre>
 <h2 id="5-status-application">
       5. Status Application
      </h2>
@@ -547,29 +519,27 @@ finalHpDamage = floor(106.48) = 106</code></pre>
 <a class="small" href="../assets/diagrams/28_status_apply_sequence_diagram.svg" target="_blank">
          SVG
         </a>
-<a class="small" href="../assets/diagrams/28_status_apply_sequence_diagram.png" target="_blank">
-         PNG
-        </a>
 </div>
 </div>
 <img alt="Burn 적용 흐름" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/28_status_apply_sequence_diagram.svg"/>
 <figcaption class="cap">
-       ApplyStatusEffect(effect_apply_burn)는 StatusSystem에 Burn 적용을 요청하고, StatusController가 면역, 중첩, 지속시간, Modifier, 이벤트를 처리한다.
+       ApplyStatusEffect(effect.apply-burn)는 StatusSystem에 Burn 적용을 요청하고, StatusController가 면역, 재적용, 지속시간, Modifier, 이벤트를 처리한다.
       </figcaption>
 </figure>
 <p>
-      Burn은 5초 지속, 최대 3중첩, 1초마다 periodic DamageEffect를 실행하는 DoT다. 재적용 시 stackCount가 증가하고 지속시간은 refresh된다. 적용 원천은 appliedBySourceId=skill cast sourceId로 추적하고, Status가 제공하는 Modifier나 tick 예약은 statusInstanceId를 sourceId로 사용해 정리한다.
+      이 fixture의 Burn은 6 simulation tick 동안 유지되고 +2, +4, +6에 periodic DamageEffect를 실행한다. 재적용은 중첩을 늘리지 않고 지속시간만 refresh한다. applyOn=hit이므로 보호막이 최초 피해를 모두 흡수해도 대상이 살아 있으면 적용된다. 적용 원천은 skill execution SourceRef로 추적하고 tick 예약은 statusInstanceId로 정리한다.
      </p>
 <pre><code>{
-  "status": "status_burn",
-  "duration": 5.0,
+  "status": "status.burn",
+  "durationTicks": 6,
   "stackCount": 1,
-  "maxStacks": 3,
-  "tickInterval": 1.0,
-  "periodicEffect": "effect_burn_tick_damage",
-  "appliedBySourceId": "skill:fireball:cast_771",
-  "statusInstanceId": "statusInstance:burn:enemy_001:771",
-  "modifierSourceId": "statusInstance:burn:enemy_001:771"
+  "maxStacks": 1,
+  "tickIntervalTicks": 2,
+  "applyOn": "hit",
+  "periodicEffect": "effect.burn-tick-damage",
+  "appliedBySourceId": "command.fireball.cast.0001",
+  "statusInstanceId": "status-instance.10500ad49c7e40de",
+  "modifierSourceId": "status-instance.10500ad49c7e40de"
 }</code></pre>
 <h2 id="6-burn-tick">
       6. Burn Tick
@@ -583,9 +553,6 @@ finalHpDamage = floor(106.48) = 106</code></pre>
 <a class="small" href="../assets/diagrams/29_status_tick_activity_diagram.svg" target="_blank">
          SVG
         </a>
-<a class="small" href="../assets/diagrams/29_status_tick_activity_diagram.png" target="_blank">
-         PNG
-        </a>
 </div>
 </div>
 <img alt="Burn tick 흐름" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/29_status_tick_activity_diagram.svg"/>
@@ -594,7 +561,7 @@ finalHpDamage = floor(106.48) = 106</code></pre>
       </figcaption>
 </figure>
 <p>
-      Burn tick 피해는 snapshot 또는 dynamic 정책 중 하나를 선택한다. 이 문서의 기본 예시는 적용 당시의 공격자 계수를 보존하는 snapshot 방식이다. 대상의 현재 저항을 다시 읽을지 여부는 프로젝트별로 정책화한다.
+      Burn tick의 공격 계수는 적용 당시 raw damage에서 snapshot하고, 대상의 현재 저항과 보호막은 매 tick 다시 읽는다. 이 fixture에서는 raw tick 30이 화염 저항 20%를 거쳐 매번 HP 24를 감소시키며, 세 번의 tick 뒤 대상 HP는 266이다. 따라서 매 tick도 DamageCalculated → DamageCommitted 경로를 거치며 치명 피해라면 EntityDefeated를 남긴다.
      </p>
 <h2 id="7-event-debugtrace">
       7. Event / DebugTrace
@@ -602,22 +569,24 @@ finalHpDamage = floor(106.48) = 106</code></pre>
 <p>
       Fireball의 모든 실행 결과는 executionId, correlationId, definitionVersion으로 묶여야 한다. seed만으로 재현한다고 가정하지 않고 입력/스탯 스냅샷과 정렬·반올림 정책을 함께 남긴다.
      </p>
-<pre><code>sourceId: skill:fireball:cast_771
-OnSkillUsed
-  caster=player_001, manaSpent=25, cooldown=6.0
-OnEffectExecuted
-  effect_fireball_damage targets=[enemy_001]
-OnDamageResolved
-  hit=true, crit=false, finalHpDamage=106, shieldAbsorbed=20
-OnStatusApplied
-  status_burn stack=1 duration=5.0 nextTick=+1.0
-OnStatusTick
-  status_burn tick=1 periodicEffect=effect_burn_tick_damage</code></pre>
+<pre><code>sourceId: command.fireball.cast.0001
+SkillCommitted
+  actor=entity.caster, manaSpent=20, cooldownReadyTick=18300
+DamageCalculated trace
+  hit=true, critical=true, rawDamage=252, resolvedDamage=202
+DamageCommitted
+  hpDamage=162, shieldAbsorbed=40
+StatusApplied
+  status.burn durationTicks=6 nextTick=18242
+DamageCommitted + StatusTicked
+  rawDamage=30, resolvedDamage=24 at +2/+4/+6
+StatusExpired
+  finalTargetHp=266</code></pre>
 <div class="callout good">
 <b>
        권장 커밋 순서.
       </b>
-      DamageResult 계산 → Shield/HP commit → DamageCommitted 기록 → Burn 적용 요청 → AfterDamage/AfterStatus 관찰 이벤트 → ReactionQueue 순서로 한 번의 trace를 만든다.
+      DamageCalculated trace → Shield/HP atomic commit → DamageCommitted → Burn reaction → StatusApplied → periodic DamageCommitted/StatusTicked → 관찰 이벤트 순서로 한 번의 trace를 만든다.
      </div>
 <h2 id="실패-분기">
       실패 분기
@@ -648,35 +617,35 @@ OnStatusTick
 </tr>
 <tr>
 <td>
-         시전 중 피격 중단
+         resolve 뒤 대상 version 변경
         </td>
 <td>
-         ActionTimeline
+         Commit precondition
         </td>
 <td>
-         환불 정책 적용, 실패 쿨다운 선택 가능
-        </td>
-</tr>
-<tr>
-<td>
-         대상이 시야 밖으로 이동
-        </td>
-<td>
-         Effect TargetSelector 또는 Combat HitResolver
-        </td>
-<td>
-         대상별 EffectResult failed
+         VERSION_CONFLICT, 비용·쿨다운·피해 모두 미적용
         </td>
 </tr>
 <tr>
 <td>
-         대상이 fire immune
+         명중 실패
+        </td>
+<td>
+         Combat HitResolver
+        </td>
+<td>
+         비용과 쿨다운은 commit, 피해와 Burn은 없음
+        </td>
+</tr>
+<tr>
+<td>
+         대상이 status.immunity.burn
         </td>
 <td>
          StatusSystem ImmunityChecker
         </td>
 <td>
-         Damage는 성공, Burn은 immune으로 실패 가능
+         Damage는 성공, Burn만 immune으로 실패 가능
         </td>
 </tr>
 <tr>
@@ -687,7 +656,7 @@ OnStatusTick
          Combat ShieldResolver
         </td>
 <td>
-         DamageResult.shieldAbsorbed 기록
+         DamageResult.shieldAbsorbed 기록. applyOn=hit이면 full shield에서도 Burn 적용
         </td>
 </tr>
 <tr>
@@ -698,7 +667,7 @@ OnStatusTick
          Status StackPolicy
         </td>
 <td>
-         stack +1, duration refresh
+         stack은 1로 유지하고 duration refresh
         </td>
 </tr>
 </table>
@@ -726,28 +695,8 @@ OnStatusTick
 </div>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/integration-map.html">
-<span>
-       ← 이전
-      </span>
-<b>
-       통합 구조
-      </b>
-<small>
-       Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약
-      </small>
-</a>
-<a class="next" href="../modules/diagram-gallery.html">
-<span>
-       다음 →
-      </span>
-<b>
-       다이어그램
-      </b>
-<small>
-       전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리
-      </small>
-</a>
+<a class="prev" href="../modules/integration-map.html"><span>← 이전</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a>
+<a class="next" href="../modules/runtime-reference.html"><span>다음 →</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -826,26 +775,12 @@ OnStatusTick
 </a>
 </div>
 </section>
-<a class="readiness-card" href="../modules/runtime-reference.html">
-<span>Runtime reference</span>
-<b>실행 가능한 Phase 3 기준 구현</b>
-<small>21 tests · Replay · Failure probes</small>
-<i>
-      →
-     </i>
-</a>
+<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>실행 계약을 직접 검증하는 학습 실습</b><small>Replay · Failure probes · Cache · Migration</small><i>→</i></a>
 </aside>
 </div>
 <footer class="site-footer">
-<div>
-<b>
-     Game System Framework
-    </b>
-<span>Offline-first · Executable reference · Release 3.2</span>
-</div>
-<a href="../modules/quality-audit.html">
-    Quality audit
-   </a>
+<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
 <a href="../index.html">
@@ -923,7 +858,7 @@ OnStatusTick
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice</h3><div><a aria-current="page" class="is-active" href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section><section class="drawer-group"><h3>Implementation</h3><div><a href="../modules/phase3-readiness.html"><span>Readiness</span><b>Phase 3 준비</b><small>설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준</small></a><a href="../modules/runtime-reference.html"><span>Executable</span><b>Runtime Reference</b><small>결정론적 Fireball, atomic commit, bounded reaction, contextual cache, schema migration의 실행 가능한 기준 구현</small></a><a href="../modules/implementation-roadmap.html"><span>Build Plan</span><b>로드맵</b><small>MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서</small></a><a href="../modules/skill-combat-next.html"><span>Next</span><b>다음 확장</b><small>다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안</small></a></div></section><section class="drawer-group"><h3>Maintenance</h3><div><a href="../modules/quality-audit.html"><span>QA</span><b>품질 점검</b><small>UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a aria-current="page" class="is-active" href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
@@ -944,7 +879,7 @@ OnStatusTick
       ESC
      </button>
 </header>
-<input aria-controls="command-results" autocomplete="off" class="command-input" id="command-input" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
+<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
 <div class="command-hints">
 <span>
       ↑↓ 이동

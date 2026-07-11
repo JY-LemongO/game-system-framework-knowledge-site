@@ -42,18 +42,10 @@
 </span>
 </a>
 <nav aria-label="주요 탐색" class="top-nav">
-<a href="../index.html">
-      Atlas
-     </a>
-<a href="../modules/integration-map.html">
-      Architecture
-     </a>
-<a href="../modules/fireball-case-study.html">
-      Case study
-     </a>
-<a data-runtime-nav="" href="../modules/runtime-reference.html">Runtime</a><a href="../modules/implementation-roadmap.html">
-      Build plan
-     </a>
+<a href="../index.html">Atlas</a>
+<a href="../modules/integration-map.html">Architecture</a>
+<a href="../modules/fireball-case-study.html">Case study</a>
+<a data-runtime-nav="" href="../modules/runtime-reference.html">Runtime lab</a>
 </nav>
 <div class="top-actions">
 <button aria-haspopup="dialog" class="command-trigger" data-search-open="" type="button">
@@ -241,6 +233,10 @@
        </span>
 </div>
 </section>
+<div aria-label="학습 안내" class="grid cols2 learning-brief">
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>원본 값과 Modifier를 분리하고, 계산 순서·조건·리소스 정책이 재현 가능한 Stat 모델을 설계한다.</p></article>
+<article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Core Runtime의 EntityId, SourceRef, GameContext와 기본적인 수치 연산 순서를 먼저 이해한다.</p></article>
+</div>
 <section class="split">
 <div>
 <h2 id="스탯-시스템의-책임-경계">
@@ -370,9 +366,9 @@
 <pre><code>Attack Power Breakdown
 Base: 100
 Add:
-  Iron Sword +20           source=item:iron_sword_001
-PercentMultiply:
-  Rage Buff +30%           source=status:rage
+  Iron Sword +20           source=item.iron-sword.001
+PercentAdd:
+  Rage Buff +30%           source=status.rage.42
 Clamp:
   min=0 max=9999
 Final: 156</code></pre>
@@ -516,7 +512,7 @@ Final: 156</code></pre>
 - targetTags: [enemy, boss]
 - targetStatuses: [burn]
 - distance: 2.4
-- moment: OnAttackHit</code></pre>
+- moment: damage-committed-hit</code></pre>
 <p>
       조건부 Modifier를 지원하지 않으면 장비 옵션, 패시브, 로그라이트 보상은 금방 하드코딩으로 무너진다.
      </p>
@@ -557,7 +553,7 @@ Final: 156</code></pre>
       Resource Stat 정책
      </h2>
 <p>
-      HP, Mana, Stamina처럼 현재값과 최대값이 나뉘는 스탯은 일반 스탯보다 정책이 더 필요하다. 최대값 변경 시 현재값을 어떻게 처리할지가 게임마다 다르기 때문이다.
+      max_hp, max_mana, shield_capacity 같은 최대치와 파생값은 Stat이 계산한다. 현재 HP, Mana, Shield는 자주 변하는 ResourceController의 상태이며 Stat 캐시 안에서 직접 증감하지 않는다. 아래 정책은 최대치가 바뀔 때 ResourceController가 현재값을 어떻게 동기화할지 정하는 경계 계약이다.
      </p>
 <div class="table-scroll">
 <table class="data-table">
@@ -727,29 +723,6 @@ crit_chance = clamp(0, 1, dexterity * 0.002 + item_bonus)</code></pre>
        디버그 breakdown 없이 최종 숫자만 표시하는 구조
       </li>
 </ul>
-<h2 id="완료-체크리스트">
-      완료 체크리스트
-     </h2>
-<ul class="check">
-<li>
-       StatDefinition과 StatInstance가 분리되어 있다.
-      </li>
-<li>
-       Modifier는 sourceId, operation, priority, stackRule, condition을 가진다.
-      </li>
-<li>
-       Base/Add/Percent/More/Override/Clamp 계산 순서가 명시되어 있다.
-      </li>
-<li>
-       Resource max 변경 정책이 데이터로 결정된다.
-      </li>
-<li>
-       조건부 Modifier가 StatContext로 평가된다.
-      </li>
-<li>
-       StatChangedEvent와 DebugBreakdown이 제공된다.
-      </li>
-</ul>
 <h2 id="combat-status가-stat을-읽는-방식">
       Combat / Status가 Stat을 읽는 방식
      </h2>
@@ -774,7 +747,7 @@ crit_chance = clamp(0, 1, dexterity * 0.002 + item_bonus)</code></pre>
          Combat → Stat
         </td>
 <td>
-         attack_power, spell_power, fire_resistance, armor, shield 같은 최종값 제공
+         attack_power, spell_power, fire_resistance, armor, shield_capacity 같은 최종값 제공
         </td>
 <td>
          Combat은 Modifier를 직접 등록하지 않는다.
@@ -796,7 +769,7 @@ crit_chance = clamp(0, 1, dexterity * 0.002 + item_bonus)</code></pre>
          Status 제거 → Stat
         </td>
 <td>
-         sourceId=statusInstanceId인 Modifier를 제거한다.
+         sourceId=statusInstanceId인 Modifier를 제거한다. 현재 HP나 Shield는 ResourceController가 별도로 관리한다.
         </td>
 <td>
          sourceId가 없으면 중첩과 제거 디버그가 어려워진다.
@@ -816,36 +789,39 @@ crit_chance = clamp(0, 1, dexterity * 0.002 + item_bonus)</code></pre>
 </table>
 </div>
 <pre><code>Rage Status Applied
-  sourceId = statusInstance:rage:player_001:42
+  sourceId = status-instance.rage.player_001-42
   add StatModifier(attack_power, percent_add, +0.30, sourceId)
 
 Rage Status Removed
   removeModifiersBySource(sourceId)
   recalculate attack_power if dirty</code></pre>
+<h2 id="설계-점검">
+      설계 점검
+     </h2>
+<ul class="check">
+<li>
+       StatDefinition과 StatInstance가 분리되어 있다.
+      </li>
+<li>
+       Modifier는 sourceId, operation, priority, stackRule, condition을 가진다.
+      </li>
+<li>
+       Base/Add/Percent/More/Override/Clamp 계산 순서가 명시되어 있다.
+      </li>
+<li>
+       Resource max 변경 정책이 데이터로 결정된다.
+      </li>
+<li>
+       조건부 Modifier가 StatContext로 평가된다.
+      </li>
+<li>
+       StatChangedEvent와 DebugBreakdown이 제공된다.
+      </li>
+</ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/core-runtime.html">
-<span>
-       ← 이전
-      </span>
-<b>
-       Core Runtime
-      </b>
-<small>
-       Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약
-      </small>
-</a>
-<a class="next" href="../modules/effect-system.html">
-<span>
-       다음 →
-      </span>
-<b>
-       Effect System
-      </b>
-<small>
-       EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계
-      </small>
-</a>
+<a class="prev" href="../modules/core-runtime.html"><span>← 이전</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a>
+<a class="next" href="../modules/effect-system.html"><span>다음 →</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -889,8 +865,8 @@ Rage Status Removed
 <a href="#구현-안티패턴">
        구현 안티패턴
       </a>
-<a href="#완료-체크리스트">
-       완료 체크리스트
+<a href="#설계-점검">
+       설계 점검
       </a>
 <a href="#combat-status가-stat을-읽는-방식">
        Combat / Status가 Stat을 읽는 방식
@@ -930,26 +906,12 @@ Rage Status Removed
 </a>
 </div>
 </section>
-<a class="readiness-card" href="../modules/runtime-reference.html">
-<span>Runtime reference</span>
-<b>실행 가능한 Phase 3 기준 구현</b>
-<small>21 tests · Replay · Failure probes</small>
-<i>
-      →
-     </i>
-</a>
+<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>실행 계약을 직접 검증하는 학습 실습</b><small>Replay · Failure probes · Cache · Migration</small><i>→</i></a>
 </aside>
 </div>
 <footer class="site-footer">
-<div>
-<b>
-     Game System Framework
-    </b>
-<span>Offline-first · Executable reference · Release 3.2</span>
-</div>
-<a href="../modules/quality-audit.html">
-    Quality audit
-   </a>
+<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
 <a href="../index.html">
@@ -1027,7 +989,7 @@ Rage Status Removed
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a aria-current="page" class="is-active" href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section><section class="drawer-group"><h3>Implementation</h3><div><a href="../modules/phase3-readiness.html"><span>Readiness</span><b>Phase 3 준비</b><small>설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준</small></a><a href="../modules/runtime-reference.html"><span>Executable</span><b>Runtime Reference</b><small>결정론적 Fireball, atomic commit, bounded reaction, contextual cache, schema migration의 실행 가능한 기준 구현</small></a><a href="../modules/implementation-roadmap.html"><span>Build Plan</span><b>로드맵</b><small>MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서</small></a><a href="../modules/skill-combat-next.html"><span>Next</span><b>다음 확장</b><small>다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안</small></a></div></section><section class="drawer-group"><h3>Maintenance</h3><div><a href="../modules/quality-audit.html"><span>QA</span><b>품질 점검</b><small>UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a aria-current="page" class="is-active" href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
@@ -1048,7 +1010,7 @@ Rage Status Removed
       ESC
      </button>
 </header>
-<input aria-controls="command-results" autocomplete="off" class="command-input" id="command-input" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
+<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
 <div class="command-hints">
 <span>
       ↑↓ 이동
@@ -1108,8 +1070,8 @@ Rage Status Removed
 <a href="#구현-안티패턴">
       구현 안티패턴
      </a>
-<a href="#완료-체크리스트">
-      완료 체크리스트
+<a href="#설계-점검">
+      설계 점검
      </a>
 <a href="#combat-status가-stat을-읽는-방식">
       Combat / Status가 Stat을 읽는 방식

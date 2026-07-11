@@ -18,7 +18,7 @@
 <g id="node2" class="node">
 <title>due</title>
 <path fill="#ffffff" stroke="#bac7db" stroke-width="1.4" d="M261,-787C261,-787 137,-787 137,-787 131,-787 125,-781 125,-775 125,-775 125,-763 125,-763 125,-757 131,-751 137,-751 137,-751 261,-751 261,-751 267,-751 273,-757 273,-763 273,-763 273,-775 273,-775 273,-781 267,-787 261,-787"/>
-<text text-anchor="middle" x="199" y="-765.3" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">Tick Timer Reached</text>
+<text text-anchor="middle" x="199" y="-765.3" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">Simulation Tick Reached</text>
 </g>
 <!-- start&#45;&gt;due -->
 <g id="edge1" class="edge">
@@ -60,7 +60,7 @@
 <path fill="#ffffff" stroke="#bac7db" stroke-width="1.4" d="M356,-139C356,-139 186,-139 186,-139 180,-139 174,-133 174,-127 174,-127 174,-94 174,-94 174,-88 180,-82 186,-82 186,-82 356,-82 356,-82 362,-82 368,-88 368,-94 368,-94 368,-127 368,-127 368,-133 362,-139 356,-139"/>
 <text text-anchor="middle" x="271" y="-121.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">Remove status</text>
 <text text-anchor="middle" x="271" y="-106.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">remove modifiers</text>
-<text text-anchor="middle" x="271" y="-91.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">publish OnStatusRemoved</text>
+<text text-anchor="middle" x="271" y="-91.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">publish StatusExpired</text>
 </g>
 <!-- active&#45;&gt;remove -->
 <g id="edge3" class="edge">
@@ -73,8 +73,8 @@
 <g id="node5" class="node">
 <title>execute</title>
 <path fill="#ffffff" stroke="#bac7db" stroke-width="1.4" d="M193,-458C193,-458 53,-458 53,-458 47,-458 41,-452 41,-446 41,-446 41,-428 41,-428 41,-422 47,-416 53,-416 53,-416 193,-416 193,-416 199,-416 205,-422 205,-428 205,-428 205,-446 205,-446 205,-452 199,-458 193,-458"/>
-<text text-anchor="middle" x="123" y="-440.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">Execute PeriodicEffect</text>
-<text text-anchor="middle" x="123" y="-425.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">DoT / HoT / aura pulse</text>
+<text text-anchor="middle" x="123" y="-440.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">Build DamageRequest</text>
+<text text-anchor="middle" x="123" y="-425.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">resolve + commit via Combat</text>
 </g>
 <!-- context&#45;&gt;execute -->
 <g id="edge5" class="edge">
@@ -87,7 +87,7 @@
 <title>update</title>
 <path fill="#ffffff" stroke="#bac7db" stroke-width="1.4" d="M204,-351C204,-351 32,-351 32,-351 26,-351 20,-345 20,-339 20,-339 20,-321 20,-321 20,-315 26,-309 32,-309 32,-309 204,-309 204,-309 210,-309 216,-315 216,-321 216,-321 216,-339 216,-339 216,-345 210,-351 204,-351"/>
 <text text-anchor="middle" x="118" y="-333.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">Update remaining duration</text>
-<text text-anchor="middle" x="118" y="-318.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">advance nextTickTime</text>
+<text text-anchor="middle" x="118" y="-318.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">advance nextTickAt</text>
 </g>
 <!-- execute&#45;&gt;update -->
 <g id="edge6" class="edge">

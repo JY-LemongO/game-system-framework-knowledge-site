@@ -234,6 +234,279 @@ test('극단값 조합에서도 resolved damage의 회계 gap은 정확히 0이�
   }
 });
 
+test('Burn applies on a surviving hit even when impact damage is fully absorbed by shield', () => {
+  const result = G.runFireballScenario({
+    target: { shield: 200, maxShield: 200 },
+    skill: { hitChanceBps: 10_000, critChanceBps: 0 },
+    simulateStatusTicks: false,
+  });
+  assert.equal(result.resolution.outcome.hit, true);
+  assert.equal(result.resolution.outcome.hpDamage, 0);
+  assert.equal(result.resolution.outcome.burn.rawTickDamage, 20);
+  assert.equal(result.resolution.outcome.burn.applyWhenTargetAlive, true);
+  assert.ok(result.outbox.some(event => event.type === 'StatusApplied'));
+  assert.equal(Object.keys(result.finalState.entities[result.input.target.id].statuses).length, 1);
+});
+
+test('Burn tick resolves resistance and shield before committing DamageCommitted then StatusTicked', () => {
+  const result = G.runFireballScenario({
+    target: { shield: 150, maxShield: 200 },
+    skill: { hitChanceBps: 10_000, critChanceBps: 0 },
+  });
+  const ticks = result.outbox.filter(event => event.type === 'StatusTicked');
+  assert.equal(ticks.length, 3);
+  for (const tick of ticks) {
+    const index = result.outbox.indexOf(tick);
+    const damage = result.outbox[index - 1];
+    assert.equal(damage.type, 'DamageCommitted');
+    assert.equal(damage.occurredTick, tick.occurredTick);
+    assert.equal(damage.payload.periodic, true);
+    assert.equal(damage.payload.rawDamage, 20);
+    assert.equal(damage.payload.resistanceBps, 2_000);
+    assert.equal(damage.payload.resolvedDamage, 16);
+    if (tick === ticks[0]) {
+      assert.equal(damage.payload.shieldAbsorbed, 16);
+      assert.equal(tick.payload.hpDamage, 0);
+    } else {
+      assert.equal(damage.payload.shieldAbsorbed, 0);
+      assert.equal(tick.payload.hpDamage, 16);
+    }
+  }
+});
+
+test('actor identity stays separate from the skill execution source across outcome and status', () => {
+  const result = G.runFireballScenario({ skill: { hitChanceBps: 10_000, critChanceBps: 0 } });
+  const expectedRef = {
+    kind: 'skill-execution',
+    definitionId: result.input.skill.definitionId,
+    instanceId: result.command.commandId,
+  };
+  assert.equal(result.resolution.outcome.actorId, result.input.caster.id);
+  assert.equal(result.resolution.outcome.sourceId, result.command.commandId);
+  assert.deepEqual(result.resolution.outcome.sourceRef, expectedRef);
+  const applied = result.outbox.find(event => event.type === 'StatusApplied');
+  assert.equal(applied.payload.status.actorId, result.input.caster.id);
+  assert.equal(applied.payload.status.sourceId, result.command.commandId);
+  assert.deepEqual(applied.payload.status.sourceRef, expectedRef);
+  const periodic = result.outbox.find(event => event.type === 'DamageCommitted' && event.payload.periodic);
+  assert.equal(periodic.payload.actorId, result.input.caster.id);
+  assert.equal(periodic.payload.sourceId, result.command.commandId);
+  assert.deepEqual(periodic.payload.sourceRef, expectedRef);
+});
+
+test('lethal impact emits one EntityDefeated event and does not apply Burn', () => {
+  const result = G.runFireballScenario({
+    target: { hp: 1, maxHp: 1, shield: 0 },
+    skill: { hitChanceBps: 10_000, critChanceBps: 0 },
+  });
+  const defeated = result.outbox.filter(event => event.type === 'EntityDefeated');
+  assert.equal(defeated.length, 1);
+  assert.equal(defeated[0].payload.periodic, false);
+  assert.equal(defeated[0].payload.sourceId, result.command.commandId);
+  assert.equal(result.outbox.some(event => event.type === 'StatusApplied'), false);
+});
+
+test('lethal Burn tick emits EntityDefeated after the committed tick damage', () => {
+  const result = G.runFireballScenario({
+    target: { hp: 4, maxHp: 4, shield: 0, fireResistanceBps: 9_900 },
+    skill: { hitChanceBps: 10_000, critChanceBps: 0 },
+    burn: { ratioBps: 10_000 },
+  });
+  const defeatedIndex = result.outbox.findIndex(event => event.type === 'EntityDefeated');
+  assert.ok(defeatedIndex >= 0);
+  assert.equal(result.outbox[defeatedIndex].payload.periodic, true);
+  assert.equal(result.outbox[defeatedIndex - 1].type, 'StatusTicked');
+  assert.equal(result.outbox[defeatedIndex - 2].type, 'DamageCommitted');
+  assert.equal(result.finalState.entities[result.input.target.id].resources.hp, 0);
+});
+
+test('per-instance catch-up limits do not starve other due status instances', () => {
+  const input = G.normalizeScenarioInput({ target: { shield: 0 } });
+  const state = JSON.parse(JSON.stringify(G.createInitialState(input)));
+  const sourceRef = { kind: 'skill-execution', definitionId: 'skill.fireball', instanceId: 'command.test.cast.0001' };
+  const makeStatus = (instanceId, maxCatchUpTicks) => ({
+    instanceId,
+    definitionId: 'status.burn',
+    actorId: input.caster.id,
+    sourceId: sourceRef.instanceId,
+    sourceRef,
+    targetId: input.target.id,
+    correlationId: 'correlation.test.cast.0001',
+    causationId: 'event.test.damage.0001',
+    dataVersion: input.dataVersion,
+    appliedTick: input.tick,
+    nextTickAt: input.tick + 1,
+    expireTick: input.tick + 4,
+    intervalTicks: 1,
+    rawTickDamage: 1,
+    maxCatchUpTicks,
+  });
+  state.entities[input.target.id].statuses = {
+    'status-instance.a': makeStatus('status-instance.a', 1),
+    'status-instance.b': makeStatus('status-instance.b', 2),
+  };
+  const store = new G.StateStore(state);
+  const result = G.advanceStatuses(store, input.tick + 4);
+  const ticks = store.outbox.filter(event => event.type === 'StatusTicked');
+  assert.equal(result.catchUpLimited, true);
+  assert.equal(result.tickCount, 3);
+  assert.equal(ticks.filter(event => event.payload.statusInstanceId === 'status-instance.a').length, 1);
+  assert.equal(ticks.filter(event => event.payload.statusInstanceId === 'status-instance.b').length, 2);
+  assert.equal(Object.keys(store.exportState().entities[input.target.id].statuses).length, 0);
+});
+
+test('hit and critical chances reject values above 10,000 BPS', () => {
+  assert.equal(errorCode(() => G.normalizeScenarioInput({ skill: { hitChanceBps: 10_001 } })), 'INTEGER_OUT_OF_RANGE');
+  assert.equal(errorCode(() => G.normalizeScenarioInput({ skill: { critChanceBps: 10_001 } })), 'INTEGER_OUT_OF_RANGE');
+  assert.doesNotThrow(() => G.normalizeScenarioInput({ skill: { hitChanceBps: 10_000, critChanceBps: 10_000 } }));
+});
+
+test('SourceRef keeps dot-separated IDs canonical and rejects colon-separated IDs', () => {
+  assert.deepEqual(G.createSourceRef({
+    kind: 'skill-execution',
+    definitionId: 'skill.fireball',
+    instanceId: 'command.fireball.cast.0001',
+  }), {
+    kind: 'skill-execution',
+    definitionId: 'skill.fireball',
+    instanceId: 'command.fireball.cast.0001',
+  });
+  assert.equal(errorCode(() => G.createSourceRef({
+    kind: 'skill-execution',
+    definitionId: 'skill:fireball',
+    instanceId: 'command.fireball.cast.0001',
+  })), 'INVALID_ID');
+  assert.equal(errorCode(() => G.createSourceRef({
+    kind: 'skill-execution',
+    definitionId: 'skill.fireball',
+    instanceId: 'command.fireball.cast.0001',
+    debugLabel: 'unsupported',
+  })), 'INVALID_SOURCE_REF');
+});
+
+test('dead targets are rejected before mana, cooldown, or events can commit', () => {
+  const input = G.normalizeScenarioInput({ target: { hp: 0, shield: 0 } });
+  const store = new G.StateStore(G.createInitialState(input));
+  const command = G.createFireballCommand(input);
+  const snapshot = store.snapshot([input.caster.id, input.target.id]);
+  const before = G.canonicalStringify(store.exportState());
+  assert.throws(() => G.resolveFireball({ snapshot, command, input, rng: new G.KeyedRandom(input.rootSeed) }), error => error.code === 'TARGET_NOT_ALIVE');
+  const caster = store.getEntity(input.caster.id);
+  assert.equal(caster.resources.mana, input.caster.mana);
+  assert.deepEqual(caster.cooldowns, {});
+  assert.equal(store.outbox.length, 0);
+  assert.equal(G.canonicalStringify(store.exportState()), before);
+});
+
+test('zero and sub-interval durations expire exactly once without a tick', () => {
+  for (const durationTicks of [0, 1]) {
+    const result = G.runFireballScenario({
+      skill: { hitChanceBps: 10_000, critChanceBps: 0 },
+      burn: { durationTicks, intervalTicks: 2 },
+    });
+    const expirations = result.outbox.filter(event => event.type === 'StatusExpired');
+    assert.equal(result.outbox.some(event => event.type === 'StatusTicked'), false, `duration=${durationTicks}`);
+    assert.equal(expirations.length, 1, `duration=${durationTicks}`);
+    assert.equal(expirations[0].occurredTick, result.input.tick + durationTicks);
+    assert.equal(expirations[0].payload.scheduledExpireTick, result.input.tick + durationTicks);
+    assert.equal(expirations[0].payload.endedTick, result.input.tick + durationTicks);
+    assert.equal(expirations[0].payload.reason, 'duration-expired');
+    assert.equal(Object.keys(result.finalState.entities[result.input.target.id].statuses).length, 0);
+  }
+});
+
+test('mixed status ticks and no-tick expiries stay chronological and deterministic', () => {
+  const input = G.normalizeScenarioInput({ target: { shield: 0, fireResistanceBps: 0 } });
+  const sourceRef = { kind: 'skill-execution', definitionId: 'skill.fireball', instanceId: 'command.test.cast.0002' };
+  const makeStatus = ({ instanceId, nextTickAt, expireTick }) => ({
+    instanceId,
+    definitionId: 'status.burn',
+    actorId: input.caster.id,
+    sourceId: sourceRef.instanceId,
+    sourceRef,
+    targetId: input.target.id,
+    correlationId: 'correlation.test.cast.0002',
+    causationId: 'event.test.damage.0002',
+    dataVersion: input.dataVersion,
+    appliedTick: input.tick,
+    nextTickAt,
+    expireTick,
+    intervalTicks: 10,
+    rawTickDamage: 1,
+    maxCatchUpTicks: 8,
+  });
+  const createStore = () => {
+    const state = JSON.parse(JSON.stringify(G.createInitialState(input)));
+    state.entities[input.target.id].statuses = {
+      'status-instance.late-expiry': makeStatus({ instanceId: 'status-instance.late-expiry', nextTickAt: input.tick + 10, expireTick: input.tick + 3 }),
+      'status-instance.early-expiry': makeStatus({ instanceId: 'status-instance.early-expiry', nextTickAt: input.tick + 10, expireTick: input.tick + 1 }),
+      'status-instance.tick-at-expiry': makeStatus({ instanceId: 'status-instance.tick-at-expiry', nextTickAt: input.tick + 2, expireTick: input.tick + 2 }),
+    };
+    return new G.StateStore(state);
+  };
+  const first = createStore();
+  const second = createStore();
+  G.advanceStatuses(first, input.tick + 3);
+  G.advanceStatuses(second, input.tick + 3);
+  assert.deepEqual(first.outbox.map(event => event.type), ['StatusExpired', 'DamageCommitted', 'StatusTicked', 'StatusExpired', 'StatusExpired']);
+  assert.deepEqual(first.outbox.map(event => event.occurredTick - input.tick), [1, 2, 2, 2, 3]);
+  assert.ok(first.outbox.every((event, index, events) => index === 0 || events[index - 1].occurredTick <= event.occurredTick));
+  assert.equal(G.canonicalStringify(first.outbox), G.canonicalStringify(second.outbox));
+  assert.equal(Object.keys(first.exportState().entities[input.target.id].statuses).length, 0);
+});
+
+test('a lethal periodic status expires other statuses without extra damage or tick events', () => {
+  const input = G.normalizeScenarioInput({ target: { hp: 5, shield: 0, fireResistanceBps: 0 } });
+  const state = JSON.parse(JSON.stringify(G.createInitialState(input)));
+  const sourceRef = { kind: 'skill-execution', definitionId: 'skill.fireball', instanceId: 'command.test.cast.0003' };
+  const makeStatus = (instanceId, rawTickDamage) => ({
+    instanceId,
+    definitionId: 'status.burn',
+    actorId: input.caster.id,
+    sourceId: sourceRef.instanceId,
+    sourceRef,
+    targetId: input.target.id,
+    correlationId: 'correlation.test.cast.0003',
+    causationId: 'event.test.damage.0003',
+    dataVersion: input.dataVersion,
+    appliedTick: input.tick,
+    nextTickAt: input.tick + 1,
+    expireTick: input.tick + 6,
+    intervalTicks: 1,
+    rawTickDamage,
+    maxCatchUpTicks: 8,
+  });
+  state.entities[input.target.id].statuses = {
+    'status-instance.a-lethal': makeStatus('status-instance.a-lethal', 10),
+    'status-instance.b-pending': makeStatus('status-instance.b-pending', 2),
+  };
+  const store = new G.StateStore(state);
+  G.advanceStatuses(store, input.tick + 6);
+  assert.equal(store.outbox.filter(event => event.type === 'DamageCommitted').length, 1);
+  assert.equal(store.outbox.filter(event => event.type === 'StatusTicked').length, 1);
+  assert.equal(store.outbox.filter(event => event.type === 'EntityDefeated').length, 1);
+  const expirations = store.outbox.filter(event => event.type === 'StatusExpired');
+  assert.equal(expirations.length, 2);
+  for (const event of expirations) {
+    assert.equal(event.payload.reason, 'target-defeated');
+    assert.equal(event.payload.scheduledExpireTick, input.tick + 6);
+    assert.equal(event.payload.endedTick, input.tick + 1);
+  }
+  assert.equal(store.outbox.some(event => event.type === 'StatusTicked' && event.payload.statusInstanceId === 'status-instance.b-pending'), false);
+  assert.equal(Object.keys(store.exportState().entities[input.target.id].statuses).length, 0);
+});
+
+test('damage conservation covers impact and every periodic DamageCommitted event', () => {
+  const result = G.runFireballScenario({ skill: { hitChanceBps: 10_000, critChanceBps: 0 } });
+  const damageEvents = result.outbox.filter(event => event.type === 'DamageCommitted');
+  assert.equal(damageEvents.length, 4);
+  for (const event of damageEvents) {
+    assert.equal(event.payload.resolvedDamage, event.payload.shieldAbsorbed + event.payload.hpDamage + event.payload.overkill);
+  }
+  assert.equal(result.invariants.damageConservation, true);
+  assert.equal(result.invariants.conservationGap, 0);
+});
+
 (async () => {
   let passed = 0;
   const started = Date.now();

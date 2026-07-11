@@ -13,7 +13,7 @@ digraph G {
   pipe [label="DamagePipeline\nhit → critical → formula → defense → resistance → shield", fillcolor="#ffffff"];
   result [label="DamageResult\nfinalHpDamage · shieldAbsorbed · debugTrace", fillcolor="#eefbf6", color="#5ac39b"];
   resource [label="ResourceController\napply HP loss by project policy", fillcolor="#fff1f2", color="#e07b91"];
-  event [label="EventBus\nOnDamageResolved / OnDamageDealt", fillcolor="#f8fafc"];
+  event [label="EventBus after commit\nDamageCommitted / EntityDefeated", fillcolor="#f8fafc"];
   trace [label="DebugTrace\nappend calculation breakdown", fillcolor="#f8fafc"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];
 

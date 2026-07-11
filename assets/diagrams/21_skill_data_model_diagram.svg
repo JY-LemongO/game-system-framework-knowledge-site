@@ -17,7 +17,7 @@
 <g id="clust2" class="cluster">
 <title>cluster_runtime</title>
 <path fill="#ffffff" stroke="#dfe5ee" stroke-dasharray="5,2" d="M20,-473C20,-473 645,-473 645,-473 651,-473 657,-479 657,-485 657,-485 657,-540 657,-540 657,-546 651,-552 645,-552 645,-552 20,-552 20,-552 14,-552 8,-546 8,-540 8,-540 8,-485 8,-485 8,-479 14,-473 20,-473"/>
-<text text-anchor="middle" x="332.5" y="-533.6" font-family="Noto Sans CJK KR" font-size="18.00" fill="#607086">Runtime State: 저장/로드와 현재 전투 상태</text>
+<text text-anchor="middle" x="332.5" y="-533.6" font-family="Noto Sans CJK KR" font-size="18.00" fill="#607086">Availability State + Transient Execution</text>
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_log</title>
@@ -133,7 +133,7 @@
 <g id="node9" class="node">
 <title>CastState</title>
 <path fill="#eaf0ff" stroke="#8292f7" stroke-width="1.4" d="M645,-524C645,-524 497,-524 497,-524 491,-524 485,-518 485,-512 485,-512 485,-494 485,-494 485,-488 491,-482 497,-482 497,-482 645,-482 645,-482 651,-482 657,-488 657,-494 657,-494 657,-512 657,-512 657,-518 651,-524 645,-524"/>
-<text text-anchor="middle" x="571" y="-506.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">CurrentCastState</text>
+<text text-anchor="middle" x="571" y="-506.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">SkillExecution</text>
 <text text-anchor="middle" x="571" y="-491.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">phase, elapsed, marker</text>
 </g>
 <!-- SkillRuntime&#45;&gt;CastState -->
@@ -141,7 +141,7 @@
 <title>SkillRuntime&#45;&gt;CastState</title>
 <path fill="none" stroke="#59687e" stroke-width="1.3" d="M356.06,-503C356.06,-503 477,-503 477,-503"/>
 <polygon fill="#59687e" stroke="#59687e" stroke-width="1.3" points="477,-505.8 485,-503 477,-500.2 477,-505.8"/>
-<text text-anchor="middle" x="420.5" y="-512.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#46566e">current cast</text>
+<text text-anchor="middle" x="420.5" y="-512.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#46566e">separate axis</text>
 </g>
 <!-- SkillRequest -->
 <g id="node10" class="node">
@@ -169,7 +169,7 @@
 <title>SkillRequest&#45;&gt;SkillResult</title>
 <path fill="none" stroke="#59687e" stroke-width="1.3" d="M356.06,-38C356.06,-38 487.8,-38 487.8,-38"/>
 <polygon fill="#59687e" stroke="#59687e" stroke-width="1.3" points="487.8,-40.8 495.8,-38 487.8,-35.2 487.8,-40.8"/>
-<text text-anchor="middle" x="420.5" y="-47.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#46566e">executes</text>
+<text text-anchor="middle" x="420.5" y="-47.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#46566e">produces</text>
 </g>
 <!-- SkillTrace -->
 <g id="node12" class="node">

@@ -1,96 +1,46 @@
-# Game System Framework · Phase 3 Runtime Reference
+# Game System Framework · System Atlas
 
-이 패키지는 기존 **System Atlas UX/UI 개편본** 위에 Phase 3 핵심 계약을 실행 가능한 reference kernel로 추가한 오프라인 지식 사이트다. 최상위 `index.html`을 열면 빌드나 서버 없이 문서를 볼 수 있고, `Runtime Reference` 페이지에서 Fireball replay와 실패 probe를 직접 실행할 수 있다.
+게임 시스템 아키텍처를 순서대로 학습하는 오프라인 지식 사이트다. 최상위 `index.html`을 열면 별도 서버나 빌드 없이 Core Runtime, Stat, Effect, Skill, Combat, Status의 책임과 연결 관계를 읽을 수 있다.
 
-## 배포 및 브랜치 운영
+## 공개 학습 구성
 
-- 운영 사이트: <https://jy-lemongo.github.io/GameSystemKnowledge/>
-- QA 프리뷰: <https://jy-lemongo.github.io/GameSystemKnowledge/preview/>
-- **main**: 운영·릴리스 브랜치
-- **dev**: 통합·QA 브랜치
+공개 사이트는 학습에 직접 필요한 12개 페이지만 제공한다.
 
-`dev`에 변경 사항을 푸시하면 QA 프리뷰가 갱신됩니다. 확인이 끝난 변경은 Pull Request로 `dev`에서 `main`으로 머지하며, 머지 후 운영 사이트가 자동으로 갱신됩니다.
+1. `index.html` — 전체 학습 경로와 아키텍처 관점
+2. `modules/core-runtime.html` — 공통 식별자와 런타임 계약
+3. `modules/stat-system.html` — 스탯, Modifier, 리소스 계산
+4. `modules/effect-system.html` — 대상 선택과 결과 요청
+5. `modules/skill-action-system.html` — 비용, 쿨다운, 타겟팅, 타임라인
+6. `modules/combat-resolution-system.html` — 피해 계산과 commit 경계
+7. `modules/status-system.html` — 지속시간, 중첩, tick, 정화, 면역
+8. `modules/integration-map.html` — 시스템 의존성과 handoff 계약
+9. `modules/fireball-case-study.html` — 전체 흐름을 잇는 수직 사례
+10. `modules/runtime-reference.html` — 실행 결과를 직접 관찰하는 Runtime Contract Lab
+11. `modules/diagram-gallery.html` — UML 다이어그램 레퍼런스
+12. `modules/glossary.html` — 용어와 UML 기초 문법
 
-## 바로 시작하기
+구현 로드맵, 릴리스 현황, 품질 감사 결과, 앞으로의 기능 계획은 공개 학습 페이지와 검색 색인에 포함하지 않는다.
 
-1. `index.html` — 전체 시스템과 세 가지 Architecture Lens
-2. `modules/phase3-readiness.html` — 구현 전 audit baseline과 Release 3.2 상태
-3. `modules/runtime-reference.html` — 실행 가능한 커널, Workbench, Cache/Migration Lab
-4. `source/runtime/README.md` — kernel API와 Node 실행 방법
-5. `PHASE3_REFERENCE_IMPLEMENTATION.md` — 구현 상세와 설계 판단
-6. `PHASE3_IMPLEMENTATION_PLAN.md` — 남은 생산 구현 계획
-7. `QA_REPORT.md` — 최종 자동 검증 결과
+## 로컬에서 보기
 
-## Release 3.2에서 구현한 범위
-
-- **P3-A Contract Types**: Command/Event envelope, namespaced identity, correlation/causation, version envelope
-- **P3-B Commit Pipeline**: 순수한 resolve, optimistic version precondition, idempotent command, all-or-nothing commit, post-commit outbox
-- **P3-C Reaction Queue**: priority/stable key 정렬, idempotency, depth/reaction/budget 상한
-- **P3-D Runtime Hardening**: 정수 BPS 산술, keyed RNG, Burn tick-before-expire, catch-up cap, ContextualStatCache, 순차 N−2 migration
-- **P3-E Reference Slice**: 단일 대상 Fireball golden replay, trace/replay hash, 21개 회귀 테스트
-
-기본 fixture의 결과는 다음과 같다.
-
-```text
-Critical hit
-Raw damage       252
-Resolved damage  202
-Shield absorbed   40
-Impact HP damage 162
-Burn              19 × 3
-Final target HP  281
-Replay hash       62b74418205d61ea
-Trace hash        a41533f05cc6dc53
-```
-
-## 실행과 검증
-
-Node.js 20 이상이 있으면 패키지 루트에서 다음 명령을 실행한다.
+`index.html`을 브라우저에서 직접 열 수 있다. Runtime Contract Lab까지 같은 조건으로 확인하려면 저장소 루트에서 정적 서버를 실행한다.
 
 ```bash
-npm test                 # 21개 runtime 회귀 테스트
-npm run demo             # 기본 Fireball 결과 출력
-npm run migration-demo   # save v1 → v2 → v3 변환 출력
-npm run validate         # 링크·ID·asset·contract 정적 무결성 검사
-npm run smoke            # Chromium 데스크톱/모바일 및 인터랙션 검사
-npm run qa               # 위 검사를 순서대로 모두 실행
+npm run serve
 ```
 
-최종 판본의 자동 검사 결과는 다음과 같다.
+## 학습 자료와 저장소 문서의 경계
 
-- Runtime tests: **21/21**
-- HTML pages: **16**
-- Search entries: **325**
-- Diagrams: **34 DOT + 34 SVG + 34 PNG**
-- JSON contract schemas: **4**
-- Architecture decision records: **5**
-- Browser smoke checks: **109/109**
-- Static validation errors/warnings: **0/0**
+- 공개 HTML은 현재 설명하는 개념, 계약, 예제, 실습만 담는다.
+- `source/runtime/`은 Runtime Contract Lab이 사용하는 실행 커널, fixture, 계약 스키마를 보관한다.
+- `source/diagrams/`와 `assets/diagrams/`는 학습 다이어그램의 원본과 출력물을 보관한다.
+- `QA_REPORT.md`, `PHASE3_REFERENCE_IMPLEMENTATION.md`, `PHASE3_IMPLEMENTATION_PLAN.md` 같은 문서는 저장소 내부 검증·계획 기록이며 공개 내비게이션에는 연결하지 않는다.
 
-## 주요 디렉터리
+## 유지보수 검증
 
-```text
-assets/
-  css/site.css                 전체 UX/UI와 Runtime Lab 스타일
-  js/app.js                    탐색·검색·다이어그램·Runtime Lab UI
-  js/runtime-kernel.js         브라우저용 공유 커널
-modules/
-  runtime-reference.html       실행 가능한 Phase 3 문서
-source/
-  runtime/runtime-kernel.js    Node/브라우저 공유 커널 원본
-  runtime/runtime-kernel.d.ts  TypeScript 선언
-  runtime/tests/               21개 회귀 테스트
-  runtime/fixtures/            golden replay와 migration sample
-  contracts/                   JSON Schema 4종
-  adr/                         설계 결정 기록 5종
-  tools/                       검색 인덱스·정적 검사·브라우저 검사·미리보기
-PREVIEW/                       최종 UI 캡처
+```bash
+npm run python:deps
+npm run qa
 ```
 
-`source/runtime/runtime-kernel.js`와 `assets/js/runtime-kernel.js`는 byte-identical이다. 브라우저 데모와 Node 회귀 테스트가 다른 구현을 사용해 결과가 어긋나는 문제를 피하기 위한 규칙이다.
-
-## 생산 적용 전 남은 경계
-
-현재 커널은 아키텍처 계약을 검증하기 위한 **단일 프로세스·메모리 reference implementation**이다. 실제 제품에 적용하려면 DB transaction과 durable outbox, authoritative server identity, 네트워크 retry/reconciliation, multi-target stable ordering, engine resource/animation adapter, load/fuzz test, schema rollout/rollback 운영 절차가 추가되어야 한다.
-
-초기 74/100 준비도는 구현 전 문서에 대한 audit baseline이며, 표준 인증 점수가 아니다. 현재 구현 상태와 남은 생산 작업은 `PHASE3_REFERENCE_IMPLEMENTATION.md`와 `PHASE3_IMPLEMENTATION_PLAN.md`를 기준으로 판단한다.
+`qa`는 런타임 테스트, 검색 색인 재생성, 정적 링크·계약 검증, 체크섬 manifest 확인, 데스크톱·모바일 브라우저 smoke test를 순서대로 실행한다. 파일을 변경한 뒤에는 `npm run manifest`로 `MANIFEST.sha256`을 갱신한다. 검색 색인은 `source/site-map.json`과 공개 HTML을 기준으로 생성하므로 공개 페이지를 추가하거나 제거할 때는 사이트 맵과 문서 pager를 함께 갱신한다.

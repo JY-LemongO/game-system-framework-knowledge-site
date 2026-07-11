@@ -1,4 +1,4 @@
-export const RUNTIME_VERSION: '3.2.0-reference';
+export const RUNTIME_VERSION: '3.3.0-reference';
 export const CONTRACT_SCHEMA_VERSION: 1;
 export const REPLAY_FORMAT_VERSION: 1;
 export const RNG_ALGORITHM_VERSION: string;
@@ -7,6 +7,13 @@ export const BASIS_POINTS: 10000;
 
 export type NamespacedId = `${string}.${string}`;
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+export type DeepPartial<T> = T extends object ? { [Key in keyof T]?: DeepPartial<T[Key]> } : T;
+
+export interface SourceRef {
+  readonly kind: string;
+  readonly definitionId: NamespacedId;
+  readonly instanceId: NamespacedId;
+}
 
 export interface DomainErrorJson {
   name: 'DomainError';
@@ -57,7 +64,9 @@ export interface RuntimeState { tick: number; entities: Record<NamespacedId, Run
 export interface StatusInstance {
   instanceId: NamespacedId;
   definitionId: NamespacedId;
-  sourceRef: NamespacedId;
+  actorId: NamespacedId;
+  sourceId: NamespacedId;
+  sourceRef: SourceRef;
   targetId: NamespacedId;
   correlationId: NamespacedId;
   causationId: NamespacedId;
@@ -66,7 +75,7 @@ export interface StatusInstance {
   nextTickAt: number;
   expireTick: number;
   intervalTicks: number;
-  tickDamage: number;
+  rawTickDamage: number;
   maxCatchUpTicks: number;
 }
 
@@ -82,21 +91,40 @@ export interface ScenarioInput {
   burn: { definitionId: NamespacedId; ratioBps: number; durationTicks: number; intervalTicks: number; maxCatchUpTicks: number };
   simulateStatusTicks: boolean;
 }
+export type ScenarioInputPatch = DeepPartial<ScenarioInput>;
 
 export interface DamageOutcome {
+  actorId: NamespacedId;
   sourceId: NamespacedId;
+  sourceRef: SourceRef;
   targetId: NamespacedId;
   skillDefinitionId: NamespacedId;
   damageType: 'fire';
   hit: boolean;
   critical: boolean;
   rawDamage: number;
+  resistanceBps: number;
   resolvedDamage: number;
   shieldAbsorbed: number;
   hpDamage: number;
   overkill: number;
   targetHpAfter: number;
-  burn: { definitionId: NamespacedId; tickDamage: number; durationTicks: number; intervalTicks: number; applyWhenTargetAlive: boolean };
+  burn: { definitionId: NamespacedId; rawTickDamage: number; durationTicks: number; intervalTicks: number; applyWhenTargetAlive: boolean };
+}
+
+export interface CommittedDamageOutcome {
+  actorId: NamespacedId;
+  sourceId: NamespacedId;
+  sourceRef: SourceRef;
+  targetId: NamespacedId;
+  damageType: string;
+  rawDamage: number;
+  resistanceBps: number;
+  resolvedDamage: number;
+  shieldAbsorbed: number;
+  hpDamage: number;
+  overkill: number;
+  targetHpAfter: number;
 }
 
 export class KeyedRandom {
@@ -154,16 +182,22 @@ export function canonicalStringify(value: JsonValue): string;
 export function hashHex(value: JsonValue | string): string;
 export function hash32(...parts: JsonValue[]): number;
 export function multiplyBps(value: number, basisPoints: number): number;
+export function createSourceRef(value: SourceRef): Readonly<SourceRef>;
 export function createContextFingerprint(context?: Record<string, JsonValue>, dependencies?: string[]): Readonly<Record<string, JsonValue>>;
 export function createCommandEnvelope<T extends JsonValue>(value: Omit<CommandEnvelope<T>, 'schemaVersion'> & { schemaVersion?: number }): Readonly<CommandEnvelope<T>>;
 export function createDomainEventEnvelope<T extends JsonValue>(value: Omit<DomainEventEnvelope<T>, 'schemaVersion'> & { schemaVersion?: number }): Readonly<DomainEventEnvelope<T>>;
 export function defaultScenarioInput(): ScenarioInput;
-export function normalizeScenarioInput(input?: Partial<ScenarioInput>): Readonly<ScenarioInput>;
+export function normalizeScenarioInput(input?: ScenarioInputPatch): Readonly<ScenarioInput>;
 export function createInitialState(input: ScenarioInput): Readonly<RuntimeState>;
 export function createFireballCommand(input: ScenarioInput): Readonly<CommandEnvelope>;
+export function resolveDamageAgainstTarget(args: { actorId: NamespacedId; sourceId: NamespacedId; sourceRef: SourceRef; target: RuntimeEntity; damageType: string; rawDamage: number }): Readonly<CommittedDamageOutcome>;
 export function resolveFireball(args: { snapshot: JsonValue; command: CommandEnvelope; input: ScenarioInput; rng: KeyedRandom; trace?: TraceRecorder | null }): Readonly<{ decisions: JsonValue; outcome: DamageOutcome; plan: JsonValue }>;
-export function runFireballScenario(input?: Partial<ScenarioInput>): Readonly<Record<string, any>>;
-export function verifyReplay(input?: Partial<ScenarioInput>): Readonly<{ match: boolean; traceMatch: boolean; finalStateMatch: boolean; first: any; second: any }>;
-export function demonstrateDuplicateCommand(input?: Partial<ScenarioInput>): Readonly<Record<string, any>>;
-export function demonstrateVersionConflict(input?: Partial<ScenarioInput>): Readonly<Record<string, any>>;
-export function demonstrateAtomicRollback(input?: Partial<ScenarioInput>): Readonly<Record<string, any>>;
+export function enqueueReactions(events: ReadonlyArray<DomainEventEnvelope>, input: ScenarioInput, queue: ReactionQueue, trace?: TraceRecorder | null): void;
+export function applyStatusReaction(store: StateStore, reaction: Readonly<Required<Reaction>>, trace?: TraceRecorder | null): Readonly<Record<string, any>>;
+export function advanceStatuses(store: StateStore, targetTick: number, trace?: TraceRecorder | null): Readonly<{ targetTick: number; commits: ReadonlyArray<Record<string, JsonValue>>; tickCount: number; catchUpLimited: boolean }>;
+export function executeImpact(input: ScenarioInput, trace?: TraceRecorder | null): { store: StateStore; command: Readonly<CommandEnvelope>; resolution: Readonly<{ decisions: JsonValue; outcome: DamageOutcome; plan: JsonValue }>; commit: Readonly<Record<string, any>> };
+export function runFireballScenario(input?: ScenarioInputPatch): Readonly<Record<string, any>>;
+export function verifyReplay(input?: ScenarioInputPatch): Readonly<{ match: boolean; traceMatch: boolean; finalStateMatch: boolean; first: any; second: any }>;
+export function demonstrateDuplicateCommand(input?: ScenarioInputPatch): Readonly<Record<string, any>>;
+export function demonstrateVersionConflict(input?: ScenarioInputPatch): Readonly<Record<string, any>>;
+export function demonstrateAtomicRollback(input?: ScenarioInputPatch): Readonly<Record<string, any>>;

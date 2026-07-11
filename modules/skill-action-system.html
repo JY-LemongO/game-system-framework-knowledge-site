@@ -42,18 +42,10 @@
 </span>
 </a>
 <nav aria-label="주요 탐색" class="top-nav">
-<a href="../index.html">
-      Atlas
-     </a>
-<a href="../modules/integration-map.html">
-      Architecture
-     </a>
-<a href="../modules/fireball-case-study.html">
-      Case study
-     </a>
-<a data-runtime-nav="" href="../modules/runtime-reference.html">Runtime</a><a href="../modules/implementation-roadmap.html">
-      Build plan
-     </a>
+<a href="../index.html">Atlas</a>
+<a href="../modules/integration-map.html">Architecture</a>
+<a href="../modules/fireball-case-study.html">Case study</a>
+<a data-runtime-nav="" href="../modules/runtime-reference.html">Runtime lab</a>
 </nav>
 <div class="top-actions">
 <button aria-haspopup="dialog" class="command-trigger" data-search-open="" type="button">
@@ -244,6 +236,10 @@
        </span>
 </div>
 </section>
+<div aria-label="학습 안내" class="grid cols2 learning-brief">
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>비용·쿨다운·타겟팅·타임라인을 조율하되 피해 계산과 상태 유지를 소유하지 않는 Skill 경계를 설계한다.</p></article>
+<article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>EffectBundle과 EffectContext, Entity·Source 식별 규칙을 먼저 읽는다.</p></article>
+</div>
 <h2 id="skill-system의-책임-경계">
       Skill System의 책임 경계
      </h2>
@@ -270,7 +266,7 @@
 </tr>
 <tr>
 <td>
-         마나, 스태미나, 탄약 같은 비용 검증과 지불 시점
+         마나, 스태미나, 탄약 같은 비용 검증과 예약·확정 시점
         </td>
 <td>
          스탯 최종값 계산 파이프라인
@@ -316,7 +312,7 @@
 <div class="split">
 <div>
 <p>
-        Skill은 “사용할 수 있는 행동”이고 Effect는 “적용되는 결과”다. Fireball 스킬은 비용, 쿨다운, 사거리, 시전 시간, 판정 타이밍을 가진다. Fireball의 DamageEffect와 ApplyStatusEffect(effect_apply_burn)는 실제 대상에게 피해와 상태를 적용한다.
+        Skill은 “사용할 수 있는 행동”이고 Effect는 “적용되는 결과”다. 이 예제의 Fireball은 비용, 쿨다운, 단일 대상, release marker를 가지며 다른 스킬은 시전·차지·채널링 타임라인을 가질 수 있다. Fireball의 DamageEffect와 ApplyStatusEffect(effect.apply-burn)는 실제 대상에게 피해와 상태를 요청한다.
        </p>
 <div class="callout warn">
 <strong>
@@ -508,9 +504,6 @@
 <a class="small" href="../assets/diagrams/19_skill_execution_sequence_diagram.svg" target="_blank">
          SVG
         </a>
-<a class="small" href="../assets/diagrams/19_skill_execution_sequence_diagram.png" target="_blank">
-         PNG
-        </a>
 </div>
 </div>
 <img alt="Skill 실행 시퀀스" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/19_skill_execution_sequence_diagram.svg"/>
@@ -541,7 +534,7 @@
        release marker에 도달하면 EffectContext를 만들고 EffectBundle 실행을 요청한다.
       </li>
 <li>
-       SkillResult를 만들고 OnSkillUsed, OnSkillFailed, OnSkillInterrupted 같은 이벤트를 발행한다.
+       SkillResult를 만든다. 상태 commit이 성공하면 SkillCommitted를 발행하고, 검증 실패는 SkillResult와 trace로 반환한다. 중단이 실제 실행 상태를 바꿨다면 SkillInterrupted를 commit 이후 발행한다.
       </li>
 </ol>
 <h2 id="스킬-생명주기">
@@ -570,90 +563,90 @@
 <table class="data-table">
 <tr>
 <th>
-         상태
+         축 · 상태
         </th>
 <th>
          설명
         </th>
 <th>
-         주요 이벤트
+         전이 marker / commit event
         </th>
 </tr>
 <tr>
 <td>
-         Ready
+         Availability · Ready
         </td>
 <td>
          사용 가능한 상태다. 입력 큐나 AI 선택을 받을 수 있다.
         </td>
 <td>
-         OnSkillReady
+         AvailabilityChanged
         </td>
 </tr>
 <tr>
 <td>
-         Queued
+         Execution · Queued
         </td>
 <td>
          입력은 들어왔지만 검증 또는 선행 행동 완료를 기다린다.
         </td>
 <td>
-         OnSkillQueued
+         SkillQueued trace
         </td>
 </tr>
 <tr>
 <td>
-         Casting
+         Execution · Casting
         </td>
 <td>
          선딜 또는 시전 유지 구간이다. 캔슬과 중단 규칙이 적용된다.
         </td>
 <td>
-         OnSkillCastStart
+         CastStarted
         </td>
 </tr>
 <tr>
 <td>
-         Hit Frame
+         Execution · Hit Frame
         </td>
 <td>
          release marker에 도달해 EffectBundle을 실행한다.
         </td>
 <td>
-         OnSkillRelease
+         ReleaseMarker
         </td>
 </tr>
 <tr>
 <td>
-         Recovery
+         Execution · Recovery
         </td>
 <td>
          후딜 구간이다. 일부 게임에서는 이동/다음 행동 캔슬을 허용한다.
         </td>
 <td>
-         OnSkillRecovery
+         RecoveryStarted
         </td>
 </tr>
 <tr>
 <td>
-         Cooldown
+         Availability · Cooldown
         </td>
 <td>
          스킬을 다시 사용할 수 없는 상태다. charge 회복도 이 구간에서 진행된다.
         </td>
 <td>
-         OnSkillCooldownStart
+         CooldownCommitted
         </td>
 </tr>
 <tr>
 <td>
-         Interrupted
+         Execution · Interrupted
         </td>
 <td>
          기절, 침묵, 피격 등으로 중단된 상태다. 환불과 실패 쿨다운 정책을 적용한다.
         </td>
 <td>
-         OnSkillInterrupted
+         SkillInterrupted
         </td>
 </tr>
 </table>
@@ -662,7 +655,7 @@
       SkillRuntime과 SkillExecution 분리
      </h2>
 <p>
-      SkillRuntime은 배운 레벨, charge, cooldown처럼 오래 사는 상태를 보관하고, SkillExecution은 cast 한 번의 임시 상태를 보관한다. 둘을 합치면 동시 시전, 채널링, 취소, 서버 예측, 투사체가 남아 있는 상황을 안전하게 표현하기 어렵다.
+      SkillRuntime은 배운 레벨, charge, cooldown처럼 오래 사는 availability 상태를 보관하고, SkillExecution은 cast 한 번의 임시 실행 상태를 보관한다. 둘을 합치면 동시 시전, 채널링, 취소, 서버 예측, 투사체가 남아 있는 상황을 안전하게 표현하기 어렵다. Ready/Cooldown과 Casting/Release/Recovery는 서로 다른 상태 축이며 구현에서는 별도 상태 머신으로 둔다.
      </p>
 <div class="callout">
 <b>
@@ -674,7 +667,7 @@
       비용 정책
      </h2>
 <p>
-      비용은 단순히 “사용 시 마나 감소”가 아니다. 시전형 스킬은 중단 가능성이 있으므로 지불 시점과 환불 정책을 명확히 해야 한다.
+      비용은 단순히 “사용 시 마나 감소”가 아니다. 시전형 스킬은 중단 가능성이 있으므로 지불 시점과 환불 정책을 명확히 해야 한다. Skill CostPolicy가 예약·확정 규칙을 소유하고, 실제 current resource 변경은 ResourceController가 atomic commit 안에서 수행한다. ModifyResourceEffect는 스킬 자체 비용이 아니라 회복·흡수 같은 게임 결과에 사용한다.
      </p>
 <div class="table-scroll">
 <table class="data-table">
@@ -920,7 +913,7 @@
       EffectBundle 실행 정책
      </h2>
 <p>
-      하나의 스킬은 여러 Effect를 묶는다. 예를 들어 Fireball은 DamageEffect와 ApplyStatusEffect(effect_apply_burn)를 순서대로 실행한다. 이때 일부 Effect 실패를 허용할지, 전체 롤백할지를 명확히 해야 한다.
+      하나의 스킬은 여러 Effect를 묶는다. 예를 들어 Fireball은 DamageEffect를 commit한 뒤 DamageCommitted reaction으로 ApplyStatusEffect(effect.apply-burn)를 요청한다. 가역 operation의 atomic 범위와 commit 이후 reaction 실패 정책을 명확히 해야 한다.
      </p>
 <div class="table-scroll">
 <table class="data-table">
@@ -1004,9 +997,6 @@
 <a class="small" href="../assets/diagrams/21_skill_data_model_diagram.svg" target="_blank">
          SVG
         </a>
-<a class="small" href="../assets/diagrams/21_skill_data_model_diagram.png" target="_blank">
-         PNG
-        </a>
 </div>
 </div>
 <img alt="Skill 데이터 모델" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/21_skill_data_model_diagram.svg"/>
@@ -1015,38 +1005,38 @@
       </figcaption>
 </figure>
 <pre><code>{
-  "id": "skill_fireball",
+  "id": "skill.fireball",
   "displayName": "Fireball",
-  "tags": ["skill", "spell", "fire", "area"],
+  "tags": ["skill", "spell", "fire", "single-target"],
   "costs": [
     {
       "resource": "mana",
-      "amount": 25,
-      "payTiming": "on_cast_start",
+      "amount": 20,
+      "payTiming": "reserve_then_commit",
       "refundPolicy": "refund_on_interrupt_before_hit"
     }
   ],
   "cooldown": {
-    "duration": 6.0,
-    "group": "spell_basic",
-    "startsAt": "on_cast_complete"
+    "durationTicks": 60,
+    "group": "cooldown.spell-basic",
+    "startsAt": "on_commit"
   },
   "targeting": {
-    "type": "ground_position",
-    "range": 18.0,
-    "requiresLineOfSight": true
+    "type": "single_entity",
+    "requiresTargetAlive": true
   },
   "timeline": {
-    "castTime": 0.7,
+    "clockDomain": "simulation_tick",
     "phases": [
-      { "name": "windup", "from": 0.0, "to": 0.5, "canCancel": true },
-      { "name": "release", "at": 0.7, "markers": ["execute_effect_bundle"] },
-      { "name": "recovery", "from": 0.7, "to": 1.0, "canCancel": false }
+      { "name": "release", "offsetTicks": 0, "markers": ["commit_cost", "execute_effect_bundle"] }
     ]
   },
   "effectBundle": {
-    "policy": "ordered_partial",
-    "effects": ["effect_fireball_damage", "effect_apply_burn"]
+    "policy": "commit_then_react",
+    "effects": ["effect.fireball-damage"],
+    "reactions": [
+      { "on": "DamageCommitted", "when": "hit &amp;&amp; targetAlive", "effect": "effect.apply-burn" }
+    ]
   }
 }</code></pre>
 <h2 id="fireball-실행-예시">
@@ -1058,7 +1048,7 @@
         1. SkillRequest
        </h3>
 <p>
-        플레이어가 지면 위치를 지정한다. 요청에는 caster, aimPosition, inputTime, seed가 들어간다.
+        플레이어가 살아 있는 단일 대상을 지정한다. 요청에는 actorId, targetId, skillDefinitionId, requestedTick, rootSeed가 들어간다.
        </p>
 </div>
 <div class="ti">
@@ -1066,7 +1056,7 @@
         2. Validator
        </h3>
 <p>
-        마나 25 이상, 쿨다운 없음, 침묵/기절 아님, 목표 지점이 사거리 18 안이고 시야가 있는지 확인한다.
+        마나 20 이상, 쿨다운 없음, 침묵/기절 아님, 단일 대상이 살아 있는지 확인한다.
        </p>
 </div>
 <div class="ti">
@@ -1074,7 +1064,7 @@
         3. Cost &amp; Timeline
        </h3>
 <p>
-        시전 시작 시 마나를 지불하고 0.7초 후 release marker에 도달한다.
+        마나 20을 예약하고 release marker에서 비용과 EffectBundle을 한 transaction으로 commit한다.
        </p>
 </div>
 <div class="ti">
@@ -1082,7 +1072,7 @@
         4. EffectBundle
        </h3>
 <p>
-        DamageEffect가 범위 대상에게 DamageRequest를 만들고, ApplyStatusEffect(effect_apply_burn)가 남은 대상에게 Burn 상태를 요청한다.
+        DamageEffect가 단일 대상 DamageRequest를 만들고, commit 성공 뒤 ApplyStatusEffect(effect.apply-burn)가 살아 있는 대상에게 Burn 상태를 요청한다.
        </p>
 </div>
 <div class="ti">
@@ -1215,32 +1205,6 @@
        </p>
 </div>
 </div>
-<h2 id="완료-체크리스트">
-      완료 체크리스트
-     </h2>
-<ul class="checklist">
-<li>
-       SkillDefinition이 비용, 쿨다운, 타겟팅, 타임라인, EffectBundle을 모두 데이터로 표현한다.
-      </li>
-<li>
-       SkillRuntime이 Entity별 쿨다운, 차지, 시전 상태를 보관한다.
-      </li>
-<li>
-       SkillValidator가 상태 이상, 비용, 사거리, 시야, 장비 조건을 검증한다.
-      </li>
-<li>
-       ActionTimeline의 release marker에서만 EffectBundle이 실행된다.
-      </li>
-<li>
-       중단 시 비용 환불과 실패 쿨다운 정책이 정의되어 있다.
-      </li>
-<li>
-       SkillResult가 EffectResult, 실패 이유, 이벤트, 디버그 로그를 포함한다.
-      </li>
-<li>
-       Fireball 같은 예제가 Skill → Effect → Combat/Status로 끝까지 추적된다.
-      </li>
-</ul>
 <h2 id="combat-status-handoff">
       Combat / Status로 이어지는 Handoff
      </h2>
@@ -1273,7 +1237,7 @@
        →
       </b>
 <span>
-       ApplyStatusEffect(effect_apply_burn)
+       ApplyStatusEffect(effect.apply-burn)
       </span>
 <b>
        →
@@ -1306,30 +1270,36 @@
        </p>
 </a>
 </div>
+<h2 id="설계-점검">
+      설계 점검
+     </h2>
+<ul class="checklist">
+<li>
+       SkillDefinition이 비용, 쿨다운, 타겟팅, 타임라인, EffectBundle을 모두 데이터로 표현한다.
+      </li>
+<li>
+       SkillRuntime이 Entity별 쿨다운, 차지, 시전 상태를 보관한다.
+      </li>
+<li>
+       SkillValidator가 상태 이상, 비용, 사거리, 시야, 장비 조건을 검증한다.
+      </li>
+<li>
+       ActionTimeline의 release marker에서만 EffectBundle이 실행된다.
+      </li>
+<li>
+       중단 시 비용 환불과 실패 쿨다운 정책이 정의되어 있다.
+      </li>
+<li>
+       SkillResult가 EffectResult, 실패 이유, 이벤트, 디버그 로그를 포함한다.
+      </li>
+<li>
+       Fireball 같은 예제가 Skill → Effect → Combat/Status로 끝까지 추적된다.
+      </li>
+</ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/effect-system.html">
-<span>
-       ← 이전
-      </span>
-<b>
-       Effect System
-      </b>
-<small>
-       EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계
-      </small>
-</a>
-<a class="next" href="../modules/combat-resolution-system.html">
-<span>
-       다음 →
-      </span>
-<b>
-       Combat
-      </b>
-<small>
-       명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조
-      </small>
-</a>
+<a class="prev" href="../modules/effect-system.html"><span>← 이전</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a>
+<a class="next" href="../modules/combat-resolution-system.html"><span>다음 →</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -1388,8 +1358,8 @@
 <a href="#안티패턴">
        안티패턴
       </a>
-<a href="#완료-체크리스트">
-       완료 체크리스트
+<a href="#설계-점검">
+       설계 점검
       </a>
 <a href="#combat-status-handoff">
        Combat / Status로 이어지는 Handoff
@@ -1429,26 +1399,12 @@
 </a>
 </div>
 </section>
-<a class="readiness-card" href="../modules/runtime-reference.html">
-<span>Runtime reference</span>
-<b>실행 가능한 Phase 3 기준 구현</b>
-<small>21 tests · Replay · Failure probes</small>
-<i>
-      →
-     </i>
-</a>
+<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>실행 계약을 직접 검증하는 학습 실습</b><small>Replay · Failure probes · Cache · Migration</small><i>→</i></a>
 </aside>
 </div>
 <footer class="site-footer">
-<div>
-<b>
-     Game System Framework
-    </b>
-<span>Offline-first · Executable reference · Release 3.2</span>
-</div>
-<a href="../modules/quality-audit.html">
-    Quality audit
-   </a>
+<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
 <a href="../index.html">
@@ -1526,7 +1482,7 @@
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a aria-current="page" class="is-active" href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section><section class="drawer-group"><h3>Implementation</h3><div><a href="../modules/phase3-readiness.html"><span>Readiness</span><b>Phase 3 준비</b><small>설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준</small></a><a href="../modules/runtime-reference.html"><span>Executable</span><b>Runtime Reference</b><small>결정론적 Fireball, atomic commit, bounded reaction, contextual cache, schema migration의 실행 가능한 기준 구현</small></a><a href="../modules/implementation-roadmap.html"><span>Build Plan</span><b>로드맵</b><small>MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서</small></a><a href="../modules/skill-combat-next.html"><span>Next</span><b>다음 확장</b><small>다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안</small></a></div></section><section class="drawer-group"><h3>Maintenance</h3><div><a href="../modules/quality-audit.html"><span>QA</span><b>품질 점검</b><small>UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a aria-current="page" class="is-active" href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
@@ -1547,7 +1503,7 @@
       ESC
      </button>
 </header>
-<input aria-controls="command-results" autocomplete="off" class="command-input" id="command-input" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
+<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
 <div class="command-hints">
 <span>
       ↑↓ 이동
@@ -1622,8 +1578,8 @@
 <a href="#안티패턴">
       안티패턴
      </a>
-<a href="#완료-체크리스트">
-      완료 체크리스트
+<a href="#설계-점검">
+      설계 점검
      </a>
 <a href="#combat-status-handoff">
       Combat / Status로 이어지는 Handoff

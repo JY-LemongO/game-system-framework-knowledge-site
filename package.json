@@ -1,17 +1,21 @@
 {
-  "name": "gsf-phase3-runtime-reference",
-  "version": "3.2.0-reference",
+  "name": "game-system-knowledge",
+  "version": "3.3.0-reference",
   "private": true,
-  "description": "Executable Phase 3 reference kernel and offline system architecture knowledge site",
+  "description": "Offline learning site and executable lab for game system architecture",
   "scripts": {
     "test": "node source/runtime/tests/runtime-kernel.test.cjs",
     "demo": "node source/runtime/run-demo.cjs",
     "migration-demo": "node source/runtime/run-migration-demo.cjs",
-    "search-index": "python3 source/tools/build_search_index.py",
-    "validate": "python3 source/tools/validate_site.py",
-    "smoke": "python3 source/tools/browser_smoke.py",
-    "qa": "npm run test && npm run search-index && npm run validate && npm run smoke",
-    "preview": "python3 source/tools/capture_previews.py"
+    "python:deps": "python -m pip install -r requirements-dev.txt",
+    "serve": "python -m http.server 8000 --bind 127.0.0.1",
+    "search-index": "python source/tools/build_search_index.py",
+    "manifest": "python source/tools/build_manifest.py",
+    "manifest:check": "python source/tools/build_manifest.py --check",
+    "validate": "python source/tools/validate_site.py",
+    "smoke": "python source/tools/browser_smoke.py",
+    "qa": "npm run test && npm run search-index && npm run validate && npm run manifest:check && npm run smoke",
+    "preview": "python source/tools/capture_previews.py"
   },
   "engines": {
     "node": ">=20"
