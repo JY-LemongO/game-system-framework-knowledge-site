@@ -734,7 +734,7 @@ finalHpDamage = 202 - 40 = 162</code></pre>
 <pre><code>{
   "damageType": "fire",
   "hit": true,
-  "critical": false,
+  "critical": true,
   "rawDamage": 252,
   "resistanceMultiplierBps": 8000,
   "resolvedDamage": 202,
@@ -841,6 +841,16 @@ finalHpDamage = 202 - 40 = 162</code></pre>
 </tr>
 </table>
 </div>
+<section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
+<span class="section-kicker">Comprehension check</span>
+<h2 id="이해도-확인">이해도 확인</h2>
+<p class="checkpoint-intro">Combat이 계산할 판정과 실제 상태 변경의 commit 경계를 나누고, 후속 반응이 시작될 시점을 확인한다.</p>
+<ol class="checkpoint-grid">
+<li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="combat.q1"><summary>Combat이 장착 장비를 직접 조회하거나 공격력 Modifier를 등록해도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">안 된다. 장비는 StatModifier나 TriggeredEffect를 공급하고, Combat은 Stat의 최종값과 읽기 전용 Context만 사용해 피해를 판정한다.</p></div></details></li>
+<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="combat.q2"><summary>공격이 block되면 반드시 hit=false, 피해 0으로 처리해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">아니다. 장르 정책에 따라 block은 피해 감소, guard 자원 소모, 별도 성공 이벤트가 될 수 있다. 명중과 block 결과를 하나의 boolean으로 합치지 않아야 한다.</p></div></details></li>
+<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="combat.q3"><summary>DamageEffect 요청 뒤 흡혈이나 Burn 같은 후속 반응은 언제 시작할 수 있을까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Combat이 불변 DamageResult를 계산하고 상태 저장소가 Shield와 HP를 원자적으로 commit한 뒤여야 한다. commit 성공 후 DamageCommitted가 발행된 시점부터 ReactionQueue가 후속 반응을 실행한다.</p></div></details></li>
+</ol>
+</section>
 <h2 id="설계-점검">
       설계 점검
      </h2>
@@ -907,6 +917,9 @@ finalHpDamage = 202 - 40 = 162</code></pre>
       </a>
 <a href="#안티패턴">
        안티패턴
+      </a>
+<a href="#이해도-확인">
+       이해도 확인
       </a>
 <a href="#설계-점검">
        설계 점검
@@ -1106,6 +1119,9 @@ finalHpDamage = 202 - 40 = 162</code></pre>
      </a>
 <a href="#안티패턴">
       안티패턴
+     </a>
+<a href="#이해도-확인">
+      이해도 확인
      </a>
 <a href="#설계-점검">
       설계 점검

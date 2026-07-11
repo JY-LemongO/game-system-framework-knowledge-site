@@ -2,6 +2,7 @@
 from pathlib import Path
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
+from urllib.parse import urlparse
 import json, sys
 from browser_launch import launch_chromium
 
@@ -9,6 +10,11 @@ ROOT = Path(__file__).resolve().parents[2]
 pages = json.loads((ROOT/'source/site-map.json').read_text(encoding='utf-8'))
 RUNTIME_PAGE = next((item for item in pages if item['file'] == 'modules/runtime-reference.html'), None)
 RUNTIME_FILE = RUNTIME_PAGE['file'] if RUNTIME_PAGE else None
+CORE_PAGES = sorted(
+    (item for item in pages if item.get('learningTrack') == 'core'),
+    key=lambda item: item.get('learningOrder', 0),
+)
+CORE_FILES = [item['file'] for item in CORE_PAGES]
 SYSTEM_NAV_FILES = {
     'index.html', 'modules/core-runtime.html', 'modules/stat-system.html',
     'modules/effect-system.html', 'modules/skill-action-system.html',
@@ -78,6 +84,101 @@ with sync_playwright() as p:
                     check(page.locator('.mobile-bar a[aria-current="page"]').count()==1, f'{viewport_name}:{item["file"]}:mobile-nav-current')
             page.close()
         context.close()
+
+    # Learning progress needs a stable HTTP origin so localStorage survives reload and navigation.
+    context=browser.new_context(viewport={'width':1440,'height':1000})
+    page=context.new_page(); progress_errors=[]
+    page.on('pageerror', lambda exc: progress_errors.append(str(exc)))
+
+    def fulfill_learning_site(route):
+        file=urlparse(route.request.url).path.lstrip('/') or 'index.html'
+        if file in {item['file'] for item in pages}:
+            route.fulfill(status=200, content_type='text/html; charset=utf-8', body=inline_page(file))
+        else:
+            route.fulfill(status=404, content_type='text/plain', body='Not found')
+
+    context.route('http://gsf.test/**', fulfill_learning_site)
+    page.goto('http://gsf.test/index.html', wait_until='load')
+    page.wait_for_timeout(80)
+    check(page.locator('[data-learning-progress]').is_visible(),'learning-progress:home-visible')
+    check(page.locator('[data-learning-progress-count]').inner_text()=='0 / 6','learning-progress:initial-count')
+    check(page.locator('[data-learning-progress-meter]').evaluate('el => el.value')==0,'learning-progress:initial-meter')
+    check(page.locator('[data-learning-resume]').get_attribute('href').endswith('modules/core-runtime.html'),'learning-progress:initial-core-link')
+
+    page.goto('http://gsf.test/modules/core-runtime.html', wait_until='load')
+    page.wait_for_timeout(80)
+    check(page.locator('details[data-checkpoint-question]').count()==3,'learning-checkpoint:three-questions')
+    first_summary=page.locator('details[data-checkpoint-question] summary').first
+    first_summary.focus(); page.keyboard.press('Enter')
+    check(page.locator('details[data-checkpoint-question]').first.evaluate('el => el.open'),'learning-checkpoint:keyboard-opens-answer')
+    check(first_summary.evaluate('el => getComputedStyle(el).outlineStyle')!='none','learning-checkpoint:focus-visible')
+    complete=page.locator('[data-learning-complete]')
+    complete.focus(); page.keyboard.press('Enter')
+    check(complete.get_attribute('aria-pressed')=='true','learning-progress:core-completed')
+    saved=page.evaluate("JSON.parse(localStorage.getItem('gsf-learning-progress-v1'))")
+    check(saved.get('version')==1 and saved.get('completed')==[CORE_FILES[0]] and saved.get('lastVisited')==CORE_FILES[0],'learning-progress:stored-contract')
+    page.reload(wait_until='load'); page.wait_for_timeout(80)
+    check(page.locator('[data-learning-complete]').get_attribute('aria-pressed')=='true','learning-progress:completion-survives-reload')
+
+    page.goto('http://gsf.test/index.html', wait_until='load'); page.wait_for_timeout(80)
+    check(page.locator('[data-learning-progress-count]').inner_text()=='1 / 6','learning-progress:home-count-after-completion')
+    check(page.locator('[data-learning-progress-meter]').evaluate('el => el.value')==1,'learning-progress:home-meter-after-completion')
+    check(page.locator('[data-learning-resume]').get_attribute('href').endswith('modules/stat-system.html'),'learning-progress:resume-next-incomplete')
+
+    page.evaluate("localStorage.setItem('gsf-learning-progress-v1', '{broken')")
+    page.reload(wait_until='load'); page.wait_for_timeout(80)
+    check(page.locator('[data-learning-progress-count]').inner_text()=='0 / 6','learning-progress:corrupt-state-recovers')
+    page.evaluate("([files]) => localStorage.setItem('gsf-learning-progress-v1', JSON.stringify({version:1, completed:files, lastVisited:files[files.length-1]}))", [CORE_FILES])
+    page.reload(wait_until='load'); page.wait_for_timeout(80)
+    check(page.locator('[data-learning-progress-count]').inner_text()=='6 / 6','learning-progress:all-complete-count')
+    check(page.locator('[data-learning-resume]').get_attribute('href').endswith('modules/integration-map.html'),'learning-progress:all-complete-integration-link')
+    page.once('dialog', lambda dialog: dialog.accept())
+    page.locator('[data-learning-reset]').click()
+    check(page.locator('[data-learning-progress-count]').inner_text()=='0 / 6','learning-progress:reset-count')
+    check(page.evaluate("localStorage.getItem('gsf-learning-progress-v1')") is None,'learning-progress:reset-storage')
+
+    page.set_viewport_size({'width':320,'height':844})
+    page.goto('http://gsf.test/modules/core-runtime.html', wait_until='load'); page.wait_for_timeout(80)
+    for details in page.locator('details[data-checkpoint-question]').all():
+        details.locator('summary').click()
+    overflow=page.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth')
+    check(overflow <= 1,'learning-checkpoint:mobile-320-no-horizontal-overflow')
+    complete_box=page.locator('[data-learning-complete]').bounding_box()
+    check(bool(complete_box) and complete_box['width'] <= 320 and complete_box['height'] >= 44,'learning-progress:mobile-complete-control-size')
+    check(not progress_errors,'learning-progress:no-page-errors' + (f' ({progress_errors})' if progress_errors else ''))
+    context.close()
+
+    blocked_context=browser.new_context(viewport={'width':390,'height':844})
+    blocked_context.add_init_script("""
+      for (const method of ['getItem', 'setItem', 'removeItem']) {
+        Storage.prototype[method] = function () { throw new DOMException('Storage blocked', 'SecurityError'); };
+      }
+    """)
+    blocked_context.route('http://gsf.test/**', fulfill_learning_site)
+    blocked_page=blocked_context.new_page(); blocked_errors=[]
+    blocked_page.on('pageerror', lambda exc: blocked_errors.append(str(exc)))
+    blocked_page.goto('http://gsf.test/index.html', wait_until='load'); blocked_page.wait_for_timeout(80)
+    check(blocked_page.locator('[data-learning-progress]').is_visible(),'learning-progress:blocked-storage-panel-visible')
+    check('저장할 수 없습니다' in blocked_page.locator('[data-learning-progress-status]').inner_text(),'learning-progress:blocked-storage-warning')
+    blocked_page.goto('http://gsf.test/modules/core-runtime.html', wait_until='load'); blocked_page.wait_for_timeout(80)
+    blocked_complete=blocked_page.locator('[data-learning-complete]')
+    blocked_complete.click()
+    check(blocked_complete.get_attribute('aria-pressed')=='false','learning-progress:blocked-storage-no-false-completion')
+    check('저장할 수 없습니다' in blocked_page.locator('[data-learning-status]').inner_text(),'learning-progress:blocked-storage-toggle-warning')
+    check(not blocked_errors,'learning-progress:blocked-storage-no-page-errors' + (f' ({blocked_errors})' if blocked_errors else ''))
+    blocked_context.close()
+
+    nojs_context=browser.new_context(viewport={'width':390,'height':844}, java_script_enabled=False)
+    nojs_context.route('http://gsf.test/**', fulfill_learning_site)
+    nojs_page=nojs_context.new_page()
+    nojs_page.goto('http://gsf.test/modules/core-runtime.html', wait_until='load')
+    check(nojs_page.locator('#article-content').is_visible(),'learning-progress:nojs-core-content-visible')
+    check(nojs_page.locator('[data-learning-checkpoint]').is_visible(),'learning-progress:nojs-checkpoint-visible')
+    check(nojs_page.locator('[data-learning-completion]').count()==0,'learning-progress:nojs-dynamic-completion-absent')
+    nojs_page.goto('http://gsf.test/index.html', wait_until='load')
+    check(not nojs_page.locator('[data-learning-progress]').is_visible(),'learning-progress:nojs-panel-hidden')
+    check(nojs_page.locator('.system-card').count()==6,'learning-progress:nojs-learning-links-visible')
+    nojs_context.close()
 
     if not RUNTIME_FILE:
         raise RuntimeError('site-map does not declare modules/runtime-reference.html')

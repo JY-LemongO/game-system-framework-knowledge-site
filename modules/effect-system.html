@@ -998,6 +998,16 @@
 </tr>
 </table>
 </div>
+<section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
+<span class="section-kicker">Comprehension check</span>
+<h2 id="이해도-확인">이해도 확인</h2>
+<p class="checkpoint-intro">Effect가 결과를 직접 소유하는 부분과 Combat·Status에 요청으로 넘겨야 하는 부분을 구분해 본다.</p>
+<ol class="checkpoint-grid">
+<li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="effect.q1"><summary>DamageEffect가 주문력 계수, 치명타, 저항과 보호막까지 계산해 최종 피해를 만들어도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">안 된다. Effect는 formulaId, baseValue, scaling, 대상과 SourceRef를 DamageRequest에 담고 최종 피해 계산은 Combat에 위임한다.</p></div></details></li>
+<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="effect.q2"><summary>Fireball 피해는 성공했지만 대상이 Burn 면역일 때 OrderedPartial 정책에는 어떤 결과가 남아야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">이미 commit된 피해는 유지한다. Burn 실패는 대상별 실패 이유와 함께 EffectResult에 기록하고, 정책상 실행 가능한 다음 Effect는 계속 처리한다.</p></div></details></li>
+<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="effect.q3"><summary>입력 시점에 유효했던 대상이 release 시점에 이동했다면 Skill과 Effect는 각각 어디까지 다시 판단해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Skill의 TargetingSpec은 사용자가 조준할 수 있는 입력을 검증한다. Effect의 TargetSelector는 release 또는 hit 시점의 실제 영향 대상을 다시 해석해 Combat이나 Status 요청으로 넘긴다.</p></div></details></li>
+</ol>
+</section>
 <h2 id="설계-점검">
       설계 점검
      </h2>
@@ -1079,6 +1089,9 @@
       </a>
 <a href="#구현-안티패턴">
        구현 안티패턴
+      </a>
+<a href="#이해도-확인">
+       이해도 확인
       </a>
 <a href="#설계-점검">
        설계 점검
@@ -1296,6 +1309,9 @@
      </a>
 <a href="#구현-안티패턴">
       구현 안티패턴
+     </a>
+<a href="#이해도-확인">
+      이해도 확인
      </a>
 <a href="#설계-점검">
       설계 점검

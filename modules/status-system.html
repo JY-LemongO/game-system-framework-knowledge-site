@@ -507,7 +507,9 @@
       <code>
        (targetId, statusDefinitionId, stackingGroup, sourceScope)
       </code>
-      이며 independent stack은 각자 statusInstanceId를 가진다. expire와 tick이 같은 시각이면 어느 쪽을 먼저 처리할지도 clock domain마다 고정한다.
+       이며 independent stack은 각자 statusInstanceId를 가진다. expire와 tick이 같은 시각이면 어느 쪽을 먼저 처리할지도 clock domain마다 고정한다. 이 사이트의 fixed simulation tick 계약은
+       <code>tickAt ≤ expireAt</code>
+       인 마지막 tick을 먼저 commit하고 같은 시각에 expire한다.
      </p>
 <div class="grid cols2">
 <div class="card">
@@ -885,6 +887,16 @@
 </tr>
 </table>
 </div>
+<section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
+<span class="section-kicker">Comprehension check</span>
+<h2 id="이해도-확인">이해도 확인</h2>
+<p class="checkpoint-intro">Status가 소유하는 수명·중첩·예약·정리와 Stat·Effect·Combat에 위임할 실행을 구분해 본다.</p>
+<ol class="checkpoint-grid">
+<li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="status.q1"><summary>Burn tick이 HP를 직접 감소시키고 Rage가 attack_power를 직접 30% 증가시켜도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">안 된다. Burn은 periodic DamageEffect를 실행해 Combat으로 넘기고 Rage는 추적 가능한 StatModifier를 등록한다. Status는 수명·중첩·예약과 정리를 소유한다.</p></div></details></li>
+<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="status.q2"><summary>Burn의 다음 tick과 만료가 같은 simulation tick에 도달하면 현재 계약은 어떤 순서로 처리할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">현재 계약은 같은 시각의 마지막 tick을 먼저 commit한 뒤 상태를 만료한다. 이 순서를 고정해야 frame 지연이나 replay에서도 피해 횟수가 달라지지 않는다.</p></div></details></li>
+<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="status.q3"><summary>Fireball의 Burn을 정화할 때 appliedBySourceId와 statusInstanceId는 각각 어디에 사용될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">appliedBySourceId는 어떤 스킬 실행이 상태를 부여했는지 추적한다. Modifier와 tick 예약은 statusInstanceId를 source로 사용하며 정화 시 같은 ID로 Modifier·예약·구독을 함께 정리한다.</p></div></details></li>
+</ol>
+</section>
 <h2 id="설계-점검">
       설계 점검
      </h2>
@@ -960,6 +972,9 @@
       </a>
 <a href="#안티패턴">
        안티패턴
+      </a>
+<a href="#이해도-확인">
+       이해도 확인
       </a>
 <a href="#설계-점검">
        설계 점검
@@ -1165,6 +1180,9 @@
      </a>
 <a href="#안티패턴">
       안티패턴
+     </a>
+<a href="#이해도-확인">
+      이해도 확인
      </a>
 <a href="#설계-점검">
       설계 점검

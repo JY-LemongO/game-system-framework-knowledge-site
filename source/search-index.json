@@ -14,6 +14,18 @@
   {
     "type": "section",
     "file": "index.html",
+    "anchor": "#학습-진행-title",
+    "title": "핵심 학습 이어가기",
+    "short": "홈",
+    "desc": "Core부터 Status까지 완료한 단원을 이 브라우저에만 저장하고 다음 학습으로 이어간다.",
+    "group": "시작",
+    "level": "H2",
+    "text": "home learning path",
+    "pageOrder": 0
+  },
+  {
+    "type": "section",
+    "file": "index.html",
     "anchor": "#핵심-시스템",
     "title": "핵심 시스템",
     "short": "홈",
@@ -458,6 +470,18 @@
   {
     "type": "section",
     "file": "modules/core-runtime.html",
+    "anchor": "#이해도-확인",
+    "title": "이해도 확인",
+    "short": "Core Runtime",
+    "desc": "답을 펼치기 전에 Core가 제공해야 할 공통 계약과 각 도메인 시스템이 소유할 규칙을 먼저 구분해 본다.",
+    "group": "Foundation",
+    "level": "H2",
+    "text": "core entity source event context time random",
+    "pageOrder": 1
+  },
+  {
+    "type": "section",
+    "file": "modules/core-runtime.html",
     "anchor": "#설계-점검",
     "title": "설계 점검",
     "short": "Core Runtime",
@@ -678,6 +702,18 @@
     "title": "Combat / Status가 Stat을 읽는 방식",
     "short": "Stat System",
     "desc": "Combat과 Status는 Stat System을 강하게 확장하지만, Stat의 책임을 침범해서는 안 된다. Combat은 공격자와 방어자의 최종 스탯 값을 읽어 피해를 계산하고, Status는 상태가 제공하는 StatModifier를 등록/제거한다.",
+    "group": "Core Systems",
+    "level": "H2",
+    "text": "stat modifier resource calculation",
+    "pageOrder": 2
+  },
+  {
+    "type": "section",
+    "file": "modules/stat-system.html",
+    "anchor": "#이해도-확인",
+    "title": "이해도 확인",
+    "short": "Stat System",
+    "desc": "최종 수치 계산, 현재 리소스 상태, 조건부 문맥이 각각 어느 경계에 속하는지 먼저 판단한 뒤 해설을 확인한다.",
     "group": "Core Systems",
     "level": "H2",
     "text": "stat modifier resource calculation",
@@ -1004,6 +1040,18 @@
     "desc": "버프, 디버프, DoT, CC의 지속시간, 중첩, tick, 해제 정책은 Status System이 관리한다.",
     "group": "Core Systems",
     "level": "H3",
+    "text": "effect damage status target context",
+    "pageOrder": 3
+  },
+  {
+    "type": "section",
+    "file": "modules/effect-system.html",
+    "anchor": "#이해도-확인",
+    "title": "이해도 확인",
+    "short": "Effect System",
+    "desc": "Effect가 결과를 직접 소유하는 부분과 Combat·Status에 요청으로 넘겨야 하는 부분을 구분해 본다.",
+    "group": "Core Systems",
+    "level": "H2",
     "text": "effect damage status target context",
     "pageOrder": 3
   },
@@ -1442,6 +1490,18 @@
   {
     "type": "section",
     "file": "modules/skill-action-system.html",
+    "anchor": "#이해도-확인",
+    "title": "이해도 확인",
+    "short": "Skill / Action",
+    "desc": "Skill이 조율해야 할 실행 정책과 Effect·Combat·Status에 넘겨야 할 결과 책임을 나눠서 생각한다.",
+    "group": "Core Systems",
+    "level": "H2",
+    "text": "skill action cooldown targeting timeline",
+    "pageOrder": 4
+  },
+  {
+    "type": "section",
+    "file": "modules/skill-action-system.html",
     "anchor": "#설계-점검",
     "title": "설계 점검",
     "short": "Skill / Action",
@@ -1658,6 +1718,18 @@
   {
     "type": "section",
     "file": "modules/combat-resolution-system.html",
+    "anchor": "#이해도-확인",
+    "title": "이해도 확인",
+    "short": "Combat",
+    "desc": "Combat이 계산할 판정과 실제 상태 변경의 commit 경계를 나누고, 후속 반응이 시작될 시점을 확인한다.",
+    "group": "Core Systems",
+    "level": "H2",
+    "text": "combat damage hit critical armor resistance shield",
+    "pageOrder": 5
+  },
+  {
+    "type": "section",
+    "file": "modules/combat-resolution-system.html",
     "anchor": "#설계-점검",
     "title": "설계 점검",
     "short": "Combat",
@@ -1866,6 +1938,18 @@
     "title": "안티패턴",
     "short": "Status",
     "desc": "",
+    "group": "Core Systems",
+    "level": "H2",
+    "text": "status buff debuff stack duration tick burn rage",
+    "pageOrder": 6
+  },
+  {
+    "type": "section",
+    "file": "modules/status-system.html",
+    "anchor": "#이해도-확인",
+    "title": "이해도 확인",
+    "short": "Status",
+    "desc": "Status가 소유하는 수명·중첩·예약·정리와 Stat·Effect·Combat에 위임할 실행을 구분해 본다.",
     "group": "Core Systems",
     "level": "H2",
     "text": "status buff debuff stack duration tick burn rage",
