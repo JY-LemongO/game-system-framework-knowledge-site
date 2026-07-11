@@ -42,18 +42,10 @@
 </span>
 </a>
 <nav aria-label="주요 탐색" class="top-nav">
-<a href="../index.html">
-      Atlas
-     </a>
-<a aria-current="page" href="../modules/integration-map.html">
-      Architecture
-     </a>
-<a href="../modules/fireball-case-study.html">
-      Case study
-     </a>
-<a href="../modules/implementation-roadmap.html">
-      Build plan
-     </a>
+<a href="../index.html">Atlas</a>
+<a aria-current="page" href="../modules/integration-map.html">Architecture</a>
+<a href="../modules/fireball-case-study.html">Case study</a>
+<a data-runtime-nav="" href="../modules/runtime-reference.html">Runtime lab</a>
 </nav>
 <div class="top-actions">
 <button aria-haspopup="dialog" class="command-trigger" data-search-open="" type="button">
@@ -241,6 +233,10 @@
        </span>
 </div>
 </section>
+<div aria-label="학습 안내" class="grid cols2 learning-brief">
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>여섯 시스템의 의존 방향과 handoff API를 한 흐름으로 읽고, 금지해야 할 역방향 의존성을 찾는다.</p></article>
+<article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Core부터 Status까지 각 장의 책임 경계를 한 번씩 읽은 뒤 비교하면 좋다.</p></article>
+</div>
 <section aria-labelledby="architecture-lens-title" class="architecture-lens" data-architecture-lens="">
 <div class="lens-head">
 <div>
@@ -624,19 +620,15 @@
 </tr>
 <tr>
 <td>
-         Combat → EventBus
+         Combat Commit → Domain Event
         </td>
 <td>
 <code>
-          DamageResult
-         </code>
-         ,
-         <code>
-          OnDamageResolved
+           DamageCommitted
          </code>
 </td>
 <td>
-         피해 계산 결과와 로그를 전파한다.
+         commit된 피해 사실만 전파한다. DamageResult draft는 계산 내부 trace로 유지한다.
         </td>
 </tr>
 <tr>
@@ -806,7 +798,7 @@
 <tr>
 <td>
 <code>
-          OnSkillUsed
+          SkillCommitted
          </code>
 </td>
 <td>
@@ -819,7 +811,7 @@
 <tr>
 <td>
 <code>
-          OnEffectExecuted
+          EffectCompleted
          </code>
 </td>
 <td>
@@ -832,20 +824,20 @@
 <tr>
 <td>
 <code>
-          OnDamageResolved
+           DamageCommitted
          </code>
 </td>
 <td>
          CombatResolver
         </td>
 <td>
-         피해 숫자 UI, 흡혈, 반사 피해, 카메라 흔들림
+         피해 숫자 UI와 카메라 흔들림은 관찰하고, 흡혈·반사는 ReactionQueue 명령으로 변환
         </td>
 </tr>
 <tr>
 <td>
 <code>
-          OnStatusApplied
+           StatusApplied
          </code>
 </td>
 <td>
@@ -858,7 +850,7 @@
 <tr>
 <td>
 <code>
-          OnStatusTick
+           StatusTicked
          </code>
 </td>
 <td>
@@ -871,7 +863,7 @@
 <tr>
 <td>
 <code>
-          OnModifierChanged
+          ModifierChanged
          </code>
 </td>
 <td>
@@ -887,9 +879,9 @@
       ReactionQueue 계약
      </h2>
 <p>
-      OnDamageResolved에 흡혈, 반사, 장비 발동을 모두 즉시 구독시키면 실행 순서와 무한 연쇄가 불명확해진다. 상태를 바꾸는 반응은 이벤트를 명령으로 변환해 queue에 넣고
+      DamageCommitted에 흡혈, 반사, 장비 발동을 모두 즉시 구독시키면 실행 순서와 무한 연쇄가 불명확해진다. 상태를 바꾸는 반응은 commit된 이벤트를 새 명령으로 변환해 queue에 넣고
       <code>
-       priority → sourceId → reactionId
+        priority → stableOrderKey → reactionId
       </code>
       순서로 처리한다.
      </p>
@@ -913,17 +905,18 @@
 <p>
       시스템이 분리될수록 디버그 로그의 중요성이 커진다. 하나의 Fireball 실행은 sourceId와 eventId로 연결된 추적 단위를 가져야 한다.
      </p>
-<pre><code>sourceId: skill:fireball:cast_771
-OnSkillUsed
-  SkillValidator: mana ok, cooldown ok, range ok
-OnEffectExecuted
-  DamageEffect: targets = [enemy_001]
-OnDamageResolved
-  base 124 → fire bonus 1.2 → resistance 0.85 → shield 20 → final 106
-OnStatusApplied
-  Burn applied, stack 1, duration 5.0s, nextTick +1.0s</code></pre>
-<h2 id="완료-체크리스트">
-      완료 체크리스트
+<pre><code>sourceId: command.fireball.cast.0001
+sourceRef: skill-execution / skill.fireball / command.fireball.cast.0001
+SkillCommitted
+  mana 20 committed, cooldown readyTick 18300
+DamageCalculated trace
+  base 24 + spell 120 × 1.2 → critical 252 → resistance 202
+DamageCommitted
+  shield 40 → hpDamage 162
+StatusApplied
+  status.burn, duration 6 ticks, nextTick +2</code></pre>
+<h2 id="설계-점검">
+      설계 점검
      </h2>
 <ul class="checklist">
 <li>
@@ -944,28 +937,8 @@ OnStatusApplied
 </ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/status-system.html">
-<span>
-       ← 이전
-      </span>
-<b>
-       Status
-      </b>
-<small>
-       버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조
-      </small>
-</a>
-<a class="next" href="../modules/fireball-case-study.html">
-<span>
-       다음 →
-      </span>
-<b>
-       Fireball 예제
-      </b>
-<small>
-       하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름
-      </small>
-</a>
+<a class="prev" href="../modules/status-system.html"><span>← 이전</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a>
+<a class="next" href="../modules/fireball-case-study.html"><span>다음 →</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -1003,8 +976,8 @@ OnStatusApplied
 <a href="#디버그-추적">
        DebugTrace 기준
       </a>
-<a href="#완료-체크리스트">
-       완료 체크리스트
+<a href="#설계-점검">
+       설계 점검
       </a>
 </nav>
 </section>
@@ -1031,44 +1004,15 @@ OnStatusApplied
         Fireball 예제
        </b>
 </a>
-<a href="../modules/phase3-readiness.html">
-<span>
-        Readiness
-       </span>
-<b>
-        Phase 3 준비
-       </b>
-</a>
+
 </div>
 </section>
-<a class="readiness-card" href="../modules/phase3-readiness.html">
-<span>
-      Phase 3 gate
-     </span>
-<b>
-      설계 준비도와 다음 구현
-     </b>
-<small>
-      핵심 계약 6개 · 수용 기준 7개
-     </small>
-<i>
-      →
-     </i>
-</a>
+<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>실행 계약을 직접 검증하는 학습 실습</b><small>Replay · Failure probes · Cache · Migration</small><i>→</i></a>
 </aside>
 </div>
 <footer class="site-footer">
-<div>
-<b>
-     Game System Framework
-    </b>
-<span>
-     Offline-first · No external CDN · Release 2 redesign
-    </span>
-</div>
-<a href="../modules/quality-audit.html">
-    Quality audit
-   </a>
+<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
 <a href="../index.html">
@@ -1146,229 +1090,7 @@ OnStatusApplied
       </kbd>
 </button>
 </div>
-<div class="drawer-groups">
-<section class="drawer-group">
-<h3>
-       시작
-      </h3>
-<div>
-<a href="../index.html">
-<span>
-         Overview
-        </span>
-<b>
-         홈
-        </b>
-<small>
-         Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Foundation
-      </h3>
-<div>
-<a href="../modules/core-runtime.html">
-<span>
-         Foundation
-        </span>
-<b>
-         Core Runtime
-        </b>
-<small>
-         Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Core Systems
-      </h3>
-<div>
-<a href="../modules/stat-system.html">
-<span>
-         Core
-        </span>
-<b>
-         Stat System
-        </b>
-<small>
-         스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조
-        </small>
-</a>
-<a href="../modules/effect-system.html">
-<span>
-         Bridge
-        </span>
-<b>
-         Effect System
-        </b>
-<small>
-         EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계
-        </small>
-</a>
-<a href="../modules/skill-action-system.html">
-<span>
-         Action
-        </span>
-<b>
-         Skill / Action
-        </b>
-<small>
-         비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조
-        </small>
-</a>
-<a href="../modules/combat-resolution-system.html">
-<span>
-         Resolution
-        </span>
-<b>
-         Combat
-        </b>
-<small>
-         명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조
-        </small>
-</a>
-<a href="../modules/status-system.html">
-<span>
-         Runtime
-        </span>
-<b>
-         Status
-        </b>
-<small>
-         버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Architecture
-      </h3>
-<div>
-<a aria-current="page" class="is-active" href="../modules/integration-map.html">
-<span>
-         Architecture
-        </span>
-<b>
-         통합 구조
-        </b>
-<small>
-         Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Practice
-      </h3>
-<div>
-<a href="../modules/fireball-case-study.html">
-<span>
-         Case Study
-        </span>
-<b>
-         Fireball 예제
-        </b>
-<small>
-         하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Reference
-      </h3>
-<div>
-<a href="../modules/diagram-gallery.html">
-<span>
-         Reference
-        </span>
-<b>
-         다이어그램
-        </b>
-<small>
-         전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리
-        </small>
-</a>
-<a href="../modules/glossary.html">
-<span>
-         Reference
-        </span>
-<b>
-         용어집
-        </b>
-<small>
-         반복되는 시스템 설계 용어와 UML 기초 문법
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Implementation
-      </h3>
-<div>
-<a href="../modules/phase3-readiness.html">
-<span>
-         Readiness
-        </span>
-<b>
-         Phase 3 준비
-        </b>
-<small>
-         설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준
-        </small>
-</a>
-<a href="../modules/implementation-roadmap.html">
-<span>
-         Build Plan
-        </span>
-<b>
-         로드맵
-        </b>
-<small>
-         MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서
-        </small>
-</a>
-<a href="../modules/skill-combat-next.html">
-<span>
-         Next
-        </span>
-<b>
-         다음 확장
-        </b>
-<small>
-         다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Maintenance
-      </h3>
-<div>
-<a href="../modules/quality-audit.html">
-<span>
-         QA
-        </span>
-<b>
-         품질 점검
-        </b>
-<small>
-         UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준
-        </small>
-</a>
-</div>
-</section>
-</div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a aria-current="page" class="is-active" href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
@@ -1389,7 +1111,7 @@ OnStatusApplied
       ESC
      </button>
 </header>
-<input aria-controls="command-results" autocomplete="off" class="command-input" id="command-input" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
+<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
 <div class="command-hints">
 <span>
       ↑↓ 이동
@@ -1443,8 +1165,8 @@ OnStatusApplied
 <a href="#디버그-추적">
       DebugTrace 기준
      </a>
-<a href="#완료-체크리스트">
-      완료 체크리스트
+<a href="#설계-점검">
+      설계 점검
      </a>
 </nav>
 </div>

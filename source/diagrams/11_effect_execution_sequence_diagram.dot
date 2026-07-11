@@ -17,20 +17,20 @@ EffectRequest + Context 생성", fillcolor="#eaf0ff", color="#8292f7"];
 쿨다운/태그/상태/자원", fillcolor="#fff7e6", color="#e0ad4e"];
   Target [label="4. TargetResolver
 후보 수집→필터→정렬", fillcolor="#f3eefc", color="#ab8fe0"];
-  Value [label="5. ValueResolver
-StatSystem.getValue(ctx)", fillcolor="#eefbf6", color="#61b99a"];
+  Value [label="5. Value / Request
+generic value or DamageRequest", fillcolor="#eefbf6", color="#61b99a"];
   Dispatch [label="6. Executor Dispatch
 Damage/Heal/ApplyStatus/...", fillcolor="#eaf0ff", color="#8292f7"];
   Combat [label="7A. CombatSystem
-명중·치명타·방어·저항", fillcolor="#fff0f3", color="#e07b91"];
+스케일링·치명타·방어·저항", fillcolor="#fff0f3", color="#e07b91"];
   Status [label="7B. StatusSystem
 상태·Modifier 부착", fillcolor="#fff0f3", color="#e07b91"];
-  Stat [label="7C. StatSystem
-Resource/Modifier 변경", fillcolor="#fff0f3", color="#e07b91"];
+  Stat [label="7C. State ports
+ResourceController / StatModifier", fillcolor="#fff0f3", color="#e07b91"];
   Result [label="8. EffectResult 병합
 성공/실패/부분 성공", fillcolor="#eaf0ff", color="#8292f7"];
-  Event [label="9. EventBus publish
-EffectApplied, DamageDealt", fillcolor="#eefbf6", color="#61b99a"];
+  Event [label="9. Post-commit publish
+EffectCompleted, DamageCommitted", fillcolor="#eefbf6", color="#61b99a"];
   Log [label="10. EffectLog / CombatLog
 디버그·리플레이 근거", fillcolor="#f0f3f9", color="#99a8bd"];
   end [shape=doublecircle, label="", width=0.28, fillcolor="#ffffff", color="#182033"];

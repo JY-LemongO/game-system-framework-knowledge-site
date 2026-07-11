@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gsf.example/contracts/replay-fixture.schema.json",
+  "title": "GSF Replay Fixture",
+  "description": "결정론 회귀를 위한 입력·버전·golden 결과 묶음.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["fixtureVersion", "name", "runtimeVersion", "input", "expected"],
+  "properties": {
+    "fixtureVersion": { "type": "integer", "const": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "runtimeVersion": { "type": "string", "minLength": 1 },
+    "input": { "type": "object" },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replayHash", "traceHash", "finalState", "outcome", "eventTypes", "traceCount", "invariants"],
+      "properties": {
+        "replayHash": { "$ref": "#/$defs/hash64" },
+        "traceHash": { "$ref": "#/$defs/hash64" },
+        "finalState": { "type": "object" },
+        "outcome": { "type": "object" },
+        "eventTypes": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "traceCount": { "type": "integer", "minimum": 1 },
+        "invariants": {
+          "type": "object",
+          "required": ["nonNegativeResources", "damageConservation", "conservationGap", "statusRemovedAfterExpiry"],
+          "properties": {
+            "nonNegativeResources": { "type": "boolean" },
+            "damageConservation": { "type": "boolean" },
+            "conservationGap": { "type": "integer" },
+            "statusRemovedAfterExpiry": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hash64": { "type": "string", "pattern": "^[0-9a-f]{16}$" }
+  }
+}

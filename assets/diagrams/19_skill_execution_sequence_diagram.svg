@@ -138,8 +138,8 @@
 <g id="node10" class="node">
 <title>J</title>
 <path fill="#eefbf6" stroke="#61b99a" stroke-width="1.4" d="M405.5,-44C405.5,-44 227.5,-44 227.5,-44 221.5,-44 215.5,-38 215.5,-32 215.5,-32 215.5,-12 215.5,-12 215.5,-6 221.5,0 227.5,0 227.5,0 405.5,0 405.5,0 411.5,0 417.5,-6 417.5,-12 417.5,-12 417.5,-32 417.5,-32 417.5,-38 411.5,-44 405.5,-44"/>
-<text text-anchor="middle" x="316.5" y="-25.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">10. EventBus 발행</text>
-<text text-anchor="middle" x="316.5" y="-10.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">OnSkillUsed / OnSkillFailed</text>
+<text text-anchor="middle" x="316.5" y="-25.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">10. commit 이후 EventBus</text>
+<text text-anchor="middle" x="316.5" y="-10.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">SkillCommitted / SkillInterrupted</text>
 </g>
 <!-- I&#45;&gt;J -->
 <g id="edge9" class="edge">

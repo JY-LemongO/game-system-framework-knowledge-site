@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gsf.example/contracts/source-ref.schema.json",
+  "title": "GSF Source Reference",
+  "description": "A structured reference that separates a definition from one concrete execution instance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "definitionId", "instanceId"],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "definitionId": {
+      "$ref": "#/$defs/namespacedId"
+    },
+    "instanceId": {
+      "$ref": "#/$defs/namespacedId"
+    }
+  },
+  "$defs": {
+    "namespacedId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*(?:\\.[A-Za-z0-9_-]+)+$"
+    }
+  }
+}
