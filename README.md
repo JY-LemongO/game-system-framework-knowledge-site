@@ -38,7 +38,7 @@ npm run serve
 - `source/runtime/`은 Runtime Contract Lab의 JavaScript 시뮬레이터 커널, fixture, 계약 스키마를 보관한다.
 - `source/diagrams/`와 `assets/diagrams/`는 학습 다이어그램의 원본과 출력물을 보관한다.
 - `DEVELOPMENT_WORKFLOW.md`는 브랜치 역할, Preview 승격 절차, 검증 기준과 현재 인수인계 기준점을 보관한다.
-- `QA_REPORT.md`, `PHASE3_REFERENCE_IMPLEMENTATION.md`, `PHASE3_IMPLEMENTATION_PLAN.md` 같은 문서는 저장소 내부 검증·계획 기록이며 공개 내비게이션에는 연결하지 않는다.
+- `QA_REPORT.md`, `PHASE3_REFERENCE_IMPLEMENTATION.md`, `PHASE3_IMPLEMENTATION_PLAN.md` 같은 문서는 당시 상태를 남긴 저장소 내부 검증·계획 기록이며 공개 내비게이션에는 연결하지 않는다.
 
 ## 유지보수 검증
 

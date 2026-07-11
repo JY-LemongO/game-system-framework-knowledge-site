@@ -1,9 +1,11 @@
-# QA Report · Phase 3 Runtime Reference
+# QA Report · Phase 3 Runtime Reference — Historical Snapshot
 
 - 대상: `Game_System_Framework_Knowledge_Site_Phase3_Runtime_Reference`
 - 판본: `3.2.0-reference`
-- 최종 실행일: 2026-07-10
-- 결과: **PASS**
+- 스냅샷 실행일: 2026-07-10
+- 당시 결과: **PASS**
+
+> 이 문서는 `3.2.0-reference` 당시의 검증 스냅샷이다. 현재 인수인계 기준과 최신 검증 수치는 `DEVELOPMENT_WORKFLOW.md`를 따르며, 현재 상태는 `npm run qa`로 다시 확인한다.
 
 ---
 

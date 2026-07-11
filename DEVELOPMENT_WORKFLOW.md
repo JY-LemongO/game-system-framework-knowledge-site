@@ -24,7 +24,7 @@
 작업 브랜치 -> dev -> 배포된 Preview QA -> main -> Production 확인
 ```
 
-로컬 테스트 통과만으로 `main`에 바로 병합하지 않는다. `dev` 푸시 후 GitHub Pages의 Preview 배포가 완료된 것을 확인하고, 실제 Preview에서 이상이 없을 때만 동일 커밋을 `main`으로 승격한다.
+로컬 테스트 통과만으로 `main`에 바로 병합하지 않는다. `dev` 푸시 후 Preview가 배포한 `dev` HEAD SHA를 기록하고 실제 Preview를 검수한다. 검수한 SHA가 여전히 `dev` HEAD일 때만 `dev`를 `main`에 병합하며, `dev` 또는 기준 `main`이 바뀌었다면 Preview 배포와 검수를 다시 수행한다.
 
 ## 변경 완료 기준
 
@@ -34,10 +34,14 @@
 4. 파일을 변경한 뒤 `npm run manifest`로 `MANIFEST.sha256`을 갱신한다.
 5. 최종적으로 `npm run qa`를 통과시킨다.
 6. 작업 브랜치를 원격에 푸시하고 `dev`에 병합한다.
-7. 배포된 Preview를 직접 확인한다.
-8. Preview에서 이상이 없을 때만 `main`에 병합한다.
+7. 배포된 Preview에서 `dev` HEAD SHA와 동작을 함께 확인한다.
+8. 검수 후 `dev`와 기준 `main`이 바뀌지 않았을 때 `dev`를 `main`에 병합한다.
+
+PR 병합으로 `main`의 merge commit SHA가 달라지는 것은 정상이며, 기준은 검수한 `dev` 상태가 그대로 포함됐는지다.
 
 `npm run qa`는 JavaScript 런타임 테스트, C# 참조 검증, 사이트 셸 일치, 검색 색인, 정적 계약, manifest, 데스크톱·모바일 브라우저 검사를 포함한다.
+
+`MANIFEST.sha256`은 UTF-8 텍스트의 줄바꿈을 LF로 정규화해 해시하고, 바이너리는 원본 바이트를 해시한다. 따라서 Windows와 Linux의 체크아웃 줄바꿈 차이는 manifest 결과를 바꾸지 않는다.
 
 ## 소스 오브 트루스
 
@@ -59,7 +63,8 @@
 - C# 학습 시스템 감사 완료 커밋: `73be3bc6b6fa0d6662b63f432e9c45cf9c91fff0`
 - 완료 범위: Combat, Skill, Effect, Status, SourceRef, Runtime 설명과 실행 가능한 C# 계약의 정합화
 - 검증 결과: JavaScript 34개, C# assertion 151개, 공개 페이지 12개, 검색 항목 318개, 다이어그램 세트 34개, 브라우저 검사 375개 통과
-- 알려진 미완료 구현: 없음
+- 현재 학습·참조 구현 감사 범위 내 알려진 미해결 정합성 문제: 없음
+- 범위 밖 항목: production DB·network·engine 통합과 미실시 수동·부하 검증은 `source/runtime/README.md`와 `QA_REPORT.md`에 기록한다.
 
 이 기준점은 이미 완료된 범위를 설명한다. 새로운 문제가 확인되지 않는 한 같은 감사를 처음부터 반복하지 않는다. 다음 학습 영역은 배포된 Preview를 검수한 뒤 현재 페이지와 이어지는 학습 가치가 있는지 판단해 별도 작업으로 정한다.
 

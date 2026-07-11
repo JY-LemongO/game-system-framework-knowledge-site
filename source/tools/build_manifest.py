@@ -15,6 +15,24 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "MANIFEST.sha256"
 EXCLUDED_FILES = {".gitignore", ".nojekyll", "MANIFEST.sha256"}
 EXCLUDED_PREFIXES = (".github/",)
+TEXT_SUFFIXES = {
+    ".cjs",
+    ".cs",
+    ".csproj",
+    ".css",
+    ".dot",
+    ".html",
+    ".js",
+    ".json",
+    ".md",
+    ".py",
+    ".svg",
+    ".ts",
+    ".txt",
+    ".yaml",
+    ".yml",
+}
+TEXT_FILENAMES = {"VERSION"}
 
 
 def repository_files() -> list[Path]:
@@ -48,10 +66,23 @@ def repository_files() -> list[Path]:
     return sorted(files, key=lambda path: path.relative_to(ROOT).as_posix())
 
 
+def canonical_manifest_bytes(path: Path) -> bytes:
+    """Normalize declared UTF-8 text to LF and preserve all other bytes."""
+    content = path.read_bytes()
+    if path.suffix.lower() not in TEXT_SUFFIXES and path.name not in TEXT_FILENAMES:
+        return content
+    try:
+        content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        relative = path.relative_to(ROOT).as_posix()
+        raise ValueError(f"Manifest text file is not valid UTF-8: {relative}") from exc
+    return content.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
 def build_text() -> str:
     lines = []
     for path in repository_files():
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        digest = hashlib.sha256(canonical_manifest_bytes(path)).hexdigest()
         relative = path.relative_to(ROOT).as_posix()
         lines.append(f"{digest}  ./{relative}")
     return "\n".join(lines) + "\n"
