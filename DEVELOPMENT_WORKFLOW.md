@@ -1,0 +1,74 @@
+# Development Workflow
+
+이 문서는 공개 학습 페이지가 아니라 저장소 유지보수와 다음 작업 인수인계를 위한 내부 기준이다. 공개 내비게이션과 검색 색인에는 연결하지 않는다.
+
+## 변하지 않는 프로젝트 방향
+
+- 설명과 예제의 기준 언어는 C#이다. Unity 개발자가 읽는 것을 고려하지만 `UnityEngine` 의존성 자체를 학습 전제로 두지는 않는다.
+- 공개 HTML에는 현재 학습할 수 있는 개념, 계약, 예제, 실습만 포함한다.
+- 구현 로드맵, 릴리스 현황, 감사 결과, 작업 메모, 앞으로의 기능 계획은 공개 HTML과 검색 색인에 포함하지 않는다.
+- C# 계약과 공개 설명이 충돌하면 `source/csharp/`의 실행 가능한 계약, 검증 결과, 공개 설명을 함께 수정해 다시 일치시킨다.
+- JavaScript 런타임은 Runtime Contract Lab을 위한 관찰 도구이며, 공개 학습 계약의 기준 언어를 대체하지 않는다.
+
+## 브랜치와 배포 환경
+
+| 브랜치 | 역할 | 배포 주소 |
+| --- | --- | --- |
+| 작업 브랜치 | 한 가지 변경을 구현하고 로컬 QA를 수행한다. | 배포하지 않음 |
+| `dev` | `main` 반영 전 실제 배포 환경에서 확인하는 QA 기준 브랜치다. | <https://jy-lemongo.github.io/GameSystemKnowledge/preview/> |
+| `main` | Preview 검수를 통과한 상태만 반영하는 운영 브랜치다. | <https://jy-lemongo.github.io/GameSystemKnowledge/> |
+
+기본 승격 순서는 다음과 같다.
+
+```text
+작업 브랜치 -> dev -> 배포된 Preview QA -> main -> Production 확인
+```
+
+로컬 테스트 통과만으로 `main`에 바로 병합하지 않는다. `dev` 푸시 후 GitHub Pages의 Preview 배포가 완료된 것을 확인하고, 실제 Preview에서 이상이 없을 때만 동일 커밋을 `main`으로 승격한다.
+
+## 변경 완료 기준
+
+1. 현재 코드, 공개 HTML, C# 계약, 다이어그램의 실제 상태를 먼저 확인한다.
+2. 공개 페이지 수정은 학습 범위 안에서만 수행한다.
+3. 내비게이션 문구를 수정했다면 `npm run site-shell`을 실행한다.
+4. 파일을 변경한 뒤 `npm run manifest`로 `MANIFEST.sha256`을 갱신한다.
+5. 최종적으로 `npm run qa`를 통과시킨다.
+6. 작업 브랜치를 원격에 푸시하고 `dev`에 병합한다.
+7. 배포된 Preview를 직접 확인한다.
+8. Preview에서 이상이 없을 때만 `main`에 병합한다.
+
+`npm run qa`는 JavaScript 런타임 테스트, C# 참조 검증, 사이트 셸 일치, 검색 색인, 정적 계약, manifest, 데스크톱·모바일 브라우저 검사를 포함한다.
+
+## 소스 오브 트루스
+
+- 공개 학습 범위와 저장소 역할: `README.md`
+- C# 공개 계약과 실행 검증: `source/csharp/`
+- 브라우저 Runtime Contract Lab: `source/runtime/`
+- 계약 스키마: `source/contracts/`
+- 다이어그램 원본: `source/diagrams/`
+- 공개 다이어그램 출력: `assets/diagrams/`
+- 공개 페이지 목록과 검색 구성: `source/site-map.json`
+- 사이트 정합성 검사: `source/tools/validate_site.py`
+- 브라우저 UX 검사: `source/tools/browser_smoke.py`
+
+다이어그램 출력만 직접 고치지 않는다. 원본 DOT을 수정한 뒤 SVG와 PNG를 다시 생성한다.
+
+## 현재 인수인계 기준점
+
+- 기준 브랜치: `dev`
+- C# 학습 시스템 감사 완료 커밋: `73be3bc6b6fa0d6662b63f432e9c45cf9c91fff0`
+- 완료 범위: Combat, Skill, Effect, Status, SourceRef, Runtime 설명과 실행 가능한 C# 계약의 정합화
+- 검증 결과: JavaScript 34개, C# assertion 151개, 공개 페이지 12개, 검색 항목 318개, 다이어그램 세트 34개, 브라우저 검사 375개 통과
+- 알려진 미완료 구현: 없음
+
+이 기준점은 이미 완료된 범위를 설명한다. 새로운 문제가 확인되지 않는 한 같은 감사를 처음부터 반복하지 않는다. 다음 학습 영역은 배포된 Preview를 검수한 뒤 현재 페이지와 이어지는 학습 가치가 있는지 판단해 별도 작업으로 정한다.
+
+## 새 작업 세션 시작 순서
+
+```bash
+git switch dev
+git pull --ff-only origin dev
+git status -sb
+```
+
+그다음 `README.md`, 이 문서, 최근 `dev` 커밋을 읽고 배포된 Preview를 확인한다. 새 작업은 하나의 검토 가능한 범위로 분리하고, 완료 후 위 승격 순서를 따른다.
