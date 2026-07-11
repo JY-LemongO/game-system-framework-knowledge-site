@@ -22,12 +22,12 @@ phases, markers, cancels", fillcolor="#e9fbff", color="#54b7cf"];
 effect ids + policy", fillcolor="#fff7e6", color="#e0ad4e"];
   }
   subgraph cluster_runtime {
-    label="Runtime State: 저장/로드와 현재 전투 상태"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
+    label="Availability State + Transient Execution"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
     SkillBook [label="SkillBook
 learned skill ids", fillcolor="#eaf0ff", color="#8292f7"];
     SkillRuntime [label="SkillRuntime
 cooldown, charges", fillcolor="#eaf0ff", color="#8292f7"];
-    CastState [label="CurrentCastState
+    CastState [label="SkillExecution
 phase, elapsed, marker", fillcolor="#eaf0ff", color="#8292f7"];
   }
   subgraph cluster_log {
@@ -46,8 +46,9 @@ steps, costs, events", fillcolor="#f0f3f9", color="#99a8bd"];
   SkillDef -> BundleRef [label="has"];
   SkillBook -> SkillRuntime [label="owns"];
   SkillRuntime -> SkillDef [label="definition id"];
-  SkillRuntime -> CastState [label="current cast"];
+  SkillRequest -> CastState [label="creates"];
+  CastState -> SkillDef [label="definition id"];
   SkillRequest -> SkillDef [label="lookup"];
-  SkillRequest -> SkillResult [label="executes"];
+  CastState -> SkillResult [label="produces"];
   SkillResult -> SkillTrace [label="debug"];
 }

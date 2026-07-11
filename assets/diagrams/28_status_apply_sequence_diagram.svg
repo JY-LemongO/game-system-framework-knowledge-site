@@ -32,7 +32,7 @@
 <title>system</title>
 <path fill="#eaf0ff" stroke="#8292f7" stroke-width="1.4" d="M271.5,-1012C271.5,-1012 64.5,-1012 64.5,-1012 58.5,-1012 52.5,-1006 52.5,-1000 52.5,-1000 52.5,-980 52.5,-980 52.5,-974 58.5,-968 64.5,-968 64.5,-968 271.5,-968 271.5,-968 277.5,-968 283.5,-974 283.5,-980 283.5,-980 283.5,-1000 283.5,-1000 283.5,-1006 277.5,-1012 271.5,-1012"/>
 <text text-anchor="middle" x="168" y="-993.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">StatusSystem</text>
-<text text-anchor="middle" x="168" y="-978.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">apply(statusId, target, sourceId)</text>
+<text text-anchor="middle" x="168" y="-978.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">apply(ApplyStatusRequest)</text>
 </g>
 <!-- effect&#45;&gt;system -->
 <g id="edge2" class="edge">
@@ -123,7 +123,7 @@
 <title>instance</title>
 <path fill="#eefbf6" stroke="#5ac39b" stroke-width="1.4" d="M472,-486C472,-486 186,-486 186,-486 180,-486 174,-480 174,-474 174,-474 174,-454 174,-454 174,-448 180,-442 186,-442 186,-442 472,-442 472,-442 478,-442 484,-448 484,-454 484,-454 484,-474 484,-474 484,-480 478,-486 472,-486"/>
 <text text-anchor="middle" x="329" y="-467.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">StatusInstance</text>
-<text text-anchor="middle" x="329" y="-452.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">remainingTime · stackCount · nextTickTime</text>
+<text text-anchor="middle" x="329" y="-452.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">expireTick · stackCount · nextTickAt</text>
 </g>
 <!-- duration&#45;&gt;instance -->
 <g id="edge9" class="edge">
@@ -136,7 +136,7 @@
 <title>modifier</title>
 <path fill="#f4efff" stroke="#a884e8" stroke-width="1.4" d="M445.5,-395C445.5,-395 224.5,-395 224.5,-395 218.5,-395 212.5,-389 212.5,-383 212.5,-383 212.5,-363 212.5,-363 212.5,-357 218.5,-351 224.5,-351 224.5,-351 445.5,-351 445.5,-351 451.5,-351 457.5,-357 457.5,-363 457.5,-363 457.5,-383 457.5,-383 457.5,-389 451.5,-395 445.5,-395"/>
 <text text-anchor="middle" x="335" y="-376.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">StatusModifierProvider</text>
-<text text-anchor="middle" x="335" y="-361.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">register sourceId=statusInstanceId</text>
+<text text-anchor="middle" x="335" y="-361.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">modifierSourceId=statusInstanceId</text>
 </g>
 <!-- instance&#45;&gt;modifier -->
 <g id="edge10" class="edge">
@@ -162,7 +162,7 @@
 <title>event</title>
 <path fill="#f8fafc" stroke="#bac7db" stroke-width="1.4" d="M463.5,-213C463.5,-213 216.5,-213 216.5,-213 210.5,-213 204.5,-207 204.5,-201 204.5,-201 204.5,-181 204.5,-181 204.5,-175 210.5,-169 216.5,-169 216.5,-169 463.5,-169 463.5,-169 469.5,-169 475.5,-175 475.5,-181 475.5,-181 475.5,-201 475.5,-201 475.5,-207 469.5,-213 463.5,-213"/>
 <text text-anchor="middle" x="340" y="-194.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">EventBus</text>
-<text text-anchor="middle" x="340" y="-179.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">OnStatusApplied / OnStatusRefreshed</text>
+<text text-anchor="middle" x="340" y="-179.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">StatusApplied / StatusRefreshed</text>
 </g>
 <!-- tick&#45;&gt;event -->
 <g id="edge12" class="edge">

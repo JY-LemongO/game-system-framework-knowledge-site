@@ -186,24 +186,42 @@
     const output = $('[data-reading-time]');
     const article = $('#article-content');
     if (!output || !article) return;
+
+    function textUnits(text = '') {
+      const compact = String(text).replace(/\s+/g, ' ').trim();
+      if (!compact) return 0;
+      const latinWords = (compact.match(/[A-Za-z0-9_+#.-]+/g) || []).length;
+      const koreanChars = (compact.match(/[\uAC00-\uD7AF]/g) || []).length;
+      const spacedWords = compact.split(/\s+/).filter(Boolean).length;
+      const otherWords = Math.max(0, spacedWords - latinWords);
+      return latinWords + otherWords + koreanChars / 2.4;
+    }
+
     const clone = article.cloneNode(true);
-    $$('pre, code, svg, .doc-pager', clone).forEach(node => node.remove());
-    const text = clone.textContent.replace(/\s+/g, ' ').trim();
-    const latinWords = (text.match(/[A-Za-z0-9_+#.-]+/g) || []).length;
-    const koreanChars = (text.match(/[가-힣]/g) || []).length;
-    const otherWords = Math.max(0, text.split(/\s+/).length - latinWords);
-    const units = latinWords + otherWords + koreanChars / 2.4;
-    const minutes = Math.max(1, Math.round(units / 240));
-    output.textContent = `약 ${minutes}분`;
-    output.title = '본문 기준 예상 읽기 시간';
+    $$('pre, table, svg, .diagram, .doc-pager, dialog, button', clone).forEach(node => node.remove());
+
+    const proseMinutes = textUnits(clone.textContent) / 220;
+    const tableMinutes = $$('table', article)
+      .reduce((total, table) => total + textUnits(table.textContent) / 120, 0);
+    const codeMinutes = $$('pre', article).reduce((total, pre) => {
+      const lines = pre.textContent.split(/\r?\n/).filter(line => line.trim()).length;
+      return total + (lines ? Math.max(0.5, lines / 35) : 0);
+    }, 0);
+    const diagramMinutes = $$('.diagram', article).length * 0.75;
+    const minutes = Math.max(1, Math.ceil(proseMinutes + tableMinutes + codeMinutes + diagramMinutes));
+
+    output.textContent = `학습 약 ${minutes}분`;
+    output.title = '본문, 코드, 표, 다이어그램을 포함한 예상 학습 시간';
   }
 
   function initialiseHeadingAnchors() {
     const article = $('#article-content');
     if (!article) return;
     $$('h2[id], h3[id]', article).forEach(heading => {
+      if (heading.closest('a, button')) return;
       if ($('.heading-anchor', heading)) return;
       const headingTitle = heading.textContent.trim();
+      if (!heading.hasAttribute('aria-label')) heading.setAttribute('aria-label', headingTitle);
       const button = document.createElement('button');
       button.className = 'heading-anchor';
       button.type = 'button';
@@ -243,8 +261,14 @@
     if (!headings.length) return;
 
     function activate(id) {
-      links.forEach(link => link.classList.remove('is-active'));
-      (map.get(id) || []).forEach(link => link.classList.add('is-active'));
+      links.forEach(link => {
+        link.classList.remove('is-active');
+        link.removeAttribute('aria-current');
+      });
+      (map.get(id) || []).forEach(link => {
+        link.classList.add('is-active');
+        link.setAttribute('aria-current', 'location');
+      });
     }
 
     if (!('IntersectionObserver' in window)) {
@@ -446,9 +470,18 @@
       if (!tokenScore) return 0;
       score += tokenScore;
     }
-    if (entry.type === 'page') score += 10;
+    if (entry.type === 'page') score += 100;
+    if (entry.type === 'section' && entry.file === 'modules/diagram-gallery.html') score -= 25;
     if (entry.file === currentFile) score += 5;
     return score;
+  }
+
+  function compactDescription(value = '', maxLength = 132) {
+    const compact = String(value).replace(/\s+/g, ' ').trim();
+    if (compact.length <= maxLength) return compact;
+    const clipped = compact.slice(0, maxLength + 1);
+    const wordBoundary = clipped.lastIndexOf(' ');
+    return `${clipped.slice(0, wordBoundary > maxLength * 0.65 ? wordBoundary : maxLength).trim()}…`;
   }
 
   function initialiseCommandPalette() {
@@ -460,6 +493,26 @@
     if (!dialog || !input || !results) return;
     let activeIndex = 0;
     let currentResults = [];
+    const siteOrder = new Map((Array.isArray(data.pages) ? data.pages : []).map((page, index) => [page.file, index]));
+    const status = document.createElement('p');
+    status.className = 'sr-only command-result-status';
+    status.id = 'command-result-status';
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    status.setAttribute('aria-atomic', 'true');
+    results.after(status);
+
+    if (!results.id) results.id = 'command-results';
+    results.setAttribute('role', 'listbox');
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-haspopup', 'listbox');
+    input.setAttribute('aria-controls', results.id);
+    input.setAttribute('aria-expanded', 'false');
+    input.setAttribute('autocomplete', 'off');
+    const describedBy = new Set((input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+    describedBy.add(status.id);
+    input.setAttribute('aria-describedby', [...describedBy].join(' '));
 
     const commandKey = navigator.platform?.toLowerCase().includes('mac') ? '⌘ K' : 'Ctrl K';
     $$('.command-trigger kbd, .drawer-search kbd').forEach(kbd => { kbd.textContent = commandKey; });
@@ -485,9 +538,9 @@
       const title = document.createElement('b');
       title.textContent = entry.title || entry.short || 'Untitled';
       const description = document.createElement('small');
-      description.textContent = entry.type === 'section'
+      description.textContent = compactDescription(entry.type === 'section'
         ? `${entry.short || ''}${entry.desc ? ` · ${entry.desc}` : ''}`
-        : entry.desc || entry.group || '';
+        : entry.desc || entry.group || '');
       copy.append(title, description);
       const arrow = document.createElement('i');
       arrow.textContent = '↵';
@@ -517,13 +570,28 @@
     function render(value = '') {
       const query = normalise(value);
       currentResults = entries
-        .map(entry => ({ entry, score: scoreSearchEntry(entry, query) }))
+        .map((entry, sourceIndex) => ({ entry, sourceIndex, score: scoreSearchEntry(entry, query) }))
         .filter(item => item.score > 0)
-        .sort((a, b) => b.score - a.score || ((a.entry.type === 'page') === (b.entry.type === 'page') ? 0 : (a.entry.type === 'page' ? -1 : 1)) || String(a.entry.title).localeCompare(String(b.entry.title), 'ko'))
+        .sort((a, b) => {
+          if (!query) {
+            const aOrder = Number.isFinite(a.entry.pageOrder) ? a.entry.pageOrder : (siteOrder.get(a.entry.file) ?? a.sourceIndex);
+            const bOrder = Number.isFinite(b.entry.pageOrder) ? b.entry.pageOrder : (siteOrder.get(b.entry.file) ?? b.sourceIndex);
+            return aOrder - bOrder;
+          }
+          return b.score - a.score ||
+            ((a.entry.type === 'page') === (b.entry.type === 'page') ? 0 : (a.entry.type === 'page' ? -1 : 1)) ||
+            (siteOrder.get(a.entry.file) ?? a.sourceIndex) - (siteOrder.get(b.entry.file) ?? b.sourceIndex) ||
+            String(a.entry.title).localeCompare(String(b.entry.title), 'ko');
+        })
         .slice(0, query ? 18 : 12)
         .map(item => item.entry);
       activeIndex = 0;
       results.replaceChildren();
+      const resultSummary = query
+        ? (currentResults.length ? `${currentResults.length}개의 검색 결과가 있습니다.` : '검색 결과가 없습니다.')
+        : `${currentResults.length}개의 학습 페이지가 학습 순서대로 표시됩니다.`;
+      status.textContent = resultSummary;
+      results.setAttribute('aria-label', resultSummary);
       if (!currentResults.length) {
         const empty = document.createElement('p');
         empty.className = 'command-empty';
@@ -542,6 +610,7 @@
       const drawer = $('[data-site-drawer]');
       if (drawer?.open) closeDialog(drawer, false);
       openDialog(dialog, opener);
+      input.setAttribute('aria-expanded', 'true');
       input.value = '';
       render('');
       requestAnimationFrame(() => {
@@ -551,6 +620,10 @@
     }
 
     $$('[data-search-open]').forEach(button => button.addEventListener('click', () => open(button)));
+    dialog.addEventListener('close', () => {
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+    });
     input.addEventListener('input', () => render(input.value));
     input.addEventListener('keydown', event => {
       if (event.key === 'Escape') {
@@ -804,8 +877,48 @@
     });
   }
 
+  function initialiseTableAccessibility() {
+    const article = $('#article-content');
+    if (!article) return;
+    const headings = $$('h2[id], h3[id]', article);
+
+    $$('table', article).forEach((table, index) => {
+      let label = $('caption', table);
+      if (label) {
+        if (!label.id) label.id = `table-caption-${index + 1}`;
+      } else {
+        label = headings.filter(heading =>
+          Boolean(heading.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING)
+        ).at(-1);
+      }
+
+      if (!label) {
+        label = document.createElement('caption');
+        label.className = 'sr-only';
+        label.id = `table-caption-${index + 1}`;
+        label.textContent = `학습 자료 표 ${index + 1}`;
+        table.prepend(label);
+      }
+      if (label.id) table.setAttribute('aria-labelledby', label.id);
+
+      const headerRow = $('thead tr', table) || $('tr', table);
+      $$('th', headerRow || table).forEach(cell => {
+        if (!cell.hasAttribute('scope')) cell.setAttribute('scope', 'col');
+      });
+      $$('tbody tr', table).forEach(row => {
+        const rowHeader = $(':scope > th', row);
+        if (rowHeader && !headerRow?.contains(rowHeader) && !rowHeader.hasAttribute('scope')) {
+          rowHeader.setAttribute('scope', 'row');
+        }
+      });
+      $$('th:not([scope])', table).forEach(cell => {
+        cell.setAttribute('scope', cell.closest('thead') ? 'col' : 'row');
+      });
+    });
+  }
+
   function initialisePrintAndImages() {
-    $$('[data-print], .print-page').forEach(button => button.addEventListener('click', () => print()));
+    $$('[data-print], [data-print-page], .print-page').forEach(button => button.addEventListener('click', () => print()));
     $$('#article-content img').forEach((image, index) => {
       if (!image.hasAttribute('decoding')) image.decoding = 'async';
       if (!image.hasAttribute('loading') && index > 0) image.loading = 'lazy';
@@ -817,14 +930,268 @@
 
   function initialiseCurrentNavigation() {
     const current = currentFile.replace(/^\.\//, '');
-    $$('a[href]').forEach(link => {
+    const navigationLinks = $$([
+      '.top-nav a[href]',
+      '.drawer-groups a[href]',
+      '.mobile-bar a[href]',
+      '.system-dock a[href]'
+    ].join(','));
+
+    navigationLinks.forEach(link => {
       const href = link.getAttribute('href');
+      link.removeAttribute('aria-current');
+      link.classList.remove('is-active');
       if (!href || href.startsWith('#') || /^(?:https?:|mailto:|tel:|javascript:)/i.test(href)) return;
-      const clean = href.split('#')[0].replace(/^\.\//, '').replace(/^\.\.\//, '');
-      if (clean === current || (current.startsWith('modules/') && `modules/${clean.replace(/^modules\//, '')}` === current)) {
-        if (link.closest('.top-nav, .drawer-groups')) link.setAttribute('aria-current', 'page');
-      }
+      const clean = href.split('#')[0]
+        .replace(/^\.\//, '')
+        .replace(/^(?:\.\.\/)+/, '');
+      const matches = clean === current ||
+        (current.startsWith('modules/') && `modules/${clean.replace(/^modules\//, '')}` === current);
+      if (!matches) return;
+      link.setAttribute('aria-current', 'page');
+      link.classList.add('is-active');
     });
+  }
+
+  function initialiseRuntimeReference() {
+    const lab = $('[data-runtime-lab]');
+    const G = window.GSFRuntime;
+    if (!lab || !G) return;
+
+    const format = value => new Intl.NumberFormat('ko-KR').format(value);
+    const json = value => JSON.stringify(value, null, 2);
+    const setText = (selector, value, root = document) => {
+      const node = $(selector, root);
+      if (node) node.textContent = String(value);
+    };
+    const numberValue = key => {
+      const input = $(`[data-runtime-key="${key}"]`, lab);
+      const value = Number(input?.value);
+      return Number.isFinite(value) ? Math.trunc(value) : 0;
+    };
+    const percentBps = key => Math.max(0, Math.min(100, numberValue(key))) * 100;
+
+    function inputFromForm() {
+      const hp = Math.max(1, numberValue('targetHp'));
+      const shield = Math.max(0, numberValue('shield'));
+      return {
+        rootSeed: Math.max(0, Math.min(0xffffffff, numberValue('rootSeed'))),
+        caster: { spellPower: Math.max(0, numberValue('spellPower')) },
+        target: {
+          hp,
+          maxHp: hp,
+          shield,
+          maxShield: Math.max(200, shield),
+          fireResistanceBps: percentBps('resistancePercent')
+        },
+        skill: {
+          hitChanceBps: percentBps('hitChancePercent'),
+          critChanceBps: percentBps('critChancePercent')
+        },
+        burn: { ratioBps: percentBps('burnRatioPercent') },
+        simulateStatusTicks: Boolean($('[data-runtime-key="simulateStatusTicks"]', lab)?.checked)
+      };
+    }
+
+    function metric(label, value, detail = '') {
+      const div = document.createElement('div');
+      const span = document.createElement('span');
+      const strong = document.createElement('strong');
+      const small = document.createElement('small');
+      span.textContent = label;
+      strong.textContent = String(value);
+      small.textContent = detail;
+      div.append(span, strong, small);
+      return div;
+    }
+
+    function renderReplay(result, replay) {
+      const outcome = result.resolution.outcome;
+      const target = result.finalState.entities[result.input.target.id];
+      const metrics = $('[data-runtime-metrics]', lab);
+      if (metrics) {
+        metrics.replaceChildren(
+          metric('Decision', outcome.hit ? (outcome.critical ? 'CRITICAL' : 'HIT') : 'MISS', `roll ${result.resolution.decisions.hitRollBps} / ${result.resolution.decisions.critRollBps}`),
+          metric('Resolved', format(outcome.resolvedDamage), `raw ${format(outcome.rawDamage)}`),
+          metric('Shield', format(outcome.shieldAbsorbed), `remaining ${format(target.resources.shield)}`),
+          metric('HP damage', format(outcome.hpDamage), `impact HP ${format(outcome.targetHpAfter)}`),
+          metric('Burn', format(result.outbox.filter(event => event.type === 'StatusTicked').reduce((sum, event) => sum + event.payload.hpDamage, 0)), `${result.statusAdvance.tickCount} committed ticks`),
+          metric('Final HP', format(target.resources.hp), `${Object.keys(target.statuses).length} active status`)
+        );
+      }
+
+      const replayOkay = replay.match && replay.traceMatch && replay.finalStateMatch;
+      const status = $('[data-runtime-replay-status]', lab);
+      if (status) {
+        status.textContent = replayOkay ? 'MATCH' : 'DIVERGED';
+        status.dataset.state = replayOkay ? 'pass' : 'fail';
+      }
+      setText('[data-runtime-replay-hash]', result.replayHash, lab);
+      setText('[data-runtime-trace-hash]', result.traceHash, lab);
+      setText('[data-runtime-trace-count]', `${result.trace.length} stages`, lab);
+      const golden = $('[data-runtime-golden-hash]');
+      if (golden) golden.textContent = `${result.replayHash.slice(0, 8)}…`;
+
+      const traceList = $('[data-runtime-trace]', lab);
+      if (traceList) {
+        traceList.replaceChildren(...result.trace.map(record => {
+          const li = document.createElement('li');
+          const seq = document.createElement('span');
+          const copy = document.createElement('div');
+          const name = document.createElement('b');
+          const detail = document.createElement('small');
+          seq.textContent = String(record.sequence).padStart(2, '0');
+          name.textContent = record.stage.replaceAll('_', ' ');
+          detail.textContent = `tick ${record.tick} · ${Object.keys(record.payload || {}).slice(0, 3).join(' · ') || 'no payload'}`;
+          copy.append(name, detail);
+          li.append(seq, copy);
+          return li;
+        }));
+      }
+
+      const eventList = $('[data-runtime-events]', lab);
+      if (eventList) {
+        eventList.replaceChildren(...result.outbox.map((event, index) => {
+          const li = document.createElement('li');
+          const seq = document.createElement('span');
+          const copy = document.createElement('div');
+          const name = document.createElement('b');
+          const detail = document.createElement('small');
+          seq.textContent = String(index + 1).padStart(2, '0');
+          name.textContent = event.type;
+          detail.textContent = `tick ${event.occurredTick} · ${event.eventId.slice(-8)}`;
+          copy.append(name, detail);
+          li.append(seq, copy);
+          return li;
+        }));
+      }
+      setText('[data-runtime-plan]', json({ decisions: result.resolution.decisions, outcome, plan: result.resolution.plan }), lab);
+      setText('[data-runtime-state]', json(result.finalState), lab);
+    }
+
+    function runReplay() {
+      try {
+        const input = inputFromForm();
+        const result = G.runFireballScenario(input);
+        const replay = G.verifyReplay(input);
+        renderReplay(result, replay);
+      } catch (error) {
+        const status = $('[data-runtime-replay-status]', lab);
+        if (status) {
+          status.textContent = error.code || 'ERROR';
+          status.dataset.state = 'fail';
+        }
+        setText('[data-runtime-plan]', json(error.toJSON ? error.toJSON() : { message: String(error) }), lab);
+      }
+    }
+
+    const form = $('[data-runtime-form]', lab);
+    form?.addEventListener('submit', event => {
+      event.preventDefault();
+      runReplay();
+    });
+    form?.addEventListener('reset', () => requestAnimationFrame(runReplay));
+
+    const probes = {
+      duplicate: () => {
+        const result = G.demonstrateDuplicateCommand(inputFromForm());
+        return { pass: result.duplicateDetected && result.stateUnchanged, code: result.error?.code, evidence: result.stateUnchanged ? 'state hash unchanged' : 'state changed' };
+      },
+      conflict: () => {
+        const result = G.demonstrateVersionConflict(inputFromForm());
+        return { pass: result.rejected && result.noPartialMutation, code: result.error?.code, evidence: result.noPartialMutation ? 'no partial mutation' : 'state changed' };
+      },
+      rollback: () => {
+        const result = G.demonstrateAtomicRollback(inputFromForm());
+        return { pass: result.rolledBack, code: result.error?.code, evidence: result.rolledBack ? 'working copy discarded' : 'partial state detected' };
+      }
+    };
+    $$('[data-runtime-check]', document).forEach(button => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.runtimeCheck;
+        const output = $(`[data-runtime-check-output="${key}"]`);
+        try {
+          const result = probes[key]();
+          if (output) {
+            output.textContent = `${result.pass ? 'PASS' : 'FAIL'} · ${result.code} · ${result.evidence}`;
+            output.dataset.state = result.pass ? 'pass' : 'fail';
+          }
+        } catch (error) {
+          if (output) {
+            output.textContent = `ERROR · ${error.code || error.message}`;
+            output.dataset.state = 'fail';
+          }
+        }
+      });
+    });
+
+    function runCacheProbe() {
+      const root = $('[data-runtime-cache-probe]');
+      if (!root) return;
+      const cache = new G.ContextualStatCache({ maxEntries: 8 });
+      let computes = 0;
+      const evaluate = context => cache.evaluate({
+        entityId: 'entity.caster',
+        statId: 'stat.fire-damage',
+        ownerVersion: 7,
+        dependencies: ['target.id', 'target.tags', 'distanceBand'],
+        context,
+        compute: () => {
+          computes += 1;
+          return 100 + (context.target.tags.includes('status.burning') ? 30 : 0) + (context.distanceBand === 'far' ? 20 : 0);
+        }
+      });
+      const firstContext = { target: { id: 'entity.target-a', tags: ['status.burning'] }, distanceBand: 'far' };
+      const first = evaluate(firstContext);
+      const repeated = evaluate({ distanceBand: 'far', target: { tags: ['status.burning'], id: 'entity.target-a' } });
+      const other = evaluate({ target: { id: 'entity.target-b', tags: [] }, distanceBand: 'near' });
+      const pattern = [first, repeated, other].map(item => item.cacheHit ? 'HIT' : 'MISS').join(' → ');
+      setText('[data-runtime-cache-status]', pattern === 'MISS → HIT → MISS' ? 'PASS' : 'FAIL', root);
+      const status = $('[data-runtime-cache-status]', root);
+      if (status) status.dataset.state = pattern === 'MISS → HIT → MISS' ? 'pass' : 'fail';
+      setText('[data-runtime-cache-pattern]', pattern, root);
+      setText('[data-runtime-cache-computes]', computes, root);
+      setText('[data-runtime-cache-values]', [first.value, repeated.value, other.value].join(' · '), root);
+      setText('[data-runtime-cache-fingerprint]', first.fingerprint.hash, root);
+      setText('[data-runtime-cache-details]', json({ dependencies: first.fingerprint.dependencies, first: { cacheHit: first.cacheHit, cacheKey: first.cacheKey, value: first.value }, repeated: { cacheHit: repeated.cacheHit, cacheKey: repeated.cacheKey, value: repeated.value }, otherTarget: { cacheHit: other.cacheHit, cacheKey: other.cacheKey, value: other.value }, cache: cache.stats() }), root);
+    }
+    $('[data-runtime-cache-run]')?.addEventListener('click', runCacheProbe);
+
+    function runMigrationProbe() {
+      const root = $('[data-runtime-migration-probe]');
+      if (!root) return;
+      const source = { schemaVersion: 1, playerId: 'player.demo', profile: { displayName: 'Aria' }, resources: { health: 420, mana: 95 }, inventory: ['item.ember-ring'] };
+      const registry = new G.SchemaMigrationRegistry({ currentVersion: 3, minimumSupportedVersion: 1 });
+      registry.register({ migrationId: 'migration.player.v1-v2', fromVersion: 1, toVersion: 2, migrate: document => ({ ...document, schemaVersion: 2, resources: { hp: document.resources.health, mana: document.resources.mana } }) });
+      registry.register({ migrationId: 'migration.player.v2-v3', fromVersion: 2, toVersion: 3, migrate: document => ({ schemaVersion: 3, playerId: document.playerId, profile: document.profile, resources: document.resources, inventory: document.inventory, migratedAtPolicy: 'logical-version-only' }) });
+      try {
+        const before = G.canonicalStringify(source);
+        const result = registry.migrate(source);
+        const sourceUnchanged = before === G.canonicalStringify(source);
+        setText('[data-runtime-migration-status]', sourceUnchanged && result.appliedMigrations.length === 2 ? 'PASS' : 'FAIL', root);
+        const status = $('[data-runtime-migration-status]', root);
+        if (status) status.dataset.state = sourceUnchanged ? 'pass' : 'fail';
+        setText('[data-runtime-migration-before]', json(source), root);
+        setText('[data-runtime-migration-after]', json(result.document), root);
+        const list = $('[data-runtime-migration-audit]', root);
+        if (list) list.replaceChildren(...result.appliedMigrations.map(step => {
+          const li = document.createElement('li');
+          const title = document.createElement('b');
+          const hashes = document.createElement('code');
+          title.textContent = `${step.migrationId} · v${step.fromVersion} → v${step.toVersion}`;
+          hashes.textContent = `${step.beforeHash} → ${step.afterHash}`;
+          li.append(title, hashes);
+          return li;
+        }));
+      } catch (error) {
+        setText('[data-runtime-migration-status]', error.code || 'ERROR', root);
+      }
+    }
+    $('[data-runtime-migration-run]')?.addEventListener('click', runMigrationProbe);
+
+    runReplay();
+    runCacheProbe();
+    runMigrationProbe();
   }
 
   initialiseDialogs();
@@ -841,6 +1208,8 @@
   initialiseDiagramViewer();
   initialiseCalculator();
   initialiseSteppers();
+  initialiseTableAccessibility();
   initialisePrintAndImages();
   initialiseCurrentNavigation();
+  initialiseRuntimeReference();
 })();

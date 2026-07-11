@@ -6,16 +6,16 @@ digraph G {
 
   start [shape=circle, width=.26, label="", fillcolor="#182033", color="#182033"];
   effect [label="ApplyStatusEffect\nbuild ApplyStatusRequest", fillcolor="#eefbf6", color="#5ac39b"];
-  system [label="StatusSystem\napply(statusId, target, sourceId)", fillcolor="#eaf0ff", color="#8292f7"];
+  system [label="StatusSystem\napply(ApplyStatusRequest)", fillcolor="#eaf0ff", color="#8292f7"];
   controller [label="StatusController\nfind target controller", fillcolor="#ffffff"];
   immune [shape=diamond, label="Immune or protected?"];
   rejected [label="StatusResult\nimmune / rejected", fillcolor="#fff1f2", color="#e07b91"];
   stack [label="StackPolicy\nadd stack / replace / refresh only", fillcolor="#fff8e7", color="#e4ad4f"];
   duration [label="DurationPolicy\nrefresh / extend / fixed", fillcolor="#fff8e7", color="#e4ad4f"];
-  instance [label="StatusInstance\nremainingTime · stackCount · nextTickTime", fillcolor="#eefbf6", color="#5ac39b"];
-  modifier [label="StatusModifierProvider\nregister sourceId=statusInstanceId", fillcolor="#f4efff", color="#a884e8"];
+  instance [label="StatusInstance\nexpireTick · stackCount · nextTickAt", fillcolor="#eefbf6", color="#5ac39b"];
+  modifier [label="StatusModifierProvider\nmodifierSourceId=statusInstanceId", fillcolor="#f4efff", color="#a884e8"];
   tick [label="TickPolicy\nschedule periodic effect", fillcolor="#f4efff", color="#a884e8"];
-  event [label="EventBus\nOnStatusApplied / OnStatusRefreshed", fillcolor="#f8fafc"];
+  event [label="EventBus\nStatusApplied / StatusRefreshed", fillcolor="#f8fafc"];
   result [label="StatusResult\napplied · refreshed · stackChanged · tickScheduled", fillcolor="#eefbf6", color="#5ac39b"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];
 

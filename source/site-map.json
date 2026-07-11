@@ -3,8 +3,8 @@
     "file": "index.html",
     "short": "홈",
     "title": "Game System Framework",
-    "desc": "Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스",
-    "key": "home",
+    "desc": "Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트",
+    "key": "home learning path",
     "group": "시작",
     "level": "Overview"
   },
@@ -13,7 +13,7 @@
     "short": "Core Runtime",
     "title": "Core Runtime / System Contract",
     "desc": "Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약",
-    "key": "core",
+    "key": "core entity source event context time random",
     "group": "Foundation",
     "level": "Foundation"
   },
@@ -22,7 +22,7 @@
     "short": "Stat System",
     "title": "Stat System",
     "desc": "스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조",
-    "key": "stat",
+    "key": "stat modifier resource calculation",
     "group": "Core Systems",
     "level": "Core"
   },
@@ -31,7 +31,7 @@
     "short": "Effect System",
     "title": "Effect System",
     "desc": "EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계",
-    "key": "effect damage status",
+    "key": "effect damage status target context",
     "group": "Core Systems",
     "level": "Bridge"
   },
@@ -67,7 +67,7 @@
     "short": "통합 구조",
     "title": "Integration Map",
     "desc": "Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약",
-    "key": "integration dependency contract",
+    "key": "integration dependency contract reaction",
     "group": "Architecture",
     "level": "Architecture"
   },
@@ -76,9 +76,18 @@
     "short": "Fireball 예제",
     "title": "Fireball Case Study",
     "desc": "하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름",
-    "key": "case fireball burn damage",
+    "key": "case fireball burn damage vertical slice",
     "group": "Practice",
     "level": "Case Study"
+  },
+  {
+    "file": "modules/runtime-reference.html",
+    "short": "Runtime Lab",
+    "title": "Runtime Contract Lab",
+    "desc": "결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습",
+    "key": "runtime lab deterministic replay atomic commit reaction cache migration fireball",
+    "group": "Practice",
+    "level": "Lab"
   },
   {
     "file": "modules/diagram-gallery.html",
@@ -94,44 +103,8 @@
     "short": "용어집",
     "title": "Glossary",
     "desc": "반복되는 시스템 설계 용어와 UML 기초 문법",
-    "key": "glossary terms",
+    "key": "glossary terms uml",
     "group": "Reference",
     "level": "Reference"
-  },
-  {
-    "file": "modules/phase3-readiness.html",
-    "short": "Phase 3 준비",
-    "title": "Architecture Review / Phase 3 Readiness",
-    "desc": "설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준",
-    "key": "review phase3 readiness architecture audit determinism commit cache reaction",
-    "group": "Implementation",
-    "level": "Readiness"
-  },
-  {
-    "file": "modules/implementation-roadmap.html",
-    "short": "로드맵",
-    "title": "Implementation Roadmap",
-    "desc": "MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서",
-    "key": "roadmap implementation mvp",
-    "group": "Implementation",
-    "level": "Build Plan"
-  },
-  {
-    "file": "modules/skill-combat-next.html",
-    "short": "다음 확장",
-    "title": "Equipment / Progression 확장안",
-    "desc": "다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안",
-    "key": "next equipment item progression reward",
-    "group": "Implementation",
-    "level": "Next"
-  },
-  {
-    "file": "modules/quality-audit.html",
-    "short": "품질 점검",
-    "title": "문서 품질 점검",
-    "desc": "UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준",
-    "key": "audit quality review check",
-    "group": "Maintenance",
-    "level": "QA"
   }
 ]

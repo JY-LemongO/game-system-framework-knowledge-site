@@ -42,18 +42,10 @@
 </span>
 </a>
 <nav aria-label="주요 탐색" class="top-nav">
-<a href="../index.html">
-      Atlas
-     </a>
-<a href="../modules/integration-map.html">
-      Architecture
-     </a>
-<a href="../modules/fireball-case-study.html">
-      Case study
-     </a>
-<a href="../modules/implementation-roadmap.html">
-      Build plan
-     </a>
+<a href="../index.html">Atlas</a>
+<a href="../modules/integration-map.html">Architecture</a>
+<a href="../modules/fireball-case-study.html">Case study</a>
+<a data-runtime-nav="" href="../modules/runtime-reference.html">Runtime lab</a>
 </nav>
 <div class="top-actions">
 <button aria-haspopup="dialog" class="command-trigger" data-search-open="" type="button">
@@ -238,6 +230,10 @@
        </span>
 </div>
 </section>
+<div aria-label="학습 안내" class="grid cols2 learning-brief">
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>대상 선택과 결과 요청을 Effect로 표현하고, Stat·Combat·Status에 책임을 넘기는 경계를 구분한다.</p></article>
+<article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Stat 조회와 SourceRef 추적, 불변 요청 객체가 필요한 이유를 먼저 이해한다.</p></article>
+</div>
 <section class="split">
 <div>
 <h2 id="effect-system의-책임-경계">
@@ -392,10 +388,10 @@
 </div>
 <div class="card">
 <h3 id="valueexpression">
-        ValueExpression
-       </h3>
+         ValueExpression
+        </h3>
 <p>
-        base + stat scaling + context variables를 계산한다. 직접 문자열 수식, 데이터 기반 공식, 코드 Formula 객체 중 하나로 구현할 수 있다.
+         회복량, 자원 변화량처럼 Effect가 직접 소유하는 값을 계산한다. DamageEffect에서는 계수를 여기서 확정하지 않고 formulaId, baseValue, scaling 입력을 DamageRequest에 담아 Combat에 넘긴다.
        </p>
 </div>
 <div class="card">
@@ -427,9 +423,6 @@
 <a class="small" href="../assets/diagrams/11_effect_execution_sequence_diagram.svg" target="_blank">
          SVG
         </a>
-<a class="small" href="../assets/diagrams/11_effect_execution_sequence_diagram.png" target="_blank">
-         PNG
-        </a>
 </div>
 </div>
 <img alt="Effect 실행 시퀀스 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/11_effect_execution_sequence_diagram.svg"/>
@@ -457,7 +450,7 @@
        대상별 조건을 다시 검증한다.
       </li>
 <li>
-       ValueExpression을 계산하며 필요한 Stat을 조회한다.
+       일반 Effect는 ValueExpression을 계산한다. DamageEffect는 계산 입력을 DamageRequest로 정규화하고 Stat 조회와 피해 공식은 Combat에 위임한다.
       </li>
 <li>
        EffectOperation을 실행한다.
@@ -632,7 +625,7 @@
          ModifyResourceEffect
         </td>
 <td>
-         마나 소모, 스태미나 회복
+         마나 회복, 스태미나 감소, 자원 흡수
         </td>
 <td>
          current/max resource
@@ -696,21 +689,21 @@
 </table>
 </div>
 <h2 id="valueexpression-예시">
-      ValueExpression 예시
+      ValueExpression과 DamageRequest 예시
      </h2>
 <p>
-      Effect의 값은 고정값만으로 끝나지 않는다. 대부분은 base value, 시전자의 스탯, 대상의 스탯, 스킬 태그, 난이도 배율, 랜덤 시드를 조합한다.
+      Heal이나 ModifyResource처럼 Effect가 결과값을 소유하는 경우에는 ValueExpression을 계산한다. 피해는 같은 표현식을 Effect와 Combat에서 두 번 계산하지 않도록, DamageEffect가 아래 입력을 요청으로 만들고 CombatFormula가 Stat 조회와 계산을 전담한다.
      </p>
 <pre><code>{
-  "id": "fireball_damage",
+  "id": "effect.fireball-damage",
   "type": "damage",
-  "element": "fire",
+  "damageType": "fire",
   "target": { "type": "area_circle", "radius": 4.0 },
-  "value": {
-    "base": 40,
+  "damageRequest": {
+    "formulaId": "combat.fire.v3",
+    "baseValue": 24,
     "scaling": [
-      { "stat": "spell_power", "ratio": 1.2 },
-      { "stat": "fire_damage_bonus", "ratio": 1.0, "mode": "percent" }
+      { "stat": "spell_power", "coefficientBps": 12000 }
     ]
   },
   "conditions": ["target_is_alive", "has_line_of_sight"],
@@ -722,20 +715,21 @@
 <p>
       Effect가 실행되면 단순히 “성공”만 반환하면 안 된다. 대상별 성공/실패, 계산값, 적용된 상태, 생성 이벤트, 디버그 메시지를 남겨야 한다.
      </p>
-<pre><code>EffectResult fireball_damage
-- source: skill:fireball
-- caster: player_001
-- targets:
-  - enemy_001: hit, damage=128, fireResistance=0.2
-  - enemy_002: immune, reason=fire_immune
+<pre><code>EffectResult effect.fireball-damage
+  - sourceId: command.fireball.cast.0001
+  - sourceRef: { kind: skill-execution, definitionId: skill.fireball, instanceId: command.fireball.cast.0001 }
+  - caster: player_001
+  - targets:
+  - enemy_001: committed, rawDamage=252, resolvedDamage=202, hpDamage=162
+  - enemy_002: immune, reason=damage.immunity.fire
   - crate_003: invalid, reason=not_living_target
 - events:
-  - OnDamageDealt
-  - OnEffectApplied
+  - DamageCommitted
+  - EffectCompleted
 - debug:
-  - spell_power 70
-  - base 40 + scaling 84 = 124
-  - final after bonus/resistance = 128</code></pre>
+  - base 24 + spell_power 120 × 1.2 = 168
+  - critical 168 × 1.5 = 252
+  - resistance 20% → 202, shield 40 → hp 162</code></pre>
 <h2 id="실패-처리와-트랜잭션">
       실패 처리와 트랜잭션
      </h2>
@@ -907,34 +901,11 @@
        랜덤 시드 없이 테스트 재현이 불가능한 구조
       </li>
 </ul>
-<h2 id="완료-체크리스트">
-      완료 체크리스트
-     </h2>
-<ul class="check">
-<li>
-       EffectDefinition과 EffectRuntime 실행 상태가 분리되어 있다.
-      </li>
-<li>
-       EffectContext가 source, caster, target, skill, seed를 포함한다.
-      </li>
-<li>
-       TargetSelector가 공통 모듈로 분리되어 있다.
-      </li>
-<li>
-       EffectOperation은 Damage, Heal, Resource, Status, Modifier부터 시작한다.
-      </li>
-<li>
-       EffectResult가 대상별 성공/실패와 로그를 포함한다.
-      </li>
-<li>
-       EffectService가 이벤트를 발행하지만 UI나 전투 UI를 직접 호출하지 않는다.
-      </li>
-</ul>
 <h2 id="combat-status-연결">
       Combat / Status 연결
      </h2>
 <p>
-      Release 2부터 Effect System은 DamageEffect와 ApplyStatusEffect의 다음 책임자를 명확히 가진다. DamageEffect는 최종 피해 공식을 직접 계산하지 않고
+      Effect System은 DamageEffect와 ApplyStatusEffect의 다음 책임자를 명확히 가진다. DamageEffect는 최종 피해 공식을 직접 계산하지 않고
       <code>
        DamageRequest
       </code>
@@ -986,7 +957,7 @@
          DamageEffect
         </td>
 <td>
-         대상과 sourceId, damageType, baseValue, scaling 정보를 담은 DamageRequest 생성
+         대상과 SourceRef, damageType, formulaId, baseValue, scaling 입력을 담은 DamageRequest 생성
         </td>
 <td>
          CombatResolver
@@ -1027,30 +998,33 @@
 </tr>
 </table>
 </div>
+<h2 id="설계-점검">
+      설계 점검
+     </h2>
+<ul class="check">
+<li>
+       EffectDefinition과 EffectRuntime 실행 상태가 분리되어 있다.
+      </li>
+<li>
+       EffectContext가 source, caster, target, skill, seed를 포함한다.
+      </li>
+<li>
+       TargetSelector가 공통 모듈로 분리되어 있다.
+      </li>
+<li>
+       EffectOperation은 Damage, Heal, Resource, Status, Modifier부터 시작한다.
+      </li>
+<li>
+       EffectResult가 대상별 성공/실패와 로그를 포함한다.
+      </li>
+<li>
+       EffectService가 이벤트를 발행하지만 UI나 전투 UI를 직접 호출하지 않는다.
+      </li>
+</ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/stat-system.html">
-<span>
-       ← 이전
-      </span>
-<b>
-       Stat System
-      </b>
-<small>
-       스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조
-      </small>
-</a>
-<a class="next" href="../modules/skill-action-system.html">
-<span>
-       다음 →
-      </span>
-<b>
-       Skill / Action
-      </b>
-<small>
-       비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조
-      </small>
-</a>
+<a class="prev" href="../modules/stat-system.html"><span>← 이전</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a>
+<a class="next" href="../modules/skill-action-system.html"><span>다음 →</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -1083,7 +1057,7 @@
        Effect 타입 카탈로그
       </a>
 <a href="#valueexpression-예시">
-       ValueExpression 예시
+       ValueExpression과 DamageRequest 예시
       </a>
 <a href="#effectresult와-로그">
        EffectResult와 로그
@@ -1106,8 +1080,8 @@
 <a href="#구현-안티패턴">
        구현 안티패턴
       </a>
-<a href="#완료-체크리스트">
-       완료 체크리스트
+<a href="#설계-점검">
+       설계 점검
       </a>
 <a href="#combat-status-연결">
        Combat / Status 연결
@@ -1147,34 +1121,12 @@
 </a>
 </div>
 </section>
-<a class="readiness-card" href="../modules/phase3-readiness.html">
-<span>
-      Phase 3 gate
-     </span>
-<b>
-      설계 준비도와 다음 구현
-     </b>
-<small>
-      핵심 계약 6개 · 수용 기준 7개
-     </small>
-<i>
-      →
-     </i>
-</a>
+<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>실행 계약을 직접 검증하는 학습 실습</b><small>Replay · Failure probes · Cache · Migration</small><i>→</i></a>
 </aside>
 </div>
 <footer class="site-footer">
-<div>
-<b>
-     Game System Framework
-    </b>
-<span>
-     Offline-first · No external CDN · Release 2 redesign
-    </span>
-</div>
-<a href="../modules/quality-audit.html">
-    Quality audit
-   </a>
+<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
 <a href="../index.html">
@@ -1252,229 +1204,7 @@
       </kbd>
 </button>
 </div>
-<div class="drawer-groups">
-<section class="drawer-group">
-<h3>
-       시작
-      </h3>
-<div>
-<a href="../index.html">
-<span>
-         Overview
-        </span>
-<b>
-         홈
-        </b>
-<small>
-         Core Runtime, Stat, Effect, Skill, Combat, Status까지 확장하는 게임 시스템 설계 지식 베이스
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Foundation
-      </h3>
-<div>
-<a href="../modules/core-runtime.html">
-<span>
-         Foundation
-        </span>
-<b>
-         Core Runtime
-        </b>
-<small>
-         Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Core Systems
-      </h3>
-<div>
-<a href="../modules/stat-system.html">
-<span>
-         Core
-        </span>
-<b>
-         Stat System
-        </b>
-<small>
-         스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조
-        </small>
-</a>
-<a aria-current="page" class="is-active" href="../modules/effect-system.html">
-<span>
-         Bridge
-        </span>
-<b>
-         Effect System
-        </b>
-<small>
-         EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계
-        </small>
-</a>
-<a href="../modules/skill-action-system.html">
-<span>
-         Action
-        </span>
-<b>
-         Skill / Action
-        </b>
-<small>
-         비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조
-        </small>
-</a>
-<a href="../modules/combat-resolution-system.html">
-<span>
-         Resolution
-        </span>
-<b>
-         Combat
-        </b>
-<small>
-         명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조
-        </small>
-</a>
-<a href="../modules/status-system.html">
-<span>
-         Runtime
-        </span>
-<b>
-         Status
-        </b>
-<small>
-         버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Architecture
-      </h3>
-<div>
-<a href="../modules/integration-map.html">
-<span>
-         Architecture
-        </span>
-<b>
-         통합 구조
-        </b>
-<small>
-         Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Practice
-      </h3>
-<div>
-<a href="../modules/fireball-case-study.html">
-<span>
-         Case Study
-        </span>
-<b>
-         Fireball 예제
-        </b>
-<small>
-         하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Reference
-      </h3>
-<div>
-<a href="../modules/diagram-gallery.html">
-<span>
-         Reference
-        </span>
-<b>
-         다이어그램
-        </b>
-<small>
-         전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리
-        </small>
-</a>
-<a href="../modules/glossary.html">
-<span>
-         Reference
-        </span>
-<b>
-         용어집
-        </b>
-<small>
-         반복되는 시스템 설계 용어와 UML 기초 문법
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Implementation
-      </h3>
-<div>
-<a href="../modules/phase3-readiness.html">
-<span>
-         Readiness
-        </span>
-<b>
-         Phase 3 준비
-        </b>
-<small>
-         설계 타당성 검토 결과, 핵심 보완점, 다음 구현 게이트와 수용 기준
-        </small>
-</a>
-<a href="../modules/implementation-roadmap.html">
-<span>
-         Build Plan
-        </span>
-<b>
-         로드맵
-        </b>
-<small>
-         MVP에서 Combat, Status, Equipment, Progression까지의 구현 순서
-        </small>
-</a>
-<a href="../modules/skill-combat-next.html">
-<span>
-         Next
-        </span>
-<b>
-         다음 확장
-        </b>
-<small>
-         다음 단계에서 붙일 Equipment, Item, Progression, Reward 설계 초안
-        </small>
-</a>
-</div>
-</section>
-<section class="drawer-group">
-<h3>
-       Maintenance
-      </h3>
-<div>
-<a href="../modules/quality-audit.html">
-<span>
-         QA
-        </span>
-<b>
-         품질 점검
-        </b>
-<small>
-         UX 개편 과정에서 내용이 빠지지 않았는지 확인하는 기준
-        </small>
-</a>
-</div>
-</section>
-</div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a aria-current="page" class="is-active" href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
@@ -1495,7 +1225,7 @@
       ESC
      </button>
 </header>
-<input aria-controls="command-results" autocomplete="off" class="command-input" id="command-input" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
+<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
 <div class="command-hints">
 <span>
       ↑↓ 이동
@@ -1544,7 +1274,7 @@
       Effect 타입 카탈로그
      </a>
 <a href="#valueexpression-예시">
-      ValueExpression 예시
+      ValueExpression과 DamageRequest 예시
      </a>
 <a href="#effectresult와-로그">
       EffectResult와 로그
@@ -1567,8 +1297,8 @@
 <a href="#구현-안티패턴">
       구현 안티패턴
      </a>
-<a href="#완료-체크리스트">
-      완료 체크리스트
+<a href="#설계-점검">
+      설계 점검
      </a>
 <a href="#combat-status-연결">
       Combat / Status 연결

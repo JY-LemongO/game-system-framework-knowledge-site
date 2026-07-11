@@ -1,0 +1,28 @@
+digraph G {
+  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.34, ranksep=0.55, nodesep=0.45, splines=ortho];
+  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#b8c5d8", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.17,0.12"];
+  edge [fontname="Noto Sans CJK KR", color="#59687e", arrowsize=0.75, penwidth=1.35];
+  rankdir=TB;
+
+  Command [fillcolor="#f3eefc", label="1. CommandEnvelope\nidentity · tick · versions"];
+  Snapshot [fillcolor="#eefbf6", label="2. Frozen Snapshot\nentity versions · resources · stats"];
+  Resolve [fillcolor="#eaf0ff", label="3. Pure Resolve\nkeyed RNG · integer BPS\nimmutable outcome + plan"];
+  Preconditions [shape=diamond, fillcolor="#fff7e6", label="4. Version +\nidempotency OK?"];
+  Working [fillcolor="#fff7e6", label="5. Working Copy\nordered operations"];
+  Validate [shape=diamond, fillcolor="#fff0f3", label="6. All resource\ninvariants valid?"];
+  Commit [fillcolor="#eefbf6", label="7. Atomic Commit\nstate swap + processed command"];
+  Outbox [fillcolor="#e9fbff", label="8. Post-commit Outbox\nSkillCommitted · DamageCommitted"];
+  Queue [fillcolor="#f3eefc", label="9. Bounded ReactionQueue\npriority · stable key · budget"];
+  Status [fillcolor="#e9fbff", label="10. Status Commit / Tick\ntick-before-expire · catch-up cap"];
+  Reject [shape=note, fillcolor="#fff0f3", label="Reject without mutation\nDomainError + retryability"];
+  Rollback [shape=note, fillcolor="#fff0f3", label="Discard working copy\nNo partial mutation / no event"];
+
+  Command -> Snapshot -> Resolve -> Preconditions;
+  Preconditions -> Working [label="yes"];
+  Preconditions -> Reject [label="no"];
+  Working -> Validate;
+  Validate -> Commit [label="yes"];
+  Validate -> Rollback [label="no"];
+  Commit -> Outbox -> Queue -> Status;
+  Status -> Outbox [style=dashed, label="new committed facts"];
+}

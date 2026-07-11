@@ -70,8 +70,8 @@
 <g id="node6" class="node">
 <title>Value</title>
 <path fill="#eefbf6" stroke="#61b99a" stroke-width="1.4" d="M397,-600C397,-600 234,-600 234,-600 228,-600 222,-594 222,-588 222,-588 222,-570 222,-570 222,-564 228,-558 234,-558 234,-558 397,-558 397,-558 403,-558 409,-564 409,-570 409,-570 409,-588 409,-588 409,-594 403,-600 397,-600"/>
-<text text-anchor="middle" x="315.5" y="-582.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">5. ValueResolver</text>
-<text text-anchor="middle" x="315.5" y="-567.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">StatSystem.getValue(ctx)</text>
+<text text-anchor="middle" x="315.5" y="-582.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">5. Value / Request</text>
+<text text-anchor="middle" x="315.5" y="-567.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">generic value or DamageRequest</text>
 </g>
 <!-- Target&#45;&gt;Value -->
 <g id="edge5" class="edge">
@@ -97,7 +97,7 @@
 <title>Combat</title>
 <path fill="#fff0f3" stroke="#e07b91" stroke-width="1.4" d="M175,-404C175,-404 12,-404 12,-404 6,-404 0,-398 0,-392 0,-392 0,-374 0,-374 0,-368 6,-362 12,-362 12,-362 175,-362 175,-362 181,-362 187,-368 187,-374 187,-374 187,-392 187,-392 187,-398 181,-404 175,-404"/>
 <text text-anchor="middle" x="93.5" y="-386.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">7A. CombatSystem</text>
-<text text-anchor="middle" x="93.5" y="-371.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">명중·치명타·방어·저항</text>
+<text text-anchor="middle" x="93.5" y="-371.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">스케일링·치명타·방어·저항</text>
 </g>
 <!-- Dispatch&#45;&gt;Combat -->
 <g id="edge7" class="edge">
@@ -125,7 +125,7 @@
 <title>Stat</title>
 <path fill="#fff0f3" stroke="#e07b91" stroke-width="1.4" d="M619,-404C619,-404 456,-404 456,-404 450,-404 444,-398 444,-392 444,-392 444,-374 444,-374 444,-368 450,-362 456,-362 456,-362 619,-362 619,-362 625,-362 631,-368 631,-374 631,-374 631,-392 631,-392 631,-398 625,-404 619,-404"/>
 <text text-anchor="middle" x="537.5" y="-386.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">7C. StatSystem</text>
-<text text-anchor="middle" x="537.5" y="-371.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">Resource/Modifier 변경</text>
+<text text-anchor="middle" x="537.5" y="-371.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">ResourceController / StatModifier</text>
 </g>
 <!-- Dispatch&#45;&gt;Stat -->
 <g id="edge9" class="edge">
@@ -164,7 +164,7 @@
 <title>Event</title>
 <path fill="#eefbf6" stroke="#61b99a" stroke-width="1.4" d="M405,-222C405,-222 226,-222 226,-222 220,-222 214,-216 214,-210 214,-210 214,-192 214,-192 214,-186 220,-180 226,-180 226,-180 405,-180 405,-180 411,-180 417,-186 417,-192 417,-192 417,-210 417,-210 417,-216 411,-222 405,-222"/>
 <text text-anchor="middle" x="315.5" y="-204.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">9. EventBus publish</text>
-<text text-anchor="middle" x="315.5" y="-189.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">EffectApplied, DamageDealt</text>
+<text text-anchor="middle" x="315.5" y="-189.8" font-family="Noto Sans CJK KR" font-size="14.00" fill="#182033">EffectCompleted, DamageCommitted</text>
 </g>
 <!-- Result&#45;&gt;Event -->
 <g id="edge13" class="edge">

@@ -1,35 +1,46 @@
-# Game System Framework — System Atlas Redesign
+# Game System Framework · System Atlas
 
-`index.html`을 브라우저로 열면 됩니다. 외부 CDN, 빌드 도구, 서버 없이 로컬 파일만으로 동작합니다.
+게임 시스템 아키텍처를 순서대로 학습하는 오프라인 지식 사이트다. 최상위 `index.html`을 열면 별도 서버나 빌드 없이 Core Runtime, Stat, Effect, Skill, Combat, Status의 책임과 연결 관계를 읽을 수 있다.
 
-## 배포 및 브랜치 운영
+## 공개 학습 구성
 
-- 운영 사이트: <https://jy-lemongo.github.io/GameSystemKnowledge/>
-- QA 프리뷰: <https://jy-lemongo.github.io/GameSystemKnowledge/preview/>
-- **main**: 운영·릴리스 브랜치
-- **dev**: 통합·QA 브랜치
+공개 사이트는 학습에 직접 필요한 12개 페이지만 제공한다.
 
-dev에 변경 사항을 푸시하면 QA 프리뷰가 갱신됩니다. 확인이 끝난 변경은 Pull Request로
-dev에서 main으로 머지하며, 머지 후 운영 사이트가 자동으로 갱신됩니다.
+1. `index.html` — 전체 학습 경로와 아키텍처 관점
+2. `modules/core-runtime.html` — 공통 식별자와 런타임 계약
+3. `modules/stat-system.html` — 스탯, Modifier, 리소스 계산
+4. `modules/effect-system.html` — 대상 선택과 결과 요청
+5. `modules/skill-action-system.html` — 비용, 쿨다운, 타겟팅, 타임라인
+6. `modules/combat-resolution-system.html` — 피해 계산과 commit 경계
+7. `modules/status-system.html` — 지속시간, 중첩, tick, 정화, 면역
+8. `modules/integration-map.html` — 시스템 의존성과 handoff 계약
+9. `modules/fireball-case-study.html` — 전체 흐름을 잇는 수직 사례
+10. `modules/runtime-reference.html` — 실행 결과를 직접 관찰하는 Runtime Contract Lab
+11. `modules/diagram-gallery.html` — UML 다이어그램 레퍼런스
+12. `modules/glossary.html` — 용어와 UML 기초 문법
 
-## 이번 개편
+구현 로드맵, 릴리스 현황, 품질 감사 결과, 앞으로의 기능 계획은 공개 학습 페이지와 검색 색인에 포함하지 않는다.
 
-- 학습 순서 / 런타임 실행 / 코드 계약을 분리한 인터랙티브 Architecture Lens
-- 페이지 제목뿐 아니라 본문 섹션까지 찾는 `⌘/Ctrl + K` 검색
-- 전체 문서 drawer, 핵심 시스템 dock, 반응형 모바일 하단 탐색
-- 접근 가능한 native dialog 기반 검색·목차·다이어그램 포커스 뷰
-- 테마 3단계(system/light/dark), 집중 읽기 모드, 읽기 진행률
-- 다이어그램 pan/zoom, 코드 복사 fallback, heading deep link
-- Phase 3 Readiness 페이지와 아키텍처 계약 보강
-- 외부 자산 없이 동작하며 `prefers-reduced-motion`과 키보드 탐색을 지원
+## 로컬에서 보기
 
-## 중요 용어
+`index.html`을 브라우저에서 직접 열 수 있다. Runtime Contract Lab까지 같은 조건으로 확인하려면 저장소 루트에서 정적 서버를 실행한다.
 
-이 패키지의 **Release 2**는 지식 사이트 배포 버전입니다. `Implementation Roadmap`의 단계는 혼동을 피하기 위해 **Milestone**으로 표기합니다.
+```bash
+npm run serve
+```
 
-## 권장 시작점
+## 학습 자료와 저장소 문서의 경계
 
-1. `index.html` — 세 관점으로 전체 구조 읽기
-2. `modules/fireball-case-study.html` — 수직 슬라이스 추적
-3. `modules/phase3-readiness.html` — 설계 검토와 다음 구현 Gate
-4. `ARCHITECTURE_AUDIT_AND_PHASE3_PLAN.md` — 상세 분석 보고서
+- 공개 HTML은 현재 설명하는 개념, 계약, 예제, 실습만 담는다.
+- `source/runtime/`은 Runtime Contract Lab이 사용하는 실행 커널, fixture, 계약 스키마를 보관한다.
+- `source/diagrams/`와 `assets/diagrams/`는 학습 다이어그램의 원본과 출력물을 보관한다.
+- `QA_REPORT.md`, `PHASE3_REFERENCE_IMPLEMENTATION.md`, `PHASE3_IMPLEMENTATION_PLAN.md` 같은 문서는 저장소 내부 검증·계획 기록이며 공개 내비게이션에는 연결하지 않는다.
+
+## 유지보수 검증
+
+```bash
+npm run python:deps
+npm run qa
+```
+
+`qa`는 런타임 테스트, 검색 색인 재생성, 정적 링크·계약 검증, 체크섬 manifest 확인, 데스크톱·모바일 브라우저 smoke test를 순서대로 실행한다. 파일을 변경한 뒤에는 `npm run manifest`로 `MANIFEST.sha256`을 갱신한다. 검색 색인은 `source/site-map.json`과 공개 HTML을 기준으로 생성하므로 공개 페이지를 추가하거나 제거할 때는 사이트 맵과 문서 pager를 함께 갱신한다.

@@ -1,6 +1,10 @@
 # Game System Framework 지식 사이트
 ## 아키텍처 타당성 검토 · UX/UI 전면 개편 · Phase 3 구현 계획
 
+> **역사적 기준선 안내 — Release 3.2**
+> 이 문서는 실행 코드가 추가되기 전 원본 패키지와 UX/UI 개편본을 평가한 audit 기록이다. 당시 74/100은 pre-implementation baseline이며, 현재 구현 상태는 `PHASE3_REFERENCE_IMPLEMENTATION.md`, 남은 작업은 `PHASE3_IMPLEMENTATION_PLAN.md`, 검증 결과는 `QA_REPORT.md`를 기준으로 한다.
+
+
 - 검토 대상: `Game_System_Framework_Knowledge_Site_Pro_Package_phase2_pre_phase3_checked(3).zip`
 - 산출물: 오프라인 정적 웹사이트 전체 개편본
 - 검토 기준: 책임 경계, 결정론, 상태 변경 소유권, 확장성, 테스트 가능성, 정보 구조, 접근성, 반응형 사용성
