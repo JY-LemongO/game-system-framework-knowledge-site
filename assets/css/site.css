@@ -656,7 +656,8 @@ h2:hover > .heading-anchor, h3:hover > .heading-anchor, .heading-anchor:focus-vi
 .learning-progress-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; }
 .learning-progress-actions .button { border: 0; cursor: pointer; }
 .learning-progress-actions .button.ghost { border: 1px solid var(--line-strong); }
-.learning-progress-status { grid-column: 1 / -1; margin: -10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.learning-progress-status { grid-column: 1 / -1; }
+.learning-progress-panel .learning-progress-status { margin: -10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
 
 .learning-checkpoint {
   margin: 72px 0 0;
@@ -667,9 +668,10 @@ h2:hover > .heading-anchor, h3:hover > .heading-anchor, .heading-anchor:focus-vi
   box-shadow: var(--shadow-sm);
 }
 .learning-checkpoint h2 { margin: 5px 0 8px; font-size: clamp(30px, 4vw, 45px); letter-spacing: -.05em; }
-.checkpoint-intro { max-width: 720px; margin: 0; color: var(--muted); }
+.learning-checkpoint .checkpoint-intro { max-width: 720px; margin: 0; color: var(--muted); }
 .checkpoint-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 24px 0 0; padding: 0; list-style: none; counter-reset: none; }
-.checkpoint-grid > li { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 17px; background: var(--surface-solid); }
+.learning-checkpoint .checkpoint-grid { margin: 24px 0 0; padding: 0; }
+.checkpoint-grid > li { min-width: 0; margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 17px; background: var(--surface-solid); }
 .checkpoint-grid > li > span { display: block; padding: 16px 18px 0; color: var(--accent); font-size: 9px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
 .checkpoint-grid details { height: 100%; }
 .checkpoint-grid summary { min-height: 138px; display: flex; flex-direction: column; justify-content: space-between; gap: 20px; padding: 14px 18px 18px; cursor: pointer; color: var(--ink); font-size: 15px; font-weight: 760; line-height: 1.58; list-style: none; }
@@ -831,10 +833,10 @@ pre, .codewrap { margin: 24px 0 30px; }
 .callout.warn { --accent: var(--amber); --accent-soft: var(--amber-soft); }
 .callout.warn::before { content: "!"; font-family: var(--font-sans); }
 .callout p:last-child { margin-bottom: 0; }
-ul.check, ul.cross, .checklist { list-style: none; padding: 0; display: grid; gap: 9px; }
-ul.check li, ul.cross li, .checklist > * { position: relative; margin: 0; padding: 14px 16px 14px 45px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
-ul.check li::before, ul.cross li::before, .checklist > *::before { position: absolute; left: 16px; top: 15px; width: 19px; height: 19px; display: grid; place-items: center; border-radius: 7px; font-size: 10px; font-weight: 850; }
-ul.check li::before, .checklist > *::before { content: "✓"; background: var(--mint-soft); color: var(--mint); }
+ul.check, ul.cross, .doc-article .checklist { list-style: none; padding: 0; display: grid; gap: 9px; }
+ul.check li, ul.cross li, .doc-article .checklist > * { position: relative; margin: 0; padding: 14px 16px 14px 45px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+ul.check li::before, ul.cross li::before, .doc-article .checklist > *::before { position: absolute; left: 16px; top: 15px; width: 19px; height: 19px; display: grid; place-items: center; border-radius: 7px; font-size: 10px; font-weight: 850; }
+ul.check li::before, .doc-article .checklist > *::before { content: "✓"; background: var(--mint-soft); color: var(--mint); }
 ul.cross li::before { content: "×"; background: var(--rose-soft); color: var(--rose); }
 .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 24px 0 30px; padding: 14px; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); }
 .flow span { min-height: 36px; display: inline-flex; align-items: center; padding: 0 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-solid); font-size: 11px; font-weight: 750; }
@@ -857,7 +859,7 @@ ul.cross li::before { content: "×"; background: var(--rose-soft); color: var(--
 .small:hover { color: var(--accent); border-color: var(--accent); }
 .diagram img { width: 100%; max-height: 620px; object-fit: contain; padding: 24px; background: #fff; cursor: zoom-in; }
 .diagram img:focus-visible { outline-offset: -5px; }
-.cap { padding: 13px 17px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.6; }
+.doc-article .cap { margin: 0; padding: 13px 17px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.6; }
 
 /* Timeline */
 .timeline { position: relative; display: grid; gap: 13px; margin: 26px 0 34px; padding-left: 24px; }
@@ -1048,7 +1050,7 @@ body.is-focus .hero { min-height: 320px; }
   .hero-actions { display: grid; grid-template-columns: 1fr 1fr; }.button { width: 100%; }.button.text { grid-column: 1/-1; }
   .learning-progress-panel { gap: 20px; padding: 22px; border-radius: 22px; }
   .learning-progress-actions { display: grid; grid-template-columns: 1fr; }
-  .learning-progress-status { margin-top: -5px; }
+  .learning-progress-panel .learning-progress-status { margin-top: -5px; }
   .learning-checkpoint { margin-top: 60px; padding: 21px; border-radius: 20px; }
   .learning-checkpoint h2 { font-size: 31px; }
   .checkpoint-grid summary { padding: 13px 16px 17px; font-size: 14px; }
@@ -1301,7 +1303,8 @@ body.is-focus .hero { min-height: 320px; }
 .runtime-output-grid header span { font-size: 11px; font-weight: 780; }
 .runtime-output-grid header small { color: var(--muted); font-family: var(--font-mono); font-size: 9px; }
 .runtime-trace, .runtime-events { max-height: 360px; margin: 0; padding: 8px; overflow: auto; list-style: none; scrollbar-width: thin; }
-.runtime-trace li, .runtime-events li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 9px; padding: 10px; border-radius: 10px; }
+.doc-article .runtime-trace, .doc-article .runtime-events { margin: 0; padding: 8px; }
+.runtime-trace li, .runtime-events li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 9px; margin: 0; padding: 10px; border-radius: 10px; }
 .runtime-trace li:hover, .runtime-events li:hover { background: var(--surface-soft); }
 .runtime-trace li > span, .runtime-events li > span { color: var(--accent); font-family: var(--font-mono); font-size: 9px; }
 .runtime-trace li div, .runtime-events li div { min-width: 0; display: grid; gap: 3px; }
@@ -1358,7 +1361,8 @@ body.is-focus .hero { min-height: 320px; }
 .migration-columns > div > span { display: block; padding: 12px 20px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; }
 .migration-columns pre { height: 275px; margin: 0; padding: 18px 20px; overflow: auto; border: 0; border-radius: 0; background: color-mix(in srgb, var(--bg) 80%, var(--surface-solid)); font-size: 10px; }
 .migration-audit { display: grid; gap: 1px; margin: 0; padding: 0; border-top: 1px solid var(--line); background: var(--line); list-style: none; }
-.migration-audit li { min-width: 0; display: grid; grid-template-columns: .8fr 1.2fr; gap: 14px; padding: 14px 20px; background: var(--surface-solid); }
+.doc-article .migration-audit { margin: 0; padding: 0; }
+.migration-audit li { min-width: 0; display: grid; grid-template-columns: .8fr 1.2fr; gap: 14px; margin: 0; padding: 14px 20px; background: var(--surface-solid); }
 .migration-audit b { font-size: 10px; }
 .migration-audit code { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 

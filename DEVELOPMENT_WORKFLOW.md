@@ -62,7 +62,7 @@ PR 병합으로 `main`의 merge commit SHA가 달라지는 것은 정상이며, 
 - 기준 브랜치: `dev`
 - C# 학습 시스템 감사 완료 커밋: `73be3bc6b6fa0d6662b63f432e9c45cf9c91fff0`
 - 완료 범위: Combat, Skill, Effect, Status, SourceRef, Runtime 설명과 실행 가능한 C# 계약의 정합화
-- 검증 결과: JavaScript 34개, C# assertion 151개, 공개 페이지 12개, 검색 항목 318개, 다이어그램 세트 34개, 브라우저 검사 375개 통과
+- 검증 결과: JavaScript 34개, C# assertion 151개, 공개 페이지 12개, 검색 항목 318개, 다이어그램 세트 34개, 브라우저 검사 397개 통과
 - 현재 학습·참조 구현 감사 범위 내 알려진 미해결 정합성 문제: 없음
 - 범위 밖 항목: production DB·network·engine 통합과 미실시 수동·부하 검증은 `source/runtime/README.md`와 `QA_REPORT.md`에 기록한다.
 

@@ -33,6 +33,91 @@ SCRIPT_MAP={
     'app.js':(ROOT/'assets/js/app.js').read_text(encoding='utf-8'),
 }
 PIXEL='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700"%3E%3Crect width="1200" height="700" fill="%23f3f4f6"/%3E%3C/svg%3E'
+COMPONENT_LAYOUT_AUDIT=r"""
+() => {
+  const px = (value) => Number.parseFloat(value) || 0;
+  const near = (actual, expected) => Math.abs(actual - expected) <= 0.6;
+  const issues = [];
+  let checked = false;
+
+  const checklist = [...document.querySelectorAll('ul.checklist')];
+  if (checklist.length) {
+    checked = true;
+    for (const list of checklist) {
+      if (!near(px(getComputedStyle(list).paddingLeft), 0)) issues.push('checklist-list-padding');
+      for (const item of list.querySelectorAll(':scope > li')) {
+        const style = getComputedStyle(item);
+        const marker = getComputedStyle(item, '::before');
+        const markerEnd = px(marker.left) + px(marker.width);
+        if (px(style.paddingLeft) < markerEnd + 4) issues.push('checklist-marker-overlap');
+        if (!near(px(style.marginTop), 0) || !near(px(style.marginBottom), 0)) issues.push('checklist-item-margin');
+      }
+    }
+  }
+
+  const checkpointGrid = document.querySelector('.checkpoint-grid');
+  if (checkpointGrid) {
+    checked = true;
+    const gridStyle = getComputedStyle(checkpointGrid);
+    if (!near(px(gridStyle.paddingLeft), 0) || px(gridStyle.marginTop) < 20 || !near(px(gridStyle.marginBottom), 0)) issues.push('checkpoint-grid-spacing');
+    const item = checkpointGrid.querySelector(':scope > li');
+    if (item) {
+      const itemStyle = getComputedStyle(item);
+      if (!near(px(itemStyle.marginTop), 0) || !near(px(itemStyle.marginBottom), 0) || !near(px(itemStyle.paddingLeft), 0)) {
+        issues.push('checkpoint-item-spacing');
+      }
+    }
+    const intro = document.querySelector('.checkpoint-intro');
+    const answer = document.querySelector('.checkpoint-answer p');
+    if (intro) {
+      const introStyle = getComputedStyle(intro);
+      if (!near(px(introStyle.marginBottom), 0)) issues.push('checkpoint-intro-margin');
+      if (answer && introStyle.color !== getComputedStyle(answer).color) issues.push('checkpoint-intro-color');
+    }
+  }
+
+  const progressStatus = document.querySelector('.learning-progress-status');
+  if (progressStatus) {
+    checked = true;
+    const style = getComputedStyle(progressStatus);
+    const meterLabel = document.querySelector('.learning-progress-meter span');
+    if (px(style.fontSize) > 12 || px(style.lineHeight) > 20 || px(style.marginTop) >= 0 || !near(px(style.marginBottom), 0)) {
+      issues.push('progress-status-typography');
+    }
+    if (meterLabel && style.color !== getComputedStyle(meterLabel).color) issues.push('progress-status-color');
+  }
+
+  const runtimeLists = [
+    ['.runtime-trace', 8],
+    ['.runtime-events', 8],
+    ['.migration-audit', 0],
+  ];
+  for (const [selector, expectedPadding] of runtimeLists) {
+    const list = document.querySelector(selector);
+    if (!list) continue;
+    checked = true;
+    const style = getComputedStyle(list);
+    if (!near(px(style.paddingLeft), expectedPadding) || !near(px(style.marginBottom), 0)) issues.push(`${selector}-spacing`);
+    for (const item of list.querySelectorAll(':scope > li')) {
+      const itemStyle = getComputedStyle(item);
+      if (!near(px(itemStyle.marginTop), 0) || !near(px(itemStyle.marginBottom), 0)) issues.push(`${selector}-item-margin`);
+    }
+  }
+
+  const captions = [...document.querySelectorAll('.thumb .cap')];
+  if (captions.length) {
+    checked = true;
+    for (const caption of captions) {
+      const style = getComputedStyle(caption);
+      const mutedControl = caption.closest('.thumb')?.querySelector('.small');
+      if (px(style.fontSize) > 12 || px(style.lineHeight) > 20 || !near(px(style.marginBottom), 0)) issues.push('diagram-caption-typography');
+      if (mutedControl && style.color !== getComputedStyle(mutedControl).color) issues.push('diagram-caption-color');
+    }
+  }
+
+  return { checked, issues: [...new Set(issues)] };
+}
+"""
 
 def inline_page(file):
     soup=BeautifulSoup((ROOT/file).read_text(encoding='utf-8'),'html.parser')
@@ -62,6 +147,10 @@ with sync_playwright() as p:
             page.on('pageerror', lambda exc, bucket=js_errors: bucket.append(str(exc)))
             page.set_content(inline_page(item['file']), wait_until='load')
             page.wait_for_timeout(60)
+            component_layout=page.evaluate(COMPONENT_LAYOUT_AUDIT)
+            if component_layout['checked']:
+                details=', '.join(component_layout['issues'])
+                check(not component_layout['issues'], f'{viewport_name}:{item["file"]}:component-layout' + (f' ({details})' if details else ''))
             overflow=page.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth')
             check(overflow <= 1, f'{viewport_name}:{item["file"]}:no-horizontal-overflow')
             check(not js_errors, f'{viewport_name}:{item["file"]}:no-js-errors' + (f' ({js_errors})' if js_errors else ''))
