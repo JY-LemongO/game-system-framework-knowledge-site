@@ -112,7 +112,7 @@ npm run csharp:verify
 npm run qa
 ```
 
-`csharp:verify`는 외부 테스트 패키지 없이 C# 계약과 Fireball 기준 수치를 빌드·실행한다. `qa`는 JavaScript 런타임 테스트, C# 참조 검증, 내비게이션 문구 일치, 검색 색인 재생성, 정적 링크·계약 검증, 체크섬 manifest 확인, 데스크톱·모바일 브라우저 smoke test를 순서대로 실행한다.
+`csharp:verify`는 외부 테스트 패키지 없이 C# 계약과 Fireball 기준 수치를 빌드·실행한다. `qa`는 JavaScript 런타임 테스트, C# 참조 검증, 내비게이션 문구 일치, Graphviz 출력 일치, 검색 색인 재생성, 정적 링크·계약 검증, 체크섬 manifest 확인, 데스크톱·모바일 브라우저 smoke test를 순서대로 실행한다. Graphviz 설치와 다이어그램 재생성 명령은 [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md)에서 확인한다.
 
 파일을 변경한 뒤에는 `npm run site-shell`로 drawer·pager 설명을, `npm run manifest`로 `MANIFEST.sha256`을 갱신한다. 현재 브랜치 역할과 Preview → Production 승격 절차는 [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md)에서 확인할 수 있다.
 

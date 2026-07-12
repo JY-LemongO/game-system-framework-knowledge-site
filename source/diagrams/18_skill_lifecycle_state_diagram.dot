@@ -1,46 +1,66 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.58, nodesep=0.52];
-  node [fontname="Noto Sans CJK KR", shape=ellipse, style="filled", color="#8fa3c2", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.16,0.10"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.74, nodesep=0.78, newrank=true, splines=spline];
+  node [fontname="Noto Sans KR", shape=ellipse, style="filled", color="#8fa3c2", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.16,0.10"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
   rankdir=TB;
 
   Start [shape=point, width=0.20, label=""];
+  FailureReturn [shape=point, width=0.12, label="", color="#e07b91"];
+
   subgraph cluster_availability {
     label="SkillRuntime · long-lived availability"; color="#dfe5ee"; style="rounded,dashed";
     Ready [fillcolor="#eefbf6", color="#61b99a", label="Ready\nlearned · charge · cooldown valid"];
     Cooldown [fillcolor="#f0f3f9", color="#99a8bd", label="Cooldown\ncommitted ready tick / charge"];
   }
+
   subgraph cluster_execution {
     label="Internal project-specific SkillExecution · one cast"; color="#dfe5ee"; style="rounded,dashed";
     Idle [fillcolor="#f7f9fc", label="Idle\nno active cast"];
     Validating [fillcolor="#f3eefc", color="#ab8fe0", label="ISkillRequestValidator.Validate\npublic SkillDecision"];
+    ValidationRejected [fillcolor="#fff0f3", color="#e07b91", label="Public SkillResult\nvalidation rejected\nno mutation / event"];
     Casting [fillcolor="#fff7e6", color="#e0ad4e", label="Casting\nwindup / cast"];
+    Interrupted [fillcolor="#fff0f3", color="#e07b91", label="Public SkillResult: Interrupted\nbefore internal Prepare\nrefund policy"];
     Preparing [fillcolor="#e9fbff", color="#54b7cf", label="Internal SkillReleasePlan\nSkill mutations + public EffectBundlePlan"];
     Committing [fillcolor="#fff7e6", color="#e0ad4e", label="RuntimeCommitter\natomic state + outbox"];
+    CommitOutcome [shape=diamond, fillcolor="#f3eefc", color="#ab8fe0", label="commit accepted?"];
+    CommitRejected [fillcolor="#fff0f3", color="#e07b91", label="Public SkillResult\nversion / invariant failure\nno mutation / event"];
     Committed [fillcolor="#eefbf6", color="#61b99a", label="Committed\nSkillCommitted / DamageCommitted"];
     ReactionQueued [fillcolor="#f3eefc", color="#ab8fe0", label="ReactionQueued\npost-commit command"];
     Recovery [fillcolor="#e9fbff", color="#54b7cf", label="Recovery\nvisual / input recovery"];
-    Rejected [fillcolor="#fff0f3", color="#e07b91", label="Public SkillResult\ncanonical FailureReason\nno mutation / event"];
-    Interrupted [fillcolor="#fff0f3", color="#e07b91", label="Public SkillResult: Interrupted\nbefore internal Prepare\nrefund policy"];
   }
 
-  Start -> Ready;
+  { rank=same; Idle; Ready; }
+  { rank=same; ValidationRejected; Validating; }
+  { rank=same; Interrupted; Preparing; }
+  { rank=same; CommitRejected; Committed; Cooldown; }
+  { rank=same; FailureReturn; Recovery; }
+
+  Ready -> Idle [style=invis, weight=20];
+  Preparing -> Interrupted [style=invis, weight=20];
+  Cooldown -> Committed -> CommitRejected [style=invis, weight=20];
+  Recovery -> FailureReturn [style=invis, weight=20];
+
   Start -> Idle;
-  Ready -> Validating [label="SkillRequest"];
+  Start -> Ready;
   Idle -> Validating [style=dashed, label="create execution"];
-  Validating -> Casting [label="valid"];
-  Validating -> Rejected [label="invalid"];
+  Ready -> Validating [label="SkillRequest"];
+  Validating -> Casting [label="valid · begin cast", color="#4f8b74", fontcolor="#3f735f"];
+  Validating -> ValidationRejected [weight=20, label="invalid · public failure", color="#c35f76", fontcolor="#9d4358"];
   Casting -> Preparing [label="release marker"];
-  Casting -> Interrupted [label="stun / silence / cancel"];
-  Preparing -> Committing [label="combine plans"];
-  Committing -> Committed [label="success"];
-  Committing -> Rejected [label="version / invariant fail"];
-  Committed -> Cooldown [label="cost/cooldown mutation"];
+  Casting -> Interrupted [label="interrupt · stun / silence / cancel", color="#c35f76", fontcolor="#9d4358"];
+  Preparing -> Committing [label="combine SkillReleasePlan"];
+  Committing -> CommitOutcome [label="atomic commit result"];
+  CommitOutcome -> Committed [label="success", color="#4f8b74", fontcolor="#3f735f"];
+  CommitOutcome -> CommitRejected [label="failure · version / invariant", color="#c35f76", fontcolor="#9d4358"];
+  Committed -> Cooldown [label="cost / cooldown mutation"];
   Committed -> ReactionQueued [label="commit_then_react"];
-  Committed -> Recovery;
-  ReactionQueued -> Recovery [style=dashed];
-  Recovery -> Idle [label="finish"];
-  Rejected -> Idle;
-  Interrupted -> Idle;
+  Committed -> Recovery [label="no reaction"];
+  ReactionQueued -> Recovery [style=dashed, label="reaction dispatched"];
   Cooldown -> Ready [label="ready tick / charge restored"];
+
+  ValidationRejected -> FailureReturn [label="result returned", color="#c35f76", fontcolor="#9d4358"];
+  Interrupted -> FailureReturn [label="interrupt handled", color="#c35f76", fontcolor="#9d4358"];
+  CommitRejected -> FailureReturn [label="commit rejected", color="#c35f76", fontcolor="#9d4358"];
+  FailureReturn -> Idle [constraint=false, minlen=5, tailport=w, headport=w, label="next request", color="#c35f76", fontcolor="#9d4358"];
+  Recovery -> Idle [constraint=false, minlen=6, tailport=e, headport=e, label="finish · next cast", color="#54a0b7", fontcolor="#3b7f91"];
 }

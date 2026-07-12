@@ -711,6 +711,8 @@
     if (!dialog || !canvas || !modalImage) return;
 
     let scale = 1;
+    let fitScale = 1;
+    let isFitMode = true;
     let x = 0;
     let y = 0;
     let dragging = false;
@@ -720,12 +722,26 @@
       modalImage.style.left = `calc(50% + ${x}px)`;
       modalImage.style.top = `calc(50% + ${y}px)`;
       modalImage.style.transform = `translate(-50%, -50%) scale(${scale})`;
-      canvas.classList.toggle('is-zoomed', scale > 1.01);
-      if (resetButton) resetButton.textContent = `${Math.round(scale * 100)}%`;
+      canvas.classList.toggle('is-zoomed', scale > fitScale * 1.01);
+      if (resetButton) {
+        const atFit = Math.abs(scale - fitScale) < Math.max(.002, fitScale * .02);
+        resetButton.textContent = `${Math.round(scale * 100)}%`;
+        resetButton.setAttribute('aria-label', atFit ? '원본 크기 100%로 보기' : '화면에 맞춤');
+        resetButton.title = atFit ? '원본 크기 100%로 보기' : '화면에 맞춤';
+      }
+    }
+
+    function calculateFitScale() {
+      if (!modalImage.naturalWidth || !modalImage.naturalHeight) return 1;
+      const availableWidth = Math.max(1, canvas.clientWidth - 48);
+      const availableHeight = Math.max(1, canvas.clientHeight - 48);
+      return Math.min(1, availableWidth / modalImage.naturalWidth, availableHeight / modalImage.naturalHeight);
     }
 
     function reset() {
-      scale = 1;
+      fitScale = calculateFitScale();
+      scale = fitScale;
+      isFitMode = true;
       x = 0;
       y = 0;
       dragging = false;
@@ -734,24 +750,34 @@
 
     function setScale(next, originX = canvas.clientWidth / 2, originY = canvas.clientHeight / 2) {
       const previous = scale;
-      scale = Math.max(0.5, Math.min(5, next));
+      const minimum = Math.max(.01, fitScale * .5);
+      scale = Math.max(minimum, Math.min(8, next));
       if (scale === previous) return;
+      isFitMode = false;
       const rect = canvas.getBoundingClientRect();
       const localX = originX - rect.left - rect.width / 2;
       const localY = originY - rect.top - rect.height / 2;
       const ratio = scale / previous;
       x = localX - (localX - x) * ratio;
       y = localY - (localY - y) * ratio;
-      if (scale <= 1) { x = 0; y = 0; }
+      if (scale <= fitScale * 1.001) { x = 0; y = 0; }
       applyTransform();
+    }
+
+    function toggleFitNative() {
+      const atFit = Math.abs(scale - fitScale) < Math.max(.002, fitScale * .02);
+      if (atFit || isFitMode) setScale(1);
+      else reset();
     }
 
     function metadataFor(image) {
       const container = image.closest('.diagram, .thumb') || image.parentElement;
       const heading = container?.querySelector('.dh strong, h3, h2');
       const sourceLink = container?.querySelector('.da a[href$=".svg"], .da a[href$=".png"], a[href$=".svg"], a[href$=".png"]');
+      const headingCopy = heading?.cloneNode(true);
+      headingCopy?.querySelector('.heading-anchor')?.remove();
       return {
-        title: heading?.textContent.trim() || image.alt || 'Diagram',
+        title: headingCopy?.textContent.trim() || image.alt || 'Diagram',
         src: image.currentSrc || image.getAttribute('src'),
         original: sourceLink?.href || image.currentSrc || image.src
       };
@@ -760,15 +786,39 @@
     function open(image) {
       const meta = metadataFor(image);
       if (!meta.src) return;
-      reset();
-      modalImage.src = meta.src;
       modalImage.alt = image.alt || meta.title;
       if (title) title.textContent = meta.title;
       if (original) original.href = meta.original;
       openDialog(dialog, image);
+      modalImage.src = meta.src;
+      if (modalImage.complete && modalImage.naturalWidth) reset();
+    }
+
+    function prepareGalleryPreview(image) {
+      const card = image.closest('.thumb');
+      if (!card || image.parentElement?.classList.contains('diagram-preview')) return;
+      const preview = document.createElement('div');
+      preview.className = 'diagram-preview';
+      image.before(preview);
+      preview.append(image);
+      const classify = () => {
+        if (!image.naturalWidth || !image.naturalHeight) return;
+        const ratio = image.naturalWidth / image.naturalHeight;
+        preview.dataset.aspect = ratio > 2.2 ? 'wide' : ratio < .75 ? 'tall' : 'balanced';
+        preview.style.setProperty('--preview-width', `${Math.min(image.naturalWidth, 1600)}px`);
+        preview.style.setProperty('--preview-height', `${Math.min(image.naturalHeight, 900)}px`);
+        requestAnimationFrame(() => {
+          const isWide = preview.dataset.aspect === 'wide';
+          preview.scrollLeft = isWide ? Math.max(0, (preview.scrollWidth - preview.clientWidth) / 2) : 0;
+          preview.scrollTop = isWide ? Math.max(0, (preview.scrollHeight - preview.clientHeight) / 2) : 0;
+        });
+      };
+      image.addEventListener('load', classify);
+      if (image.complete) classify();
     }
 
     $$('img.zoomable, img[data-zoom]').forEach(image => {
+      prepareGalleryPreview(image);
       image.tabIndex = image.tabIndex >= 0 ? image.tabIndex : 0;
       image.setAttribute('role', 'button');
       image.setAttribute('aria-label', `${image.alt || '다이어그램'} 크게 보기`);
@@ -781,16 +831,17 @@
       });
     });
 
-    zoomIn?.addEventListener('click', () => setScale(scale + 0.25));
-    zoomOut?.addEventListener('click', () => setScale(scale - 0.25));
-    resetButton?.addEventListener('click', reset);
+    modalImage.addEventListener('load', reset);
+    zoomIn?.addEventListener('click', () => setScale(scale * 1.35));
+    zoomOut?.addEventListener('click', () => setScale(scale / 1.35));
+    resetButton?.addEventListener('click', toggleFitNative);
     canvas.addEventListener('wheel', event => {
       event.preventDefault();
-      setScale(scale + (event.deltaY < 0 ? 0.18 : -0.18), event.clientX, event.clientY);
+      setScale(scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15), event.clientX, event.clientY);
     }, { passive: false });
 
     canvas.addEventListener('pointerdown', event => {
-      if (scale <= 1 || event.button !== 0) return;
+      if (scale <= fitScale * 1.01 || event.button !== 0) return;
       dragging = true;
       pointerStart = { pointerX: event.clientX, pointerY: event.clientY, x, y };
       canvas.setPointerCapture(event.pointerId);
@@ -810,17 +861,24 @@
     }
     canvas.addEventListener('pointerup', endDrag);
     canvas.addEventListener('pointercancel', endDrag);
-    canvas.addEventListener('dblclick', event => setScale(scale > 1 ? 1 : 2, event.clientX, event.clientY));
+    canvas.addEventListener('dblclick', toggleFitNative);
     modalImage.addEventListener('dragstart', event => event.preventDefault());
     dialog.addEventListener('close', () => {
       modalImage.removeAttribute('src');
-      reset();
+      scale = 1;
+      fitScale = 1;
+      isFitMode = true;
+      x = 0;
+      y = 0;
+      applyTransform();
     });
     dialog.addEventListener('keydown', event => {
-      if (event.key === '+' || event.key === '=') setScale(scale + 0.25);
-      if (event.key === '-') setScale(scale - 0.25);
+      if (event.key === '+' || event.key === '=') setScale(scale * 1.35);
+      if (event.key === '-') setScale(scale / 1.35);
       if (event.key === '0') reset();
+      if (event.key === '1') setScale(1);
     });
+    window.addEventListener('resize', () => { if (dialog.open && isFitMode) reset(); });
   }
 
   function initialiseCalculator() {

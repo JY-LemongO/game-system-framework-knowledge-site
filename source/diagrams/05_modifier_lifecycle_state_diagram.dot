@@ -1,7 +1,7 @@
 digraph ModifierStateDiagram {
-	graph [bgcolor=white fontname="Noto Sans CJK KR" fontsize=18 label="UML State Diagram - StatModifier Lifecycle" labelloc=t nodesep=0.55 rankdir=LR ranksep=0.75 splines=ortho]
-	node [color="#425466" fontname="Noto Sans CJK KR" fontsize=11 shape=box style="rounded,filled"]
-	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans CJK KR" fontsize=10]
+	graph [bgcolor=white fontname="Noto Sans KR" fontsize=18 label="UML State Diagram - StatModifier Lifecycle" labelloc=t newrank=true nodesep=1.0 outputorder=edgesfirst rankdir=LR ranksep=1.05 splines=spline]
+	node [color="#425466" fontname="Noto Sans KR" fontsize=11 shape=box style="rounded,filled"]
+	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans KR" fontsize=9 penwidth=1.2]
 	created [label="Created
 데이터에서 생성됨" fillcolor="#FFF3CD"]
 	pending [label="Pending
@@ -19,17 +19,19 @@ source 제거/장비 해제" fillcolor="#FCE8E6"]
 	serialized [label="Serialized
 저장 가능한 상태" fillcolor="#F1F8E9"]
 	final [label=Final fillcolor="#111827" fontcolor=white shape=doublecircle]
-	created -> pending [label="Attach(owner)"]
-	pending -> active [label="valid target + condition true"]
-	pending -> removed [label="invalid target"]
-	active -> suspended [label="condition false"]
-	suspended -> active [label="condition true"]
-	active -> stacked [label="same source/id reapplied"]
-	stacked -> active [label="merge/refresh/recalculate"]
-	active -> expired [label="duration <= 0 or uses = 0"]
-	active -> removed [label="RemoveBySource / Dispel"]
-	active -> serialized [label="save snapshot"]
-	serialized -> active [label="load snapshot"]
-	expired -> final
-	removed -> final
+	{ rank=same; suspended; active; stacked; serialized }
+	{ rank=same; expired; removed }
+	created:e -> pending:w [label="Attach(owner)" color="#5B6F8F"]
+	pending:e -> active:w [label="target valid and condition true" color="#3D8B6D"]
+	pending:e -> removed:w [label="reject invalid target" color="#B45D69"]
+	active:n -> suspended:s [headlabel="condition becomes false" labelangle=28 labeldistance=2.4 color="#7257A6" fontcolor="#7257A6"]
+	suspended:e -> active:e [taillabel="condition becomes true" labelangle=-28 labeldistance=2.4 color="#7257A6" fontcolor="#7257A6" constraint=false style=dashed]
+	active:s -> stacked:n [headlabel="same source/id reapplied" labelangle=24 labeldistance=2.6 color="#397B8C" fontcolor="#397B8C"]
+	stacked:w -> active:w [taillabel="merge / refresh / recalculate" labelangle=-24 labeldistance=2.6 color="#397B8C" fontcolor="#397B8C" constraint=false style=dashed]
+	active:se -> expired:w [label="duration or uses exhausted" color="#B45D69"]
+	active:e -> removed:w [label="RemoveBySource / Dispel" color="#B45D69"]
+	active:s -> serialized:n [headlabel="save runtime snapshot" labelangle=24 labeldistance=2.4 color="#5B7F4A" fontcolor="#5B7F4A"]
+	serialized:e -> active:e [taillabel="restore snapshot" labelangle=-24 labeldistance=2.4 color="#5B7F4A" fontcolor="#5B7F4A" constraint=false style=dashed]
+	expired:e -> final:w [color="#425466"]
+	removed:e -> final:w [color="#425466"]
 }

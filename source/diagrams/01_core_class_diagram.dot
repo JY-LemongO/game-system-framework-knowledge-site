@@ -1,7 +1,7 @@
 digraph CoreClassDiagram {
-	graph [bgcolor=white fontname="Noto Sans CJK KR" fontsize=18 label="UML Class Diagram 1 - Stat System Core" labelloc=t nodesep=0.55 rankdir=LR ranksep=0.75 splines=ortho]
-	node [fontname="Noto Sans CJK KR" shape=plain]
-	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans CJK KR" fontsize=10]
+	graph [bgcolor=white fontname="Noto Sans KR" fontsize=18 label="UML Class Diagram 1 - Stat System Core" labelloc=t nodesep=0.72 outputorder=edgesfirst rankdir=LR ranksep=1.05 splines=polyline]
+	node [fontname="Noto Sans KR" shape=plain]
+	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans KR" fontsize=9 penwidth=1.2]
 	IStatOwner [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#F7F7F7"><FONT POINT-SIZE="12">&lt;&lt;interface&gt;&gt;<BR/><B>IStatOwner</B></FONT></TD></TR>
@@ -58,13 +58,13 @@ digraph CoreClassDiagram {
 <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Calculate(baseValue, modifiers, ctx): StatValue</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ BuildBreakdown(...): StatDebugBreakdown</FONT></TD></TR>
 </TABLE>
 >]
-	IStatOwner -> StatBlock [label="1 owns 1" arrowhead=vee]
-	StatBlock -> StatInstance [label="1 contains 0..*" arrowhead=diamond]
-	StatInstance -> StatDefinition [label="1 uses 1" arrowhead=vee]
-	StatInstance -> StatModifier [label="0..* applied" arrowhead=diamond]
-	StatModifier -> IModifierCondition [label="0..* conditions" arrowhead=vee]
-	StatBlock -> CalculationPipeline [label="delegates calculation" arrowhead=vee]
-	CalculationPipeline -> StatContext [label="reads context" arrowhead=vee]
-	StatModifier -> StatContext [label="CanApply(ctx)" arrowhead=vee]
-	CalculationPipeline -> StatModifier [label="sort/filter/apply" arrowhead=vee]
+	IStatOwner:e -> StatBlock:w [label="owns StatBlock (1)" arrowhead=vee color="#5B6F8F"]
+	StatBlock:e -> StatInstance:w [label="contains StatInstance (0..*)" arrowhead=diamond color="#5B6F8F"]
+	StatInstance:ne -> StatDefinition:w [label="uses definition (1)" arrowhead=vee color="#8A6D3B"]
+	StatInstance:e -> StatModifier:w [label="holds active modifiers (0..*)" arrowhead=diamond color="#3D8B6D"]
+	StatModifier:e -> IModifierCondition:w [label="checks conditions (0..*)" arrowhead=vee color="#7257A6"]
+	StatBlock:s -> CalculationPipeline:w [label="delegates value calculation" arrowhead=vee color="#397B8C"]
+	CalculationPipeline:e -> StatContext:w [label="reads query context" arrowhead=vee color="#8292A8" style=dashed]
+	StatModifier:se -> StatContext:nw [label="evaluates CanApply(ctx)" arrowhead=vee color="#8292A8" style=dashed]
+	CalculationPipeline:n -> StatModifier:s [label="collects, sorts, applies" arrowhead=vee color="#3D8B6D" style=dashed]
 }

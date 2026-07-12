@@ -1,24 +1,24 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.62, nodesep=0.45];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.16,0.10"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
-  rankdir=TB;
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.68, nodesep=0.58];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.20,0.12"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+  rankdir=TB; splines=polyline;
 
   start [shape=circle, width=.26, label="", fillcolor="#182033", color="#182033"];
-  effect [label="ApplyStatusEffect / ReactionCommand\nBuild ApplyStatusRequest", fillcolor="#eefbf6", color="#5ac39b"];
+  effect [label="ApplyStatusEffect /\nReactionCommand\nBuild ApplyStatusRequest", fillcolor="#eefbf6", color="#5ac39b"];
   system [label="StatusSystem\nread target status snapshot", fillcolor="#eaf0ff", color="#8292f7"];
   immune [shape=diamond, label="immune or protected?"];
   rejected [label="StatusResult\nimmune / rejected\nno mutation · no outbox", fillcolor="#fff1f2", color="#e07b91"];
   stack [label="StackPolicy\nadd · replace · refresh-only", fillcolor="#fff8e7", color="#e4ad4f"];
   duration [label="DurationPolicy\nrefresh · extend · fixed", fillcolor="#fff8e7", color="#e4ad4f"];
-  instance [label="Prepare StatusInstance mutation\nexpireTick · stackCount · nextTickAt", fillcolor="#eefbf6", color="#5ac39b"];
-  modifier [label="Prepare Modifier mutations\nsourceId = StatusInstanceId", fillcolor="#f4efff", color="#a884e8"];
+  instance [label="Prepare StatusInstance mutation\nexpireTick · stackCount\nnextTickAt", fillcolor="#eefbf6", color="#5ac39b"];
+  modifier [label="Prepare Modifier mutations\nsourceId =\nStatusInstanceId", fillcolor="#f4efff", color="#a884e8"];
   tick [label="Prepare periodic schedule\nMaxCatchUpTicks included", fillcolor="#f4efff", color="#a884e8"];
-  plan [label="StatusCommitPlan\ninstance + modifier + tick + planned outbox", fillcolor="#e9fbff", color="#54b7cf"];
-  commit [label="RuntimeCommitter / Status commit\nstate + outbox atomic", fillcolor="#eefbf6", color="#5ac39b"];
-  event [label="Committed facts dispatch\nStatusApplied / StatusRefreshed", fillcolor="#f8fafc"];
-  result [label="StatusResult\napplied · refreshed · stackChanged · tickScheduled", fillcolor="#eefbf6", color="#5ac39b"];
-  failed [label="StatusResult\nversion / invariant failed\nno partial state · no event", fillcolor="#fff1f2", color="#e07b91"];
+  plan [label="StatusCommitPlan\ninstance + modifier + tick\n+ planned outbox", fillcolor="#e9fbff", color="#54b7cf"];
+  commit [label="RuntimeCommitter /\nStatus commit\nstate + outbox atomic", fillcolor="#eefbf6", color="#5ac39b"];
+  event [label="Committed facts dispatch\nStatusApplied\nStatusRefreshed", fillcolor="#f8fafc"];
+  result [label="StatusResult\napplied · refreshed\nstackChanged · tickScheduled", fillcolor="#eefbf6", color="#5ac39b"];
+  failed [label="StatusResult\nversion / invariant failed\nno partial state\nno event", fillcolor="#fff1f2", color="#e07b91"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];
 
   start -> effect -> system -> immune;
