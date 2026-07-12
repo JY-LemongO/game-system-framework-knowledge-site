@@ -11,6 +11,12 @@ venv/
 node_modules/
 playwright-report/
 test-results/
+/.tmp-diagram-tools/
+/.tmp-diagram-raster/
+
+# C# reference build artifacts
+**/bin/
+**/obj/
 
 # Local environment and OS files
 .env

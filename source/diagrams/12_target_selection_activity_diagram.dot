@@ -10,7 +10,8 @@ digraph G {
   node [shape=box, style="rounded,filled", width=2.7, height=0.48];
   start [shape=circle, label="", width=0.22, fillcolor="#182033", color="#182033"];
   Build [label="EffectContext 준비
-source, position, skill, tags", fillcolor="#eaf0ff", color="#8292f7"];
+CasterId · InitialTargetId
+Source · RandomSeed", fillcolor="#eaf0ff", color="#8292f7"];
   Selector [shape=diamond, label="selectorType?", fillcolor="#fff7e6", color="#e0ad4e", width=1.55, height=0.8];
   Self [label="Self / Owner
 자기 자신 선택", fillcolor="#f7f9fc"];

@@ -9,11 +9,9 @@ export type NamespacedId = `${string}.${string}`;
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 export type DeepPartial<T> = T extends object ? { [Key in keyof T]?: DeepPartial<T[Key]> } : T;
 
-export interface SourceRef {
-  readonly kind: string;
-  readonly definitionId: NamespacedId;
-  readonly instanceId: NamespacedId;
-}
+export type SourceRef =
+  | { readonly kind: 'skill-execution' | 'status'; readonly definitionId: NamespacedId; readonly instanceId: NamespacedId }
+  | { readonly kind: 'system'; readonly definitionId: NamespacedId; readonly instanceId?: NamespacedId };
 
 export interface DomainErrorJson {
   name: 'DomainError';
@@ -100,13 +98,13 @@ export interface DamageOutcome {
   targetId: NamespacedId;
   skillDefinitionId: NamespacedId;
   damageType: 'fire';
-  hit: boolean;
+  hitOutcome: 'Hit' | 'Miss' | 'Blocked' | 'Immune' | 'Rejected';
   critical: boolean;
   rawDamage: number;
   resistanceBps: number;
   resolvedDamage: number;
   shieldAbsorbed: number;
-  hpDamage: number;
+  finalHpDamage: number;
   overkill: number;
   targetHpAfter: number;
   burn: { definitionId: NamespacedId; rawTickDamage: number; durationTicks: number; intervalTicks: number; applyWhenTargetAlive: boolean };
@@ -118,11 +116,12 @@ export interface CommittedDamageOutcome {
   sourceRef: SourceRef;
   targetId: NamespacedId;
   damageType: string;
+  hitOutcome: 'Hit' | 'Miss' | 'Blocked' | 'Immune' | 'Rejected';
   rawDamage: number;
   resistanceBps: number;
   resolvedDamage: number;
   shieldAbsorbed: number;
-  hpDamage: number;
+  finalHpDamage: number;
   overkill: number;
   targetHpAfter: number;
 }
@@ -190,7 +189,7 @@ export function defaultScenarioInput(): ScenarioInput;
 export function normalizeScenarioInput(input?: ScenarioInputPatch): Readonly<ScenarioInput>;
 export function createInitialState(input: ScenarioInput): Readonly<RuntimeState>;
 export function createFireballCommand(input: ScenarioInput): Readonly<CommandEnvelope>;
-export function resolveDamageAgainstTarget(args: { actorId: NamespacedId; sourceId: NamespacedId; sourceRef: SourceRef; target: RuntimeEntity; damageType: string; rawDamage: number }): Readonly<CommittedDamageOutcome>;
+export function resolveDamageAgainstTarget(args: { actorId: NamespacedId; sourceId: NamespacedId; sourceRef: SourceRef; target: RuntimeEntity; damageType: string; rawDamage: number; hitOutcome?: DamageOutcome['hitOutcome'] }): Readonly<CommittedDamageOutcome>;
 export function resolveFireball(args: { snapshot: JsonValue; command: CommandEnvelope; input: ScenarioInput; rng: KeyedRandom; trace?: TraceRecorder | null }): Readonly<{ decisions: JsonValue; outcome: DamageOutcome; plan: JsonValue }>;
 export function enqueueReactions(events: ReadonlyArray<DomainEventEnvelope>, input: ScenarioInput, queue: ReactionQueue, trace?: TraceRecorder | null): void;
 export function applyStatusReaction(store: StateStore, reaction: Readonly<Required<Reaction>>, trace?: TraceRecorder | null): Readonly<Record<string, any>>;

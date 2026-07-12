@@ -18,6 +18,7 @@ Stack / Source / Duration" fillcolor="#DFF7E4"]
 		Pipeline [label="Calculation Pipeline
 Operation Order + Clamp" fillcolor="#E0F7FA"]
 		Events [label="Stat Event Bus" fillcolor="#E0F7FA"]
+		Commit [label="Stat Mutation Commit\nstate + outbox atomic" fillcolor="#DFF7E4"]
 		Debug [label="Debug Breakdown + Logs" fillcolor="#F3E5F5"]
 		Save [label="Snapshot / Save Adapter" fillcolor="#F1F8E9"]
 	}
@@ -38,11 +39,14 @@ Damage / Hit / Crit" fillcolor="#FCE8E6"]
 	ModReg -> Block
 	Block -> Pipeline
 	Pipeline -> Debug
-	Pipeline -> Events
+	Pipeline -> Debug [label="pure value + breakdown"]
+	ModReg -> Commit [label="add/remove plan"]
+	Block -> Commit [label="resource/stat mutation"]
+	Commit -> Events [label="committed facts"]
 	Block -> Save
 	Skill -> Block [label="query / apply"]
 	Equip -> ModReg [label="add/remove by source"]
-	Status -> ModReg [label="duration + stack"]
+	Status -> ModReg [label="plan by StatusInstanceId"]
 	Combat -> Block [label="read final values"]
 	UI -> Events [label=subscribe]
 	AI -> Block [label="query context"]

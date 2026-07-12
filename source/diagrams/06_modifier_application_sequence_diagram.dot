@@ -3,28 +3,18 @@ digraph G {
   node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.16,0.10"];
   edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
   rankdir=TB;
+
   start [shape=circle, width=.26, label="", fillcolor="#182033", color="#182033"];
-  status [label="StatusSystem
-addModifier(rageAttack +30%)", fillcolor="#eefbf6", color="#5ac39b"];
-  stat [label="StatBlock
-receive modifier request", fillcolor="#eaf0ff", color="#8292f7"];
-  reg [label="ModifierRegistry
-merge by source + stackRule", fillcolor="#fff8e7", color="#e4ad4f"];
-  dirty [label="StatBlock
-markDirty(attack_power)", fillcolor="#eaf0ff", color="#8292f7"];
-  event1 [label="EventBus
-publish ModifierAdded", fillcolor="#f8fafc"];
-  query [label="UI / Combat
-getValue(attack_power, context)", fillcolor="#f4efff", color="#a884e8"];
-  pipe [label="CalculationPipeline
-collect · filter · sort modifiers", fillcolor="#ffffff"];
-  result [label="StatValue
-final value + breakdown", fillcolor="#eefbf6", color="#5ac39b"];
-  event2 [label="EventBus
-publish StatChanged if changed", fillcolor="#f8fafc"];
-  cache [label="UI / Combat
-refresh tooltip / combat cache", fillcolor="#f4efff", color="#a884e8"];
+  status [label="StatusSystem\nBuild AddModifier plan\nsource = StatusInstanceId", fillcolor="#eefbf6", color="#5ac39b"];
+  commit [label="RuntimeCommitter\nModifierRegistry + dirty state + outbox\natomic commit", fillcolor="#eaf0ff", color="#8292f7"];
+  event [label="Committed facts dispatch\nModifierAdded / StatChanged", fillcolor="#f8fafc"];
+  query [label="UI / Combat\nGetValue(ownerId, statId, context)", fillcolor="#f4efff", color="#a884e8"];
+  pipe [label="CalculationPipeline (pure query)\ncollect · filter · stable sort · calculate", fillcolor="#ffffff"];
+  result [label="StatValue + DebugBreakdown\nno domain event", fillcolor="#eefbf6", color="#5ac39b"];
+  observe [label="UI refreshes from committed fact\nCombat consumes returned snapshot value", fillcolor="#f4efff", color="#a884e8"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];
-  start -> status -> stat -> reg -> dirty -> event1 -> query -> pipe -> result -> event2 -> cache -> end;
-  pipe -> reg [style=dashed, label="applicable modifiers"];
+
+  start -> status -> commit -> event -> query -> pipe -> result -> observe -> end;
+  commit -> query [style=dashed, label="new snapshot"];
+  event -> observe [style=dashed, label="observation"];
 }

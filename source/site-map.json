@@ -2,9 +2,9 @@
   {
     "file": "index.html",
     "short": "홈",
-    "title": "Game System Framework",
-    "desc": "Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트",
-    "key": "home learning path",
+    "title": "C# 게임 시스템 설계 지식 베이스",
+    "desc": "C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트",
+    "key": "home learning path c# csharp",
     "group": "시작",
     "level": "Overview"
   },
@@ -12,89 +12,107 @@
     "file": "modules/core-runtime.html",
     "short": "Core Runtime",
     "title": "Core Runtime / System Contract",
-    "desc": "Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약",
-    "key": "core entity source event context time random",
+    "desc": "C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약",
+    "key": "core entity source event context time random c# csharp interface readonly struct",
     "group": "Foundation",
-    "level": "Foundation"
+    "level": "Foundation",
+    "learningTrack": "core",
+    "learningOrder": 1
   },
   {
     "file": "modules/stat-system.html",
     "short": "Stat System",
     "title": "Stat System",
-    "desc": "스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조",
-    "key": "stat modifier resource calculation",
+    "desc": "C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조",
+    "key": "stat modifier resource calculation c# csharp",
     "group": "Core Systems",
-    "level": "Core"
+    "level": "Core",
+    "learningTrack": "core",
+    "learningOrder": 2
   },
   {
     "file": "modules/effect-system.html",
     "short": "Effect System",
     "title": "Effect System",
-    "desc": "EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계",
-    "key": "effect damage status target context",
+    "desc": "C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계",
+    "key": "effect damage status target context c# csharp interface",
     "group": "Core Systems",
-    "level": "Bridge"
+    "level": "Bridge",
+    "learningTrack": "core",
+    "learningOrder": 3
   },
   {
     "file": "modules/skill-action-system.html",
     "short": "Skill / Action",
     "title": "Skill / Action System",
-    "desc": "비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조",
-    "key": "skill action cooldown targeting timeline",
+    "desc": "C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조",
+    "key": "skill action cooldown targeting timeline c# csharp request result",
     "group": "Core Systems",
-    "level": "Action"
+    "level": "Action",
+    "learningTrack": "core",
+    "learningOrder": 4
   },
   {
     "file": "modules/combat-resolution-system.html",
     "short": "Combat",
     "title": "Combat Resolution System",
-    "desc": "명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조",
-    "key": "combat damage hit critical armor resistance shield",
+    "desc": "C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조",
+    "key": "combat damage hit critical armor resistance shield c# csharp",
     "group": "Core Systems",
-    "level": "Resolution"
+    "level": "Resolution",
+    "learningTrack": "core",
+    "learningOrder": 5
   },
   {
     "file": "modules/status-system.html",
     "short": "Status",
     "title": "Status System",
-    "desc": "버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조",
-    "key": "status buff debuff stack duration tick burn rage",
+    "desc": "C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조",
+    "key": "status buff debuff stack duration tick burn rage c# csharp",
     "group": "Core Systems",
-    "level": "Runtime"
+    "level": "Runtime",
+    "learningTrack": "core",
+    "learningOrder": 6
   },
   {
     "file": "modules/integration-map.html",
     "short": "통합 구조",
     "title": "Integration Map",
-    "desc": "Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약",
-    "key": "integration dependency contract reaction",
+    "desc": "Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약",
+    "key": "integration dependency contract reaction c# csharp interface",
     "group": "Architecture",
-    "level": "Architecture"
+    "level": "Architecture",
+    "learningTrack": "practice",
+    "learningOrder": 7
   },
   {
     "file": "modules/fireball-case-study.html",
     "short": "Fireball 예제",
     "title": "Fireball Case Study",
-    "desc": "하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름",
-    "key": "case fireball burn damage vertical slice",
+    "desc": "Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름",
+    "key": "case fireball burn damage vertical slice c# csharp command",
     "group": "Practice",
-    "level": "Case Study"
+    "level": "Case Study",
+    "learningTrack": "practice",
+    "learningOrder": 8
   },
   {
     "file": "modules/runtime-reference.html",
     "short": "Runtime Lab",
     "title": "Runtime Contract Lab",
-    "desc": "결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습",
-    "key": "runtime lab deterministic replay atomic commit reaction cache migration fireball",
+    "desc": "C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습",
+    "key": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
     "group": "Practice",
-    "level": "Lab"
+    "level": "Lab",
+    "learningTrack": "practice",
+    "learningOrder": 9
   },
   {
     "file": "modules/diagram-gallery.html",
     "short": "다이어그램",
     "title": "Diagram Gallery",
-    "desc": "전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리",
-    "key": "diagrams uml class sequence activity state",
+    "desc": "C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리",
+    "key": "diagrams uml class sequence activity state c# csharp",
     "group": "Reference",
     "level": "Reference"
   },
@@ -102,8 +120,8 @@
     "file": "modules/glossary.html",
     "short": "용어집",
     "title": "Glossary",
-    "desc": "반복되는 시스템 설계 용어와 UML 기초 문법",
-    "key": "glossary terms uml",
+    "desc": "반복되는 C# 시스템 설계 용어와 UML 기초 문법",
+    "key": "glossary terms uml c# csharp interface readonly struct",
     "group": "Reference",
     "level": "Reference"
   }

@@ -9,68 +9,92 @@ digraph G {
   splines=ortho;
   EffectDefinition [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e07b91">
-<TR><TD BGCOLOR="#fff0f3"><B><FONT POINT-SIZE="16">EffectDefinition</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ effectId: EffectId</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ type: EffectType</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ targetSelectorId</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ valueExpressionId?</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ conditions: ConditionId[]</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ tags: Tag[]</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ timing: EffectTiming</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ executorKey</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ validateSchema()</FONT></TD></TR>
+<TR><TD BGCOLOR="#fff0f3"><B><FONT POINT-SIZE="16">&lt;&lt;content data&gt;&gt; EffectDefinition</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ EffectId: EffectId</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Type: EffectType</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ TargetSelectorId</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ ValueExpressionId?</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Conditions: ConditionId[]</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Tags: Tag[]</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Timing: EffectTiming</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ ExecutorKey</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ ValidateSchema()</FONT></TD></TR>
 </TABLE>>];EffectBundle [shape=plain, label=<
-<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e0ad4e">
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e0ad4e" WIDTH="260">
 <TR><TD BGCOLOR="#fff7e6"><B><FONT POINT-SIZE="16">EffectBundle</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ bundleId</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ effects: EffectDefinition[]</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ executionMode: Sequential/Parallel</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ stopPolicy</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ rollbackPolicy?</FONT></TD></TR>
-</TABLE>>];EffectRequest [shape=plain, label=<
-<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#8292f7">
-<TR><TD BGCOLOR="#eaf0ff"><B><FONT POINT-SIZE="16">EffectRequest</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ source: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ origin: SourceRef</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ effectId/bundleId</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ initialTargets?</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ position?</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ seed</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ causeEvent?</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ BundleId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Effects: EffectOperation[]</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Reactions: ReactionRule[]</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Policy: CommitThenReact</FONT></TD></TR>
+</TABLE>>];DefinitionNormalizer [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#8292f7" WIDTH="220">
+<TR><TD BGCOLOR="#eaf0ff"><B><FONT POINT-SIZE="16">&lt;&lt;internal stage&gt;&gt; DefinitionNormalizer</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Normalize(definition, context)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ ValidateSchema()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ ResolveTargets()</FONT></TD></TR>
+</TABLE>>];EffectOperation [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a" WIDTH="260">
+<TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">EffectOperation</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="12">+ OperationId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="12">DamageEffectOperation</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="12">ApplyStatusEffectOperation</FONT></TD></TR>
 </TABLE>>];EffectContext [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#8292f7">
 <TR><TD BGCOLOR="#eaf0ff"><B><FONT POINT-SIZE="16">EffectContext</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ sourceEntity</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ targetEntity?</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ skillId?</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ combatRequest?</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ tags</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ random</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ custom</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ childFor(target)</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ CasterId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ InitialTargetId: EntityId?</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Source: SourceRef</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ RandomSeed</FONT></TD></TR>
 </TABLE>>];EffectPipeline [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#8292f7">
 <TR><TD BGCOLOR="#eaf0ff"><B><FONT POINT-SIZE="16">EffectPipeline</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ execute(request): EffectResult</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ validate()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ resolveTargets()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ resolveValues()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ applyEffects()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ publishEvents()</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Execute(EffectOperation, EffectContext)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Execute(EffectBundle, EffectContext)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Prepare(EffectBundle, EffectContext)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">- BuildMutationAndOutboxPlan()</FONT></TD></TR>
 </TABLE>>];IEffectExecutor [shape=plain, label=<
-<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a">
-<TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">&lt;&lt;interface&gt;&gt; IEffectExecutor</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ canExecute(def, ctx)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ execute(def, ctx): EffectResultItem</FONT></TD></TR>
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a" WIDTH="520">
+<TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">&lt;&lt;public interface&gt;&gt; IEffectExecutor</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Execute(EffectOperation, EffectContext): EffectOperationResult</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Execute(EffectBundle, EffectContext): EffectBundleResult</FONT></TD></TR>
+</TABLE>>];IEffectOperationExecutor [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0" WIDTH="220">
+<TR><TD BGCOLOR="#f3eefc"><B><FONT POINT-SIZE="16">&lt;&lt;internal interface&gt;&gt; IEffectOperationExecutor</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ CanExecute(EffectOperation, EffectContext): bool</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ BuildPlan(EffectOperation, EffectContext): OperationPlan</FONT></TD></TR>
 </TABLE>>];DamageEffectExecutor [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a">
 <TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">DamageEffectExecutor</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ buildDamageRequest()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ callCombatResolver()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ applyDamageResult()</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ BuildDamageRequest()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ CallCombatResolver()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ BuildDamageMutation()</FONT></TD></TR>
 </TABLE>>];ApplyStatusExecutor [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a">
 <TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">ApplyStatusExecutor</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ createStatusInstance()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ applyStackRule()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ attachModifiers()</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ BuildApplyStatusRequest()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ BuildReactionCommand()</FONT></TD></TR>
 </TABLE>>];ModifyResourceExecutor [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a">
 <TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">ModifyResourceExecutor</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ spend/restore()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ clamp()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ emitResourceChanged()</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ BuildResourceMutation()</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ ValidateInvariant()</FONT></TD></TR>
 </TABLE>>];TargetSelector [shape=plain, label=<
-<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0">
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0" WIDTH="220">
 <TR><TD BGCOLOR="#f3eefc"><B><FONT POINT-SIZE="16">TargetSelector</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ selectorType</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ range/shape/limit</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ filters</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ select(ctx): TargetSet</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ SelectorType</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Range/Shape/Limit</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Filters</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Select(ctx): TargetSet</FONT></TD></TR>
 </TABLE>>];ValueExpression [shape=plain, label=<
-<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0">
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0" WIDTH="220">
 <TR><TD BGCOLOR="#f3eefc"><B><FONT POINT-SIZE="16">ValueExpression</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ base</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ scalingTerms</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ min/max</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ evaluate(ctx): decimal</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ buildBreakdown()</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ BaseValue</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ ScalingTerms</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Min/Max</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Evaluate(ctx): decimal</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ BuildBreakdown()</FONT></TD></TR>
 </TABLE>>];EffectCondition [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0">
 <TR><TD BGCOLOR="#f3eefc"><B><FONT POINT-SIZE="16">EffectCondition</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ conditionType</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ params</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ evaluate(ctx): bool</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ ConditionType</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Params</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Evaluate(ctx): bool</FONT></TD></TR>
 </TABLE>>];EffectResult [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#99a8bd">
 <TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">EffectResult</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ success</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ items[]</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ failedReason?</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ events[]</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ debugLog</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">+ Succeeded: bool</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">EffectOperationResult: OperationId</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="12">EffectBundleResult: Committed, BundleId, counts</FONT></TD></TR>
 </TABLE>>];
-  EffectBundle -> EffectDefinition [label="contains 1..*", arrowhead=diamond];
+  IEffectPlanner [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#54b7cf" WIDTH="480">
+<TR><TD BGCOLOR="#e9fbff"><B><FONT POINT-SIZE="16">&lt;&lt;public interface&gt;&gt; IEffectPlanner</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="12">+ Prepare(EffectBundle, EffectContext): EffectBundlePlan</FONT></TD></TR>
+</TABLE>>];
+  EffectBundlePlan [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#54b7cf">
+<TR><TD BGCOLOR="#e9fbff"><B><FONT POINT-SIZE="16">&lt;&lt;public contract&gt;&gt; EffectBundlePlan</FONT></B></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="12">+ BundleId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="12">+ PrimaryOperations: EffectOperation[]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="12">+ Reactions: ReactionRule[]</FONT></TD></TR>
+</TABLE>>];
+  EffectBundle -> EffectOperation [label="contains 1..*", arrowhead=diamond];
   EffectDefinition -> TargetSelector [label="uses"];
   EffectDefinition -> ValueExpression [label="optional"];
   EffectDefinition -> EffectCondition [label="0..*"];
-  EffectRequest -> EffectContext [label="builds"];
-  EffectPipeline -> EffectDefinition [label="loads"];
-  EffectPipeline -> TargetSelector [label="target"];
-  EffectPipeline -> ValueExpression [label="value"];
-  EffectPipeline -> IEffectExecutor [label="dispatch"];
-  IEffectExecutor -> DamageEffectExecutor [label="implements", arrowhead=empty];
-  IEffectExecutor -> ApplyStatusExecutor [label="implements", arrowhead=empty];
-  IEffectExecutor -> ModifyResourceExecutor [label="implements", arrowhead=empty];
+  EffectDefinition -> DefinitionNormalizer [label="internal normalize"];
+  DefinitionNormalizer -> EffectOperation [label="creates"];
+  EffectOperation -> IEffectExecutor [label="public input"];
+  EffectBundle -> IEffectExecutor [label="public input"];
+  EffectBundle -> IEffectPlanner [label="public input"];
+  EffectContext -> IEffectExecutor [label="context"];
+  EffectContext -> IEffectPlanner [label="context"];
+  EffectPipeline -> IEffectExecutor [label="implements", arrowhead=empty];
+  EffectPipeline -> IEffectPlanner [label="implements", arrowhead=empty];
+  EffectPipeline -> IEffectOperationExecutor [label="dispatch"];
+  DamageEffectExecutor -> IEffectOperationExecutor [label="implements", arrowhead=empty];
+  ApplyStatusExecutor -> IEffectOperationExecutor [label="implements", arrowhead=empty];
+  ModifyResourceExecutor -> IEffectOperationExecutor [label="implements", arrowhead=empty];
   EffectPipeline -> EffectResult [label="returns"];
+  IEffectPlanner -> EffectBundlePlan [label="prepares"];
 }

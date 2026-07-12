@@ -5,23 +5,29 @@ digraph G {
   rankdir=TB;
 
   start [shape=circle, width=.26, label="", fillcolor="#182033", color="#182033"];
-  effect [label="ApplyStatusEffect\nbuild ApplyStatusRequest", fillcolor="#eefbf6", color="#5ac39b"];
-  system [label="StatusSystem\napply(ApplyStatusRequest)", fillcolor="#eaf0ff", color="#8292f7"];
-  controller [label="StatusController\nfind target controller", fillcolor="#ffffff"];
-  immune [shape=diamond, label="Immune or protected?"];
-  rejected [label="StatusResult\nimmune / rejected", fillcolor="#fff1f2", color="#e07b91"];
-  stack [label="StackPolicy\nadd stack / replace / refresh only", fillcolor="#fff8e7", color="#e4ad4f"];
-  duration [label="DurationPolicy\nrefresh / extend / fixed", fillcolor="#fff8e7", color="#e4ad4f"];
-  instance [label="StatusInstance\nexpireTick · stackCount · nextTickAt", fillcolor="#eefbf6", color="#5ac39b"];
-  modifier [label="StatusModifierProvider\nmodifierSourceId=statusInstanceId", fillcolor="#f4efff", color="#a884e8"];
-  tick [label="TickPolicy\nschedule periodic effect", fillcolor="#f4efff", color="#a884e8"];
-  event [label="EventBus\nStatusApplied / StatusRefreshed", fillcolor="#f8fafc"];
+  effect [label="ApplyStatusEffect / ReactionCommand\nBuild ApplyStatusRequest", fillcolor="#eefbf6", color="#5ac39b"];
+  system [label="StatusSystem\nread target status snapshot", fillcolor="#eaf0ff", color="#8292f7"];
+  immune [shape=diamond, label="immune or protected?"];
+  rejected [label="StatusResult\nimmune / rejected\nno mutation · no outbox", fillcolor="#fff1f2", color="#e07b91"];
+  stack [label="StackPolicy\nadd · replace · refresh-only", fillcolor="#fff8e7", color="#e4ad4f"];
+  duration [label="DurationPolicy\nrefresh · extend · fixed", fillcolor="#fff8e7", color="#e4ad4f"];
+  instance [label="Prepare StatusInstance mutation\nexpireTick · stackCount · nextTickAt", fillcolor="#eefbf6", color="#5ac39b"];
+  modifier [label="Prepare Modifier mutations\nsourceId = StatusInstanceId", fillcolor="#f4efff", color="#a884e8"];
+  tick [label="Prepare periodic schedule\nMaxCatchUpTicks included", fillcolor="#f4efff", color="#a884e8"];
+  plan [label="StatusCommitPlan\ninstance + modifier + tick + planned outbox", fillcolor="#e9fbff", color="#54b7cf"];
+  commit [label="RuntimeCommitter / Status commit\nstate + outbox atomic", fillcolor="#eefbf6", color="#5ac39b"];
+  event [label="Committed facts dispatch\nStatusApplied / StatusRefreshed", fillcolor="#f8fafc"];
   result [label="StatusResult\napplied · refreshed · stackChanged · tickScheduled", fillcolor="#eefbf6", color="#5ac39b"];
+  failed [label="StatusResult\nversion / invariant failed\nno partial state · no event", fillcolor="#fff1f2", color="#e07b91"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];
 
-  start -> effect -> system -> controller -> immune;
+  start -> effect -> system -> immune;
   immune -> rejected [label="yes"];
   rejected -> end;
   immune -> stack [label="no"];
-  stack -> duration -> instance -> modifier -> tick -> event -> result -> end;
+  stack -> duration -> instance -> modifier -> tick -> plan -> commit;
+  commit -> failed [label="fail", style=dashed, color="#dc2626", fontcolor="#dc2626"];
+  failed -> end;
+  commit -> event [label="success"];
+  event -> result -> end;
 }

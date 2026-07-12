@@ -11,7 +11,9 @@
   const RNG_ALGORITHM_VERSION = 'mulberry32-keyed-v1';
   const NUMERIC_POLICY_VERSION = 'integer-bps-half-up-v1';
   const BASIS_POINTS = 10_000;
-  const ID_PATTERN = /^[a-z][a-z0-9-]*(?:\.[A-Za-z0-9_-]+)+$/;
+  const ID_PATTERN = /^[a-z][a-z0-9-]*(?:\.[a-z0-9][a-z0-9_-]*)+$/;
+  const SOURCE_KINDS = deepFreeze(['skill-execution', 'status', 'system']);
+  const HIT_OUTCOMES = deepFreeze(['Hit', 'Miss', 'Blocked', 'Immune', 'Rejected']);
 
   class DomainError extends Error {
     constructor(code, stage, message, details = {}, retryable = false) {
@@ -120,12 +122,17 @@
     const unknownFields = Object.keys(value).filter(key => !['kind', 'definitionId', 'instanceId'].includes(key)).sort(compareText);
     domainAssert(unknownFields.length === 0, 'INVALID_SOURCE_REF', 'contract', 'sourceRef contains unsupported fields.', { unknownFields });
     const kind = requireString(value.kind, 'sourceRef.kind');
-    domainAssert(/^[a-z][a-z0-9-]*$/.test(kind), 'INVALID_SOURCE_KIND', 'contract', 'sourceRef.kind must be a lowercase kebab-case identifier.', { kind });
-    return deepFreeze({
+    domainAssert(SOURCE_KINDS.includes(kind), 'INVALID_SOURCE_KIND', 'contract', 'sourceRef.kind is not canonical.', { kind });
+    const normalized = {
       kind,
       definitionId: requireId(value.definitionId, 'sourceRef.definitionId'),
-      instanceId: requireId(value.instanceId, 'sourceRef.instanceId'),
-    });
+    };
+    if (kind === 'system') {
+      if (value.instanceId != null) normalized.instanceId = requireId(value.instanceId, 'sourceRef.instanceId');
+    } else {
+      normalized.instanceId = requireId(value.instanceId, 'sourceRef.instanceId');
+    }
+    return deepFreeze(normalized);
   }
 
   function multiplyBps(value, basisPoints) {
@@ -541,7 +548,7 @@
     });
   }
 
-  function resolveDamageAgainstTarget({ actorId, sourceId, sourceRef, target, damageType, rawDamage }) {
+  function resolveDamageAgainstTarget({ actorId, sourceId, sourceRef, target, damageType, rawDamage, hitOutcome = 'Hit' }) {
     requireId(actorId, 'damage.actorId');
     requireId(sourceId, 'damage.sourceId');
     const normalizedSourceRef = createSourceRef(sourceRef);
@@ -549,25 +556,27 @@
     requireId(target.id, 'damage.targetId');
     requireString(damageType, 'damage.damageType');
     requireInteger(rawDamage, 'damage.rawDamage', 0);
+    domainAssert(HIT_OUTCOMES.includes(hitOutcome), 'INVALID_HIT_OUTCOME', 'resolve', 'Damage hitOutcome is not canonical.', { hitOutcome });
     const resistanceStat = `${damageType}ResistanceBps`;
     const resistanceBps = requireInteger(target.stats?.[resistanceStat] ?? 0, `damage.${resistanceStat}`, 0, BASIS_POINTS);
     const resolvedDamage = multiplyBps(rawDamage, BASIS_POINTS - resistanceBps);
     const shieldAbsorbed = Math.min(target.resources.shield, resolvedDamage);
     const remaining = Math.max(0, resolvedDamage - shieldAbsorbed);
-    const hpDamage = Math.min(target.resources.hp, remaining);
+    const finalHpDamage = Math.min(target.resources.hp, remaining);
     return deepFreeze({
       actorId,
       sourceId,
       sourceRef: normalizedSourceRef,
       targetId: target.id,
+      hitOutcome,
       damageType,
       rawDamage,
       resistanceBps,
       resolvedDamage,
       shieldAbsorbed,
-      hpDamage,
-      overkill: Math.max(0, remaining - hpDamage),
-      targetHpAfter: target.resources.hp - hpDamage,
+      finalHpDamage,
+      overkill: Math.max(0, remaining - finalHpDamage),
+      targetHpAfter: target.resources.hp - finalHpDamage,
     });
   }
 
@@ -593,17 +602,17 @@
     const critKey = [command.correlationId, 'fireball.critical', target.id];
     const hitRollBps = rng.sampleBps(hitKey);
     const critRollBps = rng.sampleBps(critKey);
-    const hit = hitRollBps < input.skill.hitChanceBps;
+    const hitOutcome = hitRollBps < input.skill.hitChanceBps ? 'Hit' : 'Miss';
+    const hit = hitOutcome === 'Hit';
     const critical = hit && critRollBps < input.skill.critChanceBps;
     let rawDamage = hit ? input.skill.baseDamage + multiplyBps(caster.stats.spellPower, input.skill.coefficientBps) : 0;
     if (critical) rawDamage = multiplyBps(rawDamage, input.skill.critMultiplierBps);
     const sourceRef = createSourceRef({ kind: 'skill-execution', definitionId: input.skill.definitionId, instanceId: command.commandId });
-    const damage = resolveDamageAgainstTarget({ actorId: caster.id, sourceId: command.commandId, sourceRef, target, damageType: 'fire', rawDamage });
+    const damage = resolveDamageAgainstTarget({ actorId: caster.id, sourceId: command.commandId, sourceRef, target, damageType: 'fire', rawDamage, hitOutcome });
     const burnRawTickDamage = hit && rawDamage > 0 && input.burn.ratioBps > 0 ? Math.max(1, multiplyBps(rawDamage, input.burn.ratioBps)) : 0;
     const outcome = deepFreeze({
       ...deepClone(damage),
       skillDefinitionId: input.skill.definitionId,
-      hit,
       critical,
       burn: { definitionId: input.burn.definitionId, rawTickDamage: burnRawTickDamage, durationTicks: input.burn.durationTicks, intervalTicks: input.burn.intervalTicks, applyWhenTargetAlive: hit && damage.targetHpAfter > 0 },
     });
@@ -612,15 +621,15 @@
       { order: 20, kind: 'cooldown.set', entityId: caster.id, definitionId: input.skill.definitionId, readyTick: input.tick + input.skill.cooldownTicks, key: 'cooldown' },
     ];
     if (damage.shieldAbsorbed) operations.push({ order: 30, kind: 'resource.delta', entityId: target.id, resource: 'shield', delta: -damage.shieldAbsorbed, key: 'shield' });
-    if (damage.hpDamage) operations.push({ order: 40, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -damage.hpDamage, key: 'hp' });
+    if (damage.finalHpDamage) operations.push({ order: 40, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -damage.finalHpDamage, key: 'hp' });
     const eventBlueprints = [
       { type: 'SkillCommitted', payload: { actorId: caster.id, sourceId: command.commandId, sourceRef: deepClone(sourceRef), targetId: target.id, skillDefinitionId: input.skill.definitionId, cooldownReadyTick: input.tick + input.skill.cooldownTicks } },
-      { type: hit ? 'DamageCommitted' : 'DamageMissed', payload: { ...deepClone(outcome) } },
+      { type: hitOutcome === 'Hit' ? 'DamageCommitted' : 'DamageMissed', payload: { ...deepClone(outcome) } },
     ];
     if (target.resources.hp > 0 && damage.targetHpAfter === 0) eventBlueprints.push({ type: 'EntityDefeated', payload: createDefeatPayload(outcome, { periodic: false }) });
     const planBase = { schemaVersion: CONTRACT_SCHEMA_VERSION, commandId: command.commandId, commitTick: input.tick, preconditions: [{ entityId: caster.id, expectedVersion: caster.version }, { entityId: target.id, expectedVersion: target.version }], operations, eventBlueprints };
     const plan = deepFreeze({ ...planBase, planId: `plan.${hashHex(planBase)}` });
-    trace?.record('random_decisions', input.tick, { hitRollBps, critRollBps, hit, critical, hitKey, critKey });
+    trace?.record('random_decisions', input.tick, { hitRollBps, critRollBps, hitOutcome, critical, hitKey, critKey });
     trace?.record('resolution_completed', input.tick, { outcome, operationCount: operations.length, planId: plan.planId });
     return deepFreeze({ decisions: { hitRollBps, critRollBps, hitKey, critKey }, outcome, plan });
   }
@@ -739,14 +748,14 @@
       const command = createCommandEnvelope({ commandId: `command.${hashHex([status.instanceId, 'tick', status.nextTickAt])}`, actorId: status.actorId, requestedTick: commitTick, correlationId: status.correlationId, causationId: status.causationId, dataVersion: status.dataVersion, payload: { targetId: entity.id, statusInstanceId: status.instanceId, sourceId: status.sourceId, sourceRef: status.sourceRef } });
       const operations = [];
       if (damage.shieldAbsorbed) operations.push({ order: 10, kind: 'resource.delta', entityId: entity.id, resource: 'shield', delta: -damage.shieldAbsorbed, key: 'tick-shield' });
-      if (damage.hpDamage) operations.push({ order: 20, kind: 'resource.delta', entityId: entity.id, resource: 'hp', delta: -damage.hpDamage, key: 'tick-hp' });
+      if (damage.finalHpDamage) operations.push({ order: 20, kind: 'resource.delta', entityId: entity.id, resource: 'hp', delta: -damage.finalHpDamage, key: 'tick-hp' });
       operations.push(shouldExpire
         ? { order: 30, kind: 'status.remove', entityId: entity.id, instanceId: status.instanceId, key: 'expire' }
         : { order: 30, kind: 'status.patch', entityId: entity.id, instanceId: status.instanceId, patch: { nextTickAt: status.nextTickAt + status.intervalTicks }, key: 'schedule-next' });
       const tickDamageOutcome = { ...deepClone(damage), statusInstanceId: status.instanceId, statusDefinitionId: status.definitionId, periodic: true, tickAt: status.nextTickAt };
       const events = [
         { type: 'DamageCommitted', payload: tickDamageOutcome },
-        { type: 'StatusTicked', payload: { actorId: status.actorId, sourceId: status.sourceId, sourceRef: deepClone(status.sourceRef), targetId: entity.id, statusInstanceId: status.instanceId, definitionId: status.definitionId, rawDamage: damage.rawDamage, resolvedDamage: damage.resolvedDamage, shieldAbsorbed: damage.shieldAbsorbed, hpDamage: damage.hpDamage, tickAt: status.nextTickAt } },
+        { type: 'StatusTicked', payload: { actorId: status.actorId, sourceId: status.sourceId, sourceRef: deepClone(status.sourceRef), targetId: entity.id, statusInstanceId: status.instanceId, definitionId: status.definitionId, rawDamage: damage.rawDamage, resolvedDamage: damage.resolvedDamage, shieldAbsorbed: damage.shieldAbsorbed, finalHpDamage: damage.finalHpDamage, tickAt: status.nextTickAt } },
       ];
       if (defeated) events.push({ type: 'EntityDefeated', payload: createDefeatPayload(damage, { periodic: true, statusInstanceId: status.instanceId, statusDefinitionId: status.definitionId }) });
       if (shouldExpire) events.push({ type: 'StatusExpired', payload: createStatusExpiredPayload(status, commitTick, defeated ? 'target-defeated' : 'duration-expired') });
@@ -781,7 +790,7 @@
     const allResources = Object.values(finalState.entities).every(entity => entity.resources.hp >= 0 && entity.resources.mana >= 0 && entity.resources.shield >= 0);
     const damageGaps = impact.store.outbox
       .filter(event => event.type === 'DamageCommitted')
-      .map(event => event.payload.resolvedDamage - event.payload.shieldAbsorbed - event.payload.hpDamage - event.payload.overkill);
+      .map(event => event.payload.resolvedDamage - event.payload.shieldAbsorbed - event.payload.finalHpDamage - event.payload.overkill);
     const conservationGap = damageGaps.reduce((sum, gap) => sum + gap, 0);
     return deepFreeze({
       runtimeVersion: RUNTIME_VERSION,

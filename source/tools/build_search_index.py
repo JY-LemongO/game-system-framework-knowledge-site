@@ -36,11 +36,14 @@ for page_order, page in enumerate(pages):
         title = ' '.join(heading.get_text(' ', strip=True).split())
         if not title:
             continue
+        boundary_selector = 'h2' if heading.name == 'h2' else 'h2, h3'
         desc = ''
         node = heading.find_next_sibling()
         scanned = 0
         while node and scanned < 4:
             if getattr(node, 'name', None) in ('h2', 'h3'):
+                break
+            if hasattr(node, 'select_one') and node.select_one(boundary_selector):
                 break
             if getattr(node, 'name', None) in ('pre', 'table') or (hasattr(node, 'select_one') and node.select_one('pre, table')):
                 node = node.find_next_sibling()

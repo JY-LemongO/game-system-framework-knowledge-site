@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Status System · GSF System Atlas</title>
-<meta content="버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조" name="description"/>
+<meta content="C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <script>
    (function(){try{var m=localStorage.getItem('gsf-theme')||'system';document.documentElement.dataset.theme=m;if(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()
@@ -37,7 +37,7 @@
        System Atlas
       </b>
 <small>
-       Game architecture knowledgebase
+     C# game system knowledgebase
       </small>
 </span>
 </a>
@@ -213,9 +213,10 @@
        Status System
       </h1>
 <p class="lead">
-       Status System은 ApplyStatusEffect로 부여된 버프, 디버프, DoT, HoT, CC를 지속시간, 중첩, tick, 해제, 면역, StatModifier 연결까지 관리하는 런타임 상태 계층이다. 상태는 값을 직접 바꾸지 않고 Modifier를 제공하거나 주기 Effect를 실행한다.
+       Status System은 C# StatusDefinition과 StatusInstance를 분리해 버프, 디버프, DoT, HoT, CC의 지속시간, 중첩, tick, 해제, 면역을 관리한다. 상태는 값을 직접 바꾸지 않고 Modifier를 제공하거나 주기 Effect를 요청한다.
       </p>
 <div class="badges">
+<span class="badge" data-example-language="csharp">예제 언어 · C#</span>
 <span class="badge">
         StatusDefinition
        </span>
@@ -237,7 +238,7 @@
 </div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>지속시간·중첩·tick·면역·정화의 정책을 분리하고, Modifier와 반복 피해의 소유권을 구분한다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>정의와 인스턴스를 C# 타입으로 분리하고, 지속시간·중첩·tick·면역·정화와 반복 피해의 소유권을 구분한다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Core의 시간·식별자 계약과 Stat Modifier, Combat 피해 요청 흐름을 먼저 이해한다.</p></article>
 </div>
 <h2 id="status의-역할">
@@ -252,13 +253,13 @@
       </strong>
       Status는 스탯 값을 직접 수정하지 않는다. 상태를 누가 부여했는지는
       <code>
-       appliedBySourceId
+       SourceRef
       </code>
       로 남기고, 상태가 제공하는 StatModifier와 tick 예약은
       <code>
-       sourceId = statusInstanceId
+       SourceRef.Status(StatusDefinitionId, StatusInstanceId)
       </code>
-      로 등록한다. 제거할 때는 같은 sourceId로 안전하게 정리한다. 주기 피해가 필요하면 Status tick에서 Effect를 실행한다.
+      로 등록한다. 제거할 때는 SourceRef.StatusInstanceId로 안전하게 정리한다. 주기 피해가 필요하면 Status tick에서 Effect를 실행한다.
      </div>
 <div class="table-scroll">
 <table class="data-table">
@@ -369,7 +370,7 @@
          </code>
 </td>
 <td>
-         특정 Entity에게 적용된 상태의 런타임 데이터. instanceId, target, appliedBySourceId, remainingTime, stackCount, nextTickTime을 가진다.
+         특정 Entity에게 적용된 상태의 런타임 데이터. InstanceId, TargetId, Source, ExpiresAt, StackCount, NextTickAt을 가진다.
         </td>
 </tr>
 <tr>
@@ -419,7 +420,7 @@
          </code>
 </td>
 <td>
-         상태가 제공하는 StatModifier를 생성하고 modifier sourceId를 statusInstanceId로 추적한다.
+         상태가 제공하는 StatModifier를 생성하고 SourceRef.Status(definitionId, statusInstanceId)로 원천과 제거 키를 함께 추적한다.
         </td>
 </tr>
 <tr>
@@ -454,6 +455,71 @@
 </tr>
 </table>
 </div>
+<h3 id="csharp-status-contracts">C# 정의·인스턴스 계약</h3>
+<p>StatusDefinition은 공유 규칙이고 StatusInstance는 대상별 변경 상태다. 외부 시스템은 IStatusService의 요청·결과만 사용한다.</p>
+<pre><code class="language-csharp">public sealed class StatusDefinition
+{
+    public EntityId StatusId { get; }
+    public int DurationTicks { get; }
+    public int TickInterval { get; }
+    public int MaxCatchUpTicks { get; }
+    public int MaxStacks { get; }
+    public IReadOnlyList&lt;EntityId&gt; PeriodicEffectIds { get; }
+
+    public StatusDefinition(
+        EntityId statusId,
+        int durationTicks,
+        int tickInterval,
+        int maxCatchUpTicks,
+        int maxStacks,
+        EntityId[] periodicEffectIds)
+    {
+        if (durationTicks &lt; 0)
+            throw new ArgumentOutOfRangeException(nameof(durationTicks));
+        if (maxStacks &lt; 1)
+            throw new ArgumentOutOfRangeException(nameof(maxStacks));
+        if (maxCatchUpTicks &lt; 1)
+            throw new ArgumentOutOfRangeException(nameof(maxCatchUpTicks));
+        if (periodicEffectIds == null)
+            throw new ArgumentNullException(nameof(periodicEffectIds));
+        if (periodicEffectIds.Length &gt; 0 &amp;&amp; tickInterval &lt;= 0)
+            throw new ArgumentOutOfRangeException(nameof(tickInterval));
+
+        StatusId = statusId;
+        DurationTicks = durationTicks;
+        TickInterval = tickInterval;
+        MaxCatchUpTicks = maxCatchUpTicks;
+        MaxStacks = maxStacks;
+        PeriodicEffectIds = Array.AsReadOnly((EntityId[])periodicEffectIds.Clone());
+    }
+}
+
+public sealed class ApplyStatusRequest
+{
+    public EntityId StatusId { get; }
+    public EntityId TargetId { get; }
+    public SourceRef Source { get; }
+    public int StackDelta { get; }
+
+    public ApplyStatusRequest(
+        EntityId statusId,
+        EntityId targetId,
+        SourceRef source,
+        int stackDelta)
+    {
+        StatusId = statusId;
+        TargetId = targetId;
+        Source = source;
+        StackDelta = stackDelta;
+    }
+}
+
+public interface IStatusService
+{
+    StatusResult Apply(ApplyStatusRequest request);
+    StatusResult Remove(EntityId instanceId, StatusRemoveReason reason);
+    void AdvanceTo(long simulationTick);
+}</code></pre>
 <h2 id="상태-생명주기">
       상태 생명주기
      </h2>
@@ -505,9 +571,11 @@
 <p>
       재적용 시 같은 상태로 볼 기준을 먼저 정한다. 기본 키는
       <code>
-       (targetId, statusDefinitionId, stackingGroup, sourceScope)
+       (TargetId, StatusDefinitionId, StackingGroup, SourceScope)
       </code>
-      이며 independent stack은 각자 statusInstanceId를 가진다. expire와 tick이 같은 시각이면 어느 쪽을 먼저 처리할지도 clock domain마다 고정한다.
+       이며 independent stack은 각자 StatusInstanceId를 가진다. expire와 tick이 같은 시각이면 어느 쪽을 먼저 처리할지도 clock domain마다 고정한다. 이 사이트의 fixed simulation tick 계약은
+       <code>tickAt ≤ expireAt</code>
+       인 마지막 tick 계산을 먼저 plan에 넣고, 같은 원자적 commit에서 피해·다음 상태·outbox와 함께 expire를 확정한다.
      </p>
 <div class="grid cols2">
 <div class="card">
@@ -549,21 +617,28 @@
 </div>
 <img alt="Status 적용 흐름" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/28_status_apply_sequence_diagram.svg"/>
 <figcaption class="cap">
-       ApplyStatusEffect는 StatusSystem에 요청하고, StatusController가 면역, 중첩, 지속시간, Modifier 등록, 이벤트 발행을 처리한다.
+       ApplyStatusEffect는 StatusSystem에 요청하고, StatusController가 면역·중첩·지속시간 정책으로 instance·Modifier·tick 변경 계획을 만든다. RuntimeCommitter 또는 Status commit 경계가 상태와 StatusApplied outbox를 원자적으로 확정한다.
       </figcaption>
 </figure>
-<pre><code>{
-  "effect": "effect.apply-burn",
+<pre><code class="language-json">{
+  "effectDefinition": {
+    "id": "effect.apply-burn",
+    "applyOn": "damage-committed-hit",
+    "durationScale": 1.0,
+    "tags": ["fire", "debuff", "dot"]
+  },
   "request": {
     "statusId": "status.burn",
-    "target": "entity.target",
-    "appliedBySourceId": "command.fireball.cast.0001",
-    "applyOn": "hit",
-    "durationScale": 1.0,
-    "stackDelta": 1,
-    "tags": ["fire", "debuff", "dot"]
+    "targetId": "entity.target",
+    "sourceRef": {
+      "kind": "skill-execution",
+      "definitionId": "skill.fireball",
+      "instanceId": "command.fireball.cast.0001"
+    },
+    "stackDelta": 1
   }
 }</code></pre>
+<p><code>applyOn</code>·<code>durationScale</code>·tag는 EffectDefinition과 Status 정책에서 먼저 해석한다. IStatusService에 전달되는 ApplyStatusRequest는 StatusId, TargetId, SourceRef, StackDelta만 가진다.</p>
 <h2 id="tick-흐름">
       Tick 흐름
      </h2>
@@ -580,11 +655,11 @@
 </div>
 <img alt="Status tick 활동 흐름" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/29_status_tick_activity_diagram.svg"/>
 <figcaption class="cap">
-       DoT, HoT, aura pulse는 상태가 직접 HP를 수정하지 않고 EffectContext를 만들어 periodic effect를 실행하는 방식으로 처리한다.
+       DoT, HoT, aura pulse는 상태가 직접 HP를 수정하지 않고 EffectContext로 periodic effect plan을 만든다. RuntimeCommitter가 피해와 다음 tick 또는 만료, outbox를 due tick당 한 번에 확정한다.
       </figcaption>
 </figure>
 <p>
-       Burn 같은 DoT는 tick 시점마다 DamageEffect를 실행해 DamageRequest를 만들고 Combat의 저항·보호막·commit·사망 판정을 그대로 통과한다. 이때 공격 계수는 적용 시점에 고정하는 snapshot 방식과 매 tick 다시 계산하는 dynamic 방식 중 하나를 선택해야 한다.
+       Burn 같은 DoT는 tick 시점마다 DamageEffect를 실행해 DamageRequest를 만들고 Combat의 저항·보호막 계산을 그대로 통과한다. 이후 RuntimeCommitter가 HP·Shield, 다음 tick 또는 만료 상태, outbox와 사망 사실을 하나의 plan으로 확정한다. 이때 공격 계수는 적용 시점에 고정하는 snapshot 방식과 매 tick 다시 계산하는 dynamic 방식 중 하나를 선택해야 한다.
      </p>
 <div class="table-scroll">
 <table class="data-table">
@@ -650,8 +725,78 @@
 <b>
        Snapshot 주의.
       </b>
-      caster 객체 참조를 보관하지 말고 필요한 계수·태그·definitionVersion을 불변 스냅샷으로 저장한다. 대상 저항을 dynamic으로 읽는다면 그 정책도 trace에 남긴다.
+      Caster 객체 참조를 보관하지 말고 필요한 계수·태그·DefinitionVersion을 불변 스냅샷으로 저장한다. 대상 저항을 dynamic으로 읽는다면 그 정책도 trace에 남긴다.
      </div>
+<h3 id="csharp-status-tick">C# Tick 순서</h3>
+<p>정상 경로에서는 마지막 tick과 만료 시각이 같으면 tick을 먼저 계산하고, 그 tick의 원자적 commit 안에서 만료까지 함께 확정한다. 한 번의 advance에서는 MaxCatchUpTicks까지만 처리한다. 상한에 도달했어도 상태가 아직 active라면 남은 overdue tick을 버리거나 상태를 닫지 않고 다음 advance로 미룬다. 이미 만료된 backlog를 상한 안에 소진하지 못한 경우에만 CatchUpLimited 사유로 제거한다. 반복 피해는 Effect와 Combat에서 순수 계획으로 계산하며, StatusInstance나 HP를 먼저 바꾸지 않는다. 아래 <code>StatusSnapshot</code>·<code>EffectPlan</code>·<code>StatusTransition</code>은 내부 축약 모델이고, IRuntimeCommitter에 전달하는 공개 실행 참조 타입은 <code>CommitPlan</code>이다.</p>
+<pre><code class="language-csharp">private void AdvanceInstance(StatusSnapshot status, long now)
+{
+    int processedTicks = 0;
+
+    while (IsTickDue(status, now) &amp;&amp;
+           processedTicks &lt; status.MaxCatchUpTicks)
+    {
+        long tickAt = status.NextTickAt;
+        long nextTickAt = checked(tickAt + status.TickInterval);
+        bool expireWithThisTick =
+            status.ExpiresAt &lt;= now &amp;&amp;
+            nextTickAt &gt; status.ExpiresAt;
+
+        EffectPlan[] effects = status.PeriodicEffectIds
+            .Select(effectId =&gt; _periodicEffects.Prepare(
+                effectId,
+                status.CreateEffectContext(tickAt)))
+            .ToArray();
+
+        StatusTransition transition = expireWithThisTick
+            ? StatusTransition.Expire(StatusRemoveReason.Expired)
+            : StatusTransition.Schedule(nextTickAt);
+
+        // 이 plan 하나에 Shield/HP 같은 resource 변경, 다음 tick 또는
+        // Status 제거, DamageCommitted/StatusTicked/StatusExpired outbox가 모두 들어간다.
+        CommitPlan plan = _statusPlanner.BuildTickPlan(
+            status,
+            effects,
+            transition);
+
+        CommitReceipt receipt = _runtimeCommitter.Commit(plan); // due tick당 정확히 한 번
+        if (receipt.Status != CommitStatus.Committed)
+            return; // state와 outbox 모두 그대로다.
+
+        if (expireWithThisTick)
+            return;
+
+        status = _statusSnapshots.Read(status.InstanceId);
+        processedTicks++;
+    }
+
+    bool catchUpLimited = IsTickDue(status, now);
+    if (catchUpLimited)
+        _trace.RecordCatchUpLimit(status.InstanceId, processedTicks);
+
+    if (catchUpLimited &amp;&amp; status.ExpiresAt &gt; now)
+        return; // active: defer overdue ticks to the next advance
+
+    if (status.ExpiresAt &lt;= now)
+        CommitRemovalPlan(
+            status,
+            catchUpLimited
+                ? StatusRemoveReason.CatchUpLimited
+                : StatusRemoveReason.Expired);
+}
+
+private static bool IsTickDue(StatusSnapshot status, long now) =&gt;
+    status.IsActive &amp;&amp;
+    status.NextTickAt &lt;= now &amp;&amp;
+    status.NextTickAt &lt;= status.ExpiresAt;
+
+private void CommitRemovalPlan(
+    StatusSnapshot status,
+    StatusRemoveReason reason)
+{
+    CommitPlan plan = _statusPlanner.BuildRemovalPlan(status, reason);
+    _runtimeCommitter.Commit(plan); // instance·Modifier·예약·outbox를 한 번에 확정
+}</code></pre>
 <h2 id="데이터-모델">
       데이터 모델
      </h2>
@@ -678,9 +823,9 @@
       Burn 예시
      </h2>
 <p>
-      Burn은 Status System을 설명하기 좋은 대표 DoT다. 아래 기본 예시는 Runtime Contract Lab과 같은 단일 인스턴스·refresh 정책을 사용한다. 강도 중첩을 쓰는 다른 상태는 <code>tickBaseDamage × stackCount</code>처럼 공식을 별도로 명시해야 한다.
+      Burn은 Status System을 설명하기 좋은 대표 DoT다. 아래 기본 예시는 Runtime Contract Lab과 같은 단일 인스턴스·refresh 정책을 사용한다. 강도 중첩을 쓰는 다른 상태는 <code>TickBaseDamage × StackCount</code>처럼 공식을 별도로 명시해야 한다.
      </p>
-<pre><code>{
+<pre><code class="language-json">{
   "id": "status.burn",
   "displayName": "Burn",
   "tags": ["status", "debuff", "fire", "dot"],
@@ -709,7 +854,7 @@
         Rage
        </h3>
 <p>
-        공격력 +30% Modifier를 제공한다. 재적용 시 지속시간만 refresh하고 제거 시 sourceId로 Modifier를 정리한다.
+        fixed simulation tick 기준 8 ticks 동안 공격력 +30% Modifier를 제공한다. 재적용 시 지속시간만 refresh하고 제거 시 SourceRef.StatusInstanceId로 Modifier를 정리한다.
        </p>
 </div>
 <div class="card">
@@ -735,18 +880,26 @@
        </p>
 </div>
 </div>
-<pre><code>{
-  "id": "status_rage",
+<pre><code class="language-json">{
+  "id": "status.rage",
   "displayName": "Rage",
   "tags": ["status", "buff", "offense"],
-  "duration": { "base": 8.0, "refreshPolicy": "refresh_to_max" },
+  "duration": {
+    "ticks": 8,
+    "clockDomain": "fixed-simulation-tick",
+    "refreshPolicy": "refresh_to_max"
+  },
   "stacking": { "type": "refresh_only", "maxStacks": 1 },
   "modifiers": [
     {
       "stat": "attack_power",
       "operation": "percent_add",
       "value": 0.3,
-      "source": "status_instance"
+      "sourceRef": {
+        "kind": "status",
+        "definitionId": "status.rage",
+        "instanceId": "status-instance.rage.0001"
+      }
     }
   ]
 }</code></pre>
@@ -847,7 +1000,7 @@
          중첩, 제거, 저장, 디버그가 어려워진다.
         </td>
 <td>
-         StatModifier를 등록하고 sourceId로 제거한다.
+         StatModifier.Source에 SourceRef.Status(definitionId, statusInstanceId)를 넣고 StatusInstanceId로 제거한다.
         </td>
 </tr>
 <tr>
@@ -885,6 +1038,16 @@
 </tr>
 </table>
 </div>
+<section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
+<span class="section-kicker">Comprehension check</span>
+<h2 id="이해도-확인">이해도 확인</h2>
+<p class="checkpoint-intro">Status가 소유하는 수명·중첩·예약·정리와 Stat·Effect·Combat에 위임할 실행을 구분해 본다.</p>
+<ol class="checkpoint-grid">
+<li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="status.q1"><summary>Burn tick이 HP를 직접 감소시키고 Rage가 attack_power를 직접 30% 증가시켜도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">안 된다. Burn은 periodic DamageEffect를 실행해 Combat으로 넘기고 Rage는 추적 가능한 StatModifier를 등록한다. Status는 수명·중첩·예약과 정리를 소유한다.</p></div></details></li>
+<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="status.q2"><summary>Burn의 다음 tick과 만료가 같은 simulation tick에 도달하면 현재 계약은 어떤 순서로 처리할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">현재 계약은 마지막 tick을 먼저 계산해 plan에 넣고, 같은 원자적 commit에서 피해와 상태 만료, outbox를 함께 확정한다. 이 순서를 고정해야 frame 지연이나 replay에서도 피해 횟수가 달라지지 않는다.</p></div></details></li>
+<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="status.q3"><summary>Fireball의 Burn을 정화할 때 SourceRef와 StatusInstanceId는 각각 어디에 사용될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">SkillExecution SourceRef는 어떤 스킬 실행이 상태를 부여했는지 추적한다. 상태가 제공하는 Modifier는 SourceRef.Status(definitionId, statusInstanceId)를 사용하며, 정화 시 StatusInstanceId로 Modifier·예약·구독을 함께 정리한다.</p></div></details></li>
+</ol>
+</section>
 <h2 id="설계-점검">
       설계 점검
      </h2>
@@ -896,13 +1059,16 @@
        StackPolicy, DurationPolicy, TickPolicy가 상태별로 명시되어 있다.
       </li>
 <li>
-       Status가 제공하는 Modifier와 tick 예약은 점 구분 statusInstanceId를 sourceId로 가진다.
+       Status가 제공하는 Modifier는 SourceRef.Status(StatusDefinitionId, StatusInstanceId)를 가지며 tick 예약도 같은 StatusInstanceId로 정리할 수 있다.
       </li>
 <li>
        상태 제거 시 Modifier, tick 예약, 이벤트 구독이 함께 정리된다.
       </li>
 <li>
        DoT/HoT/aura는 직접 값을 수정하지 않고 periodic Effect로 실행된다.
+      </li>
+<li>
+       각 due tick은 피해·다음 tick 또는 만료·outbox를 포함한 하나의 plan으로 정확히 한 번 commit된다.
       </li>
 <li>
        면역, 저항, 정화, 해제 정책이 TagSet 기반으로 설명된다.
@@ -913,8 +1079,8 @@
 </ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/combat-resolution-system.html"><span>← 이전</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a>
-<a class="next" href="../modules/integration-map.html"><span>다음 →</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a>
+<a class="prev" href="../modules/combat-resolution-system.html"><span>← 이전</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a>
+<a class="next" href="../modules/integration-map.html"><span>다음 →</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -961,6 +1127,9 @@
 <a href="#안티패턴">
        안티패턴
       </a>
+<a href="#이해도-확인">
+       이해도 확인
+      </a>
 <a href="#설계-점검">
        설계 점검
       </a>
@@ -999,11 +1168,11 @@
 </a>
 </div>
 </section>
-<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>실행 계약을 직접 검증하는 학습 실습</b><small>Replay · Failure probes · Cache · Migration</small><i>→</i></a>
+<a class="readiness-card" href="../modules/runtime-reference.html"><span>Runtime lab</span><b>C# 실행 계약을 검증하는 학습 실습</b><small>JavaScript 브라우저 시뮬레이터</small><i>→</i></a>
 </aside>
 </div>
 <footer class="site-footer">
-<div><b>Game System Framework</b><span>Offline-first · Learning-focused system design</span></div>
+<div><b>Game System Framework</b></div>
 <a href="../modules/glossary.html">Glossary</a>
 </footer>
 <nav aria-label="모바일 빠른 탐색" class="mobile-bar">
@@ -1082,7 +1251,7 @@
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>Core Runtime부터 Status까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>Entity, Tag, Event, SourceId, Context, Time, RandomSeed의 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>스탯 정의, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>EffectDefinition, EffectContext, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>비용, 쿨다운, 타겟팅, 타임라인, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>명중, 치명타, 방어, 저항, 보호막을 거쳐 DamageResult를 계산하는 구조</small></a><a aria-current="page" class="is-active" href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>버프, 디버프, DoT, 중첩, 지속시간, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 의존성 방향과 API 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>하나의 스킬이 Skill, Effect, Combat, Status, Stat을 통과하는 실제 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>결정론적 replay, atomic commit, bounded reaction, context cache, schema migration을 직접 관찰하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>전체 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a aria-current="page" class="is-active" href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
@@ -1103,7 +1272,7 @@
       ESC
      </button>
 </header>
-<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceId…" spellcheck="false" type="search"/>
+<input aria-autocomplete="list" aria-controls="command-results" aria-expanded="false" aria-haspopup="listbox" autocomplete="off" class="command-input" id="command-input" role="combobox" placeholder="예: Damage commit, Burn tick, SourceRef…" spellcheck="false" type="search"/>
 <div class="command-hints">
 <span>
       ↑↓ 이동
@@ -1165,6 +1334,9 @@
      </a>
 <a href="#안티패턴">
       안티패턴
+     </a>
+<a href="#이해도-확인">
+      이해도 확인
      </a>
 <a href="#설계-점검">
       설계 점검

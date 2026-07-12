@@ -5,57 +5,57 @@ digraph CoreClassDiagram {
 	IStatOwner [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#F7F7F7"><FONT POINT-SIZE="12">&lt;&lt;interface&gt;&gt;<BR/><B>IStatOwner</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ ownerId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ tags: TagSet</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ getStatBlock(): StatBlock</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ OwnerId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Tags: TagSet</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ GetStatBlock(): StatBlock</FONT></TD></TR>
 </TABLE>
 >]
 	StatBlock [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#E8F0FE"><FONT POINT-SIZE="12"><B>StatBlock</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- ownerId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- stats: Map&lt;StatId, StatInstance&gt;</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- dependencyGraph: StatDependencyGraph</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ getValue(statId, ctx): StatValue</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ addModifier(modifier)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ removeBySource(sourceId)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ markDirty(statId)</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- ownerId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- stats: Dictionary&lt;StatId, StatInstance&gt;</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- dependencyGraph: StatDependencyGraph</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ GetValue(statId, ctx): StatValue</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ AddModifier(modifier)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ RemoveBySource(sourceId)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ MarkDirty(statId)</FONT></TD></TR>
 </TABLE>
 >]
 	StatInstance [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#E8F0FE"><FONT POINT-SIZE="12"><B>StatInstance</B></FONT></TD></TR>
 <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- definition: StatDefinition</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- baseValue: decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- cachedValue: StatValue</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- dirty: bool</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- modifiers: List&lt;StatModifier&gt;</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ evaluate(ctx): StatValue</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ setBaseValue(value)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ addModifier(modifier)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ buildBreakdown(ctx)</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Evaluate(ctx): StatValue</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ SetBaseValue(value)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ AddModifier(modifier)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ BuildBreakdown(ctx)</FONT></TD></TR>
 </TABLE>
 >]
 	StatDefinition [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#FFF3CD"><FONT POINT-SIZE="12"><B>StatDefinition</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ id: StatId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ displayName: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ valueType: StatValueType</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ defaultValue: decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ min/max: decimal?</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ roundingPolicy: RoundingPolicy</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ validate(value): decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ format(value): string</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Id: StatId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ DisplayName: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ ValueType: StatValueType</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ DefaultValue: decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Min/Max: decimal?</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ RoundingPolicy: RoundingPolicy</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Validate(value): decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Format(value): string</FONT></TD></TR>
 </TABLE>
 >]
 	StatModifier [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#DFF7E4"><FONT POINT-SIZE="12"><B>StatModifier</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ id: ModifierId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ targetStat: StatId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ operation: ModifierOperation</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ value: decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ source: ModifierSource</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ priority: int</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ duration: Duration?</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ stackRule: StackRule</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ isActive(now): bool</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ canApply(ctx): bool</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Id: ModifierId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ TargetStat: StatId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Operation: ModifierOperation</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Value: decimal</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Source: ModifierSource</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Priority: int</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Duration: Duration?</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ StackRule: StackRule</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ IsActive(now): bool</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ CanApply(ctx): bool</FONT></TD></TR>
 </TABLE>
 >]
 	StatContext [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#FCE8E6"><FONT POINT-SIZE="12"><B>StatContext</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ owner: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ target: EntityId?</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ skillId: SkillId?</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ tags: TagSet</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ moment: GameMoment</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ custom: Map</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ hasTag(tag): bool</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ get(key): object?</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Owner: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Target: EntityId?</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ SkillId: SkillId?</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Tags: TagSet</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Moment: GameMoment</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Custom: IReadOnlyDictionary&lt;string, object&gt;</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ HasTag(tag): bool</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Get(key): object?</FONT></TD></TR>
 </TABLE>
 >]
 	IModifierCondition [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#F7F7F7"><FONT POINT-SIZE="12">&lt;&lt;interface&gt;&gt;<BR/><B>IModifierCondition</B></FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ id: ConditionId</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ evaluate(ctx): bool</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Id: ConditionId</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Evaluate(ctx): bool</FONT></TD></TR>
 </TABLE>
 >]
 	CalculationPipeline [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#E0F7FA"><FONT POINT-SIZE="12"><B>StatCalculationPipeline</B></FONT></TD></TR>
 <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- phases: List&lt;CalculationPhase&gt;</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">- operationOrder: ModifierOperation[]</FONT></TD></TR>
-<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ calculate(base, modifiers, ctx): StatValue</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ buildBreakdown(...): StatDebugBreakdown</FONT></TD></TR>
+<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ Calculate(baseValue, modifiers, ctx): StatValue</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ BuildBreakdown(...): StatDebugBreakdown</FONT></TD></TR>
 </TABLE>
 >]
 	IStatOwner -> StatBlock [label="1 owns 1" arrowhead=vee]
@@ -65,6 +65,6 @@ digraph CoreClassDiagram {
 	StatModifier -> IModifierCondition [label="0..* conditions" arrowhead=vee]
 	StatBlock -> CalculationPipeline [label="delegates calculation" arrowhead=vee]
 	CalculationPipeline -> StatContext [label="reads context" arrowhead=vee]
-	StatModifier -> StatContext [label="canApply(ctx)" arrowhead=vee]
+	StatModifier -> StatContext [label="CanApply(ctx)" arrowhead=vee]
 	CalculationPipeline -> StatModifier [label="sort/filter/apply" arrowhead=vee]
 }

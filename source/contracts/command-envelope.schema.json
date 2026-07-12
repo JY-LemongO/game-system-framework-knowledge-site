@@ -17,7 +17,7 @@
     "payload": { "$ref": "#/$defs/jsonValue" }
   },
   "$defs": {
-    "namespacedId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[A-Za-z0-9_-]+)+$" },
+    "namespacedId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9_-]*)+$" },
     "jsonValue": {
       "anyOf": [
         { "type": "null" }, { "type": "boolean" }, { "type": "number" }, { "type": "string" },

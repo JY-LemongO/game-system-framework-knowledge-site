@@ -44,8 +44,8 @@
     "simulateStatusTicks": true
   },
   "expected": {
-    "replayHash": "a72446632e7feb18",
-    "traceHash": "7e06f8efb5922e0d",
+    "replayHash": "89decdba32962813",
+    "traceHash": "fde315e1ae5a2cd0",
     "finalState": {
       "tick": 18246,
       "entities": {
@@ -103,11 +103,11 @@
       "resistanceBps": 2000,
       "resolvedDamage": 202,
       "shieldAbsorbed": 40,
-      "hpDamage": 162,
+      "finalHpDamage": 162,
       "overkill": 0,
       "targetHpAfter": 338,
       "skillDefinitionId": "skill.fireball",
-      "hit": true,
+      "hitOutcome": "Hit",
       "critical": true,
       "burn": {
         "definitionId": "status.burn",
