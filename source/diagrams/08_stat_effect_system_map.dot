@@ -1,56 +1,61 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.65, nodesep=0.48];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
-  rankdir=LR;
-  splines=ortho;
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", compound=true, margin=0.12, pad=0.30, ranksep=1.05, nodesep=0.72, newrank=true, outputorder=edgesfirst, splines=polyline];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", fontsize=9, arrowsize=0.8, penwidth=1.3];
+  rankdir=TB;
   node [shape=box, style="rounded,filled", width=2.2, height=0.55];
 
   subgraph cluster_core {
     label="Core Runtime · contracts and commit boundary"; color="#dfe5ee"; style="rounded,dashed"; fontsize=18; fontcolor="#607086";
     Entity [label="Entity / Owner\nEntityId · versions", fillcolor="#edf5ff", color="#7aa7df"];
-    Stat [label="Stat System\npure GetValue + Modifier plans", fillcolor="#eaf0ff", color="#8292f7"];
-    Condition [label="Condition / Context\nread-only predicates", fillcolor="#fff7e6", color="#e0ad4e"];
-    Tag [label="Tag System\nfire · melee · boss · skill", fillcolor="#f3eefc", color="#ab8fe0"];
-    Commit [label="RuntimeCommitter\nversions · invariants\nstate + outbox atomic", fillcolor="#eefbf6", color="#61b99a"];
-    Event [label="Committed Facts Bus\nSkillCommitted · DamageCommitted\nStatChanged · StatusApplied", fillcolor="#e9fbff", color="#54b7cf"];
-    Reaction [label="ReactionQueue\npriority · stable key · budget", fillcolor="#f3eefc", color="#ab8fe0"];
+    Stat [label="Stat System\npure GetValue(owner, stat, ctx)\nmodifier + stat/resource plans", fillcolor="#eaf0ff", color="#8292f7"];
+    Condition [label="Condition / Context\nread-only predicates\nvalidates Effect conditions", fillcolor="#fff7e6", color="#e0ad4e"];
+    Tag [label="Tag System\nfire · melee · boss · skill\nclassifies Effect tags", fillcolor="#f3eefc", color="#ab8fe0"];
+    Commit [label="RuntimeCommitter\nversions · invariants\naccepts all mutation plans\nstate + outbox atomic", fillcolor="#eefbf6", color="#61b99a"];
+    Event [label="Committed Facts Bus\ndispatch after commit\nSkillCommitted · DamageCommitted\nStatChanged · StatusApplied", fillcolor="#e9fbff", color="#54b7cf"];
+    Reaction [label="ReactionQueue\npriority · stable key · budget\ndequeues Effect / ApplyStatus commands", fillcolor="#f3eefc", color="#ab8fe0"];
+    { rank=same; Entity; Stat; Condition; Tag; }
+    { rank=same; Commit; Event; Reaction; }
   }
   subgraph cluster_bridge {
     label="Effect Bridge · public execution and composition planning"; color="#dfe5ee"; style="rounded,dashed"; fontsize=18; fontcolor="#607086";
-    Effect [label="Effect System\npublic Execute(Operation | Bundle)\npublic Prepare(Bundle) plan", fillcolor="#fff0f3", color="#e07b91", penwidth=2.2];
-    Combat [label="Combat Resolution\npure DamageResult", fillcolor="#fff0f3", color="#e07b91"];
-    Status [label="Status System\nstatus / tick mutation plan", fillcolor="#e9fbff", color="#54b7cf"];
+    Effect [label="Effect System\npublic Execute(Operation | Bundle)\nIEffectPlanner.Prepare → EffectBundlePlan\nsends DamageRequest", fillcolor="#fff0f3", color="#e07b91", penwidth=2.2];
+    Combat [label="Combat Resolution\nresolves DamageRequest\nreturns pure DamageResult", fillcolor="#fff0f3", color="#e07b91"];
+    Status [label="Status System\nApplyStatus command\nstatus / tick mutation plan", fillcolor="#e9fbff", color="#54b7cf"];
+    { rank=same; Effect; Combat; Status; }
   }
   subgraph cluster_game {
     label="Game layer · commands and policies"; color="#dfe5ee"; style="rounded,dashed"; fontsize=18; fontcolor="#607086";
-    Skill [label="Skill / Action\ncost · cooldown · timeline", fillcolor="#f7f9fc"];
-    Equipment [label="Equipment / Item\nmodifier + reaction definitions", fillcolor="#f7f9fc"];
-    Progression [label="Progression\nbase stat mutation", fillcolor="#f7f9fc"];
-    Reward [label="Reward / Roguelite\neffect + modifier definitions", fillcolor="#f7f9fc"];
+    Skill [label="Skill / Action\nIEffectPlanner.Prepare input\ncost/cooldown mutation plan", fillcolor="#f7f9fc"];
+    Equipment [label="Equipment / Item\nequipment modifier plan to Stat", fillcolor="#f7f9fc"];
+    Progression [label="Progression\nbase-stat mutation plan to Stat", fillcolor="#f7f9fc"];
+    Reward [label="Reward / Roguelite\neffect definitions to Effect\nreward modifier plan to Stat", fillcolor="#f7f9fc"];
+    { rank=same; Skill; Equipment; Progression; Reward; }
   }
-  Debug [label="Observation / Debug\nBreakdown · CombatLog · UI", fillcolor="#f0f3f9", color="#99a8bd"];
+  Debug [label="Observation / Debug\nobserves Event · Stat · Combat\nBreakdown · CombatLog · UI", fillcolor="#f0f3f9", color="#99a8bd"];
+  Legend [shape=note, label="Line semantics\ngreen: mutation / commit plan\npurple: command / reaction\nred: combat resolve / return\ndashed gray: read-only query\ndotted gray: observation", fillcolor="#ffffff", color="#99a8bd"];
+  { rank=same; Debug; Legend; }
 
-  Entity -> Stat [label="owns snapshot"];
-  Stat -> Effect [label="GetValue(owner, stat, ctx)", style=dashed];
-  Condition -> Effect [label="validate", style=dashed];
-  Tag -> Effect [label="classify", style=dashed];
-  Skill -> Effect [label="IEffectPlanner.Prepare(bundle, context)"];
-  Effect -> Combat [label="DamageRequest"];
-  Combat -> Effect [label="DamageResult", style=dashed];
-  Skill -> Commit [label="cost/cooldown plan"];
-  Effect -> Commit [label="EffectBundlePlan"];
-  Status -> Commit [label="status/tick plan"];
-  Equipment -> Stat [label="modifier plan"];
-  Progression -> Stat [label="base mutation plan"];
-  Reward -> Effect [label="definitions"];
-  Reward -> Stat [label="modifier plan"];
-  Stat -> Commit [label="stat/resource mutation"];
-  Commit -> Event [label="dispatch after commit"];
-  Event -> Reaction [label="state-changing follow-up"];
-  Reaction -> Effect [label="new Effect command"];
-  Reaction -> Status [label="ApplyStatus command"];
-  Event -> Debug [label="observe"];
-  Stat -> Debug [label="DebugBreakdown", style=dashed];
-  Combat -> Debug [label="calculation trace", style=dashed];
+  Entity:e -> Stat:w [color="#5B6F8F"];
+  Stat:n -> Effect:s [color="#8292a8" constraint=false style=dashed];
+  Condition:s -> Effect:nw [color="#8292a8" constraint=false style=dashed];
+  Tag:s -> Effect:ne [color="#8292a8" constraint=false style=dashed];
+  Skill:s -> Effect:n [color="#7257A6"];
+  Effect:e -> Combat:w [color="#C45C6D"];
+  Combat:s -> Effect:s [color="#C45C6D" constraint=false style=dashed];
+  Skill:se -> Commit:nw [color="#3D8B6D"];
+  Effect:s -> Commit:n [color="#3D8B6D"];
+  Status:s -> Commit:ne [color="#3D8B6D"];
+  Equipment:s -> Stat:nw [color="#3D8B6D"];
+  Progression:s -> Stat:n [color="#3D8B6D"];
+  Reward:s -> Effect:nw [color="#8A6D3B"];
+  Reward:sw -> Stat:ne [color="#3D8B6D"];
+  Stat:s -> Commit:nw [color="#3D8B6D"];
+  Commit:e -> Event:w [color="#397B8C"];
+  Event:e -> Reaction:w [color="#7257A6"];
+  Reaction:nw -> Effect:se [color="#7257A6" constraint=false];
+  Reaction:n -> Status:s [color="#7257A6" constraint=false];
+  Event:s -> Debug:n [color="#8292a8" style=dotted];
+  Stat:se -> Debug:nw [color="#8292a8" constraint=false style=dotted];
+  Combat:se -> Debug:ne [color="#8292a8" constraint=false style=dotted];
 }

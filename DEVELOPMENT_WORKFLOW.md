@@ -39,7 +39,7 @@
 
 PR 병합으로 `main`의 merge commit SHA가 달라지는 것은 정상이며, 기준은 검수한 `dev` 상태가 그대로 포함됐는지다.
 
-`npm run qa`는 JavaScript 런타임 테스트, C# 참조 검증, 사이트 셸 일치, 검색 색인, 정적 계약, manifest, 데스크톱·모바일 브라우저 검사를 포함한다.
+`npm run qa`는 JavaScript 런타임 테스트, C# 참조 검증, 사이트 셸 일치, Graphviz 출력 일치, 검색 색인, 정적 계약, manifest, 데스크톱·모바일 브라우저 검사를 포함한다.
 
 `MANIFEST.sha256`은 UTF-8 텍스트의 줄바꿈을 LF로 정규화해 해시하고, 바이너리는 원본 바이트를 해시한다. 따라서 Windows와 Linux의 체크아웃 줄바꿈 차이는 manifest 결과를 바꾸지 않는다.
 
@@ -56,6 +56,15 @@ PR 병합으로 `main`의 merge commit SHA가 달라지는 것은 정상이며, 
 - 브라우저 UX 검사: `source/tools/browser_smoke.py`
 
 다이어그램 출력만 직접 고치지 않는다. 원본 DOT을 수정한 뒤 SVG와 PNG를 다시 생성한다.
+
+Graphviz와 `Noto Sans KR` 폰트를 설치한 개발 환경에서 다음 명령으로 34개 출력을 함께 갱신한다. Windows 기본 Graphviz 설치 경로는 자동 탐색하며, 별도 경로는 `GRAPHVIZ_DOT` 환경 변수로 지정한다.
+
+```bash
+npm run diagrams
+npm run diagrams:check
+```
+
+새 다이어그램은 DOT·SVG·PNG와 Gallery 카드를 한 세트로 추가한다. 라벨이 있는 엣지에는 `splines=ortho`를 사용하지 않고, 동일한 두 노드 사이의 왕복선은 포트·색·스타일 또는 중간 라벨 노드로 방향을 구분한다.
 
 ## 현재 인수인계 기준점
 

@@ -1,7 +1,7 @@
 digraph ExtensionClassDiagram {
-	graph [bgcolor=white fontname="Noto Sans CJK KR" fontsize=18 label="UML Class Diagram 2 - Resources, Derived Stats, Events, Persistence" labelloc=t nodesep=0.45 rankdir=LR ranksep=0.7 splines=ortho]
-	node [fontname="Noto Sans CJK KR" shape=plain]
-	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans CJK KR" fontsize=10]
+	graph [bgcolor=white compound=true fontname="Noto Sans KR" fontsize=18 label="UML Class Diagram 2 - Resources, Derived Stats, Events, Persistence" labelloc=t newrank=true nodesep=0.72 outputorder=edgesfirst rankdir=LR ranksep=1.05 splines=polyline]
+	node [fontname="Noto Sans KR" shape=plain]
+	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans KR" fontsize=9 penwidth=1.2]
 	StatDefinitionRepository [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#FFF3CD"><FONT POINT-SIZE="12"><B>StatDefinitionRepository</B></FONT></TD></TR>
@@ -79,14 +79,34 @@ digraph ExtensionClassDiagram {
 <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ MarkDependentsDirty(statId)</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">+ DetectCycles()</FONT></TD></TR>
 </TABLE>
 >]
-	StatDefinitionRepository -> DerivedStatDefinition [label="stores 0..*" arrowhead=diamond]
-	DerivedStatDefinition -> IStatFormula [label=uses arrowhead=vee]
-	DerivedStatDefinition -> StatDependencyGraph [label="registers deps" arrowhead=vee]
-	ResourceController -> ResourcePolicy [label=uses arrowhead=vee]
-	ResourceController -> StatEventBus [label="publishes resource change" arrowhead=vee]
-	StatEventBus -> StatChangedEvent [label=delivers arrowhead=diamond]
-	StatSaveAdapter -> StatSnapshot [label="creates/restores" arrowhead=vee]
-	StatSaveAdapter -> StatDefinitionRepository [label="version validation" arrowhead=vee]
-	DebugBreakdown -> StatEventBus [label="optional diagnostic event" arrowhead=vee style=dashed]
-	StatDependencyGraph -> StatEventBus [label="dirty notifications" arrowhead=vee style=dashed]
+	subgraph cluster_derived {
+		color="#E7D59A" fontname="Noto Sans KR" label="Derived Stat Definitions" style="rounded,dashed"
+		StatDefinitionRepository
+		DerivedStatDefinition
+		IStatFormula
+		StatDependencyGraph
+	}
+	subgraph cluster_resource {
+		color="#B7DCE5" fontname="Noto Sans KR" label="Resources and Events" style="rounded,dashed"
+		ResourceController
+		ResourcePolicy
+		StatEventBus
+		StatChangedEvent
+		DebugBreakdown
+	}
+	subgraph cluster_persistence {
+		color="#C7DDB0" fontname="Noto Sans KR" label="Persistence" style="rounded,dashed"
+		StatSaveAdapter
+		StatSnapshot
+	}
+	StatDefinitionRepository:e -> DerivedStatDefinition:w [label="stores derived definitions (0..*)" arrowhead=diamond color="#8A6D3B"]
+	DerivedStatDefinition:e -> IStatFormula:w [label="evaluates with formula" arrowhead=vee color="#7257A6"]
+	DerivedStatDefinition:s -> StatDependencyGraph:n [label="registers dependency graph" arrowhead=vee color="#8A6D3B"]
+	ResourceController:e -> ResourcePolicy:w [label="applies resource clamp policy" arrowhead=vee color="#B45D69"]
+	ResourceController:s -> StatEventBus:n [label="publishes committed resource change" arrowhead=vee color="#397B8C"]
+	StatEventBus:e -> StatChangedEvent:w [label="delivers StatChangedEvent" arrowhead=diamond color="#397B8C"]
+	StatSaveAdapter:e -> StatSnapshot:w [label="snapshot round-trip" arrowhead=vee color="#5B7F4A"]
+	StatSaveAdapter:n -> StatDefinitionRepository:s [label="validates definition version" arrowhead=vee color="#8292A8" style=dashed]
+	DebugBreakdown:e -> StatEventBus:w [label="optional debug observation" arrowhead=vee color="#8292A8" constraint=false style=dotted]
+	StatDependencyGraph:e -> StatEventBus:w [label="publishes dirty notification" arrowhead=vee color="#8292A8" constraint=false style=dashed]
 }

@@ -1,9 +1,8 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.65, nodesep=0.48];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
-  rankdir=LR;
-  splines=ortho;
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", compound=true, margin=0.12, pad=0.30, ranksep=1.0, nodesep=0.68, newrank=true, outputorder=edgesfirst, splines=polyline];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", fontsize=9, arrowsize=0.8, penwidth=1.3];
+  rankdir=TB;
   node [shape=box, style="rounded,filled", width=2.1, height=0.52];
 
   subgraph cluster_data {
@@ -13,6 +12,7 @@ digraph G {
     TargetSelectorData [label="TargetSelector\nSelf · Single · Area · Chain", fillcolor="#fff7e6", color="#e0ad4e"];
     ValueExpressionData [label="ValueExpression\nnon-damage values", fillcolor="#fff7e6", color="#e0ad4e"];
     ConditionData [label="ConditionData\ntarget · tag · status", fillcolor="#fff7e6", color="#e0ad4e"];
+    { rank=same; EffectDefinitionData; EffectBundleData; TargetSelectorData; ValueExpressionData; ConditionData; }
   }
   subgraph cluster_runtime {
     label="Effect Runtime · public port and internal stages"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=17;
@@ -20,13 +20,18 @@ digraph G {
     EffectContext [label="EffectContext\nCasterId · InitialTargetId\nSourceRef · RandomSeed", fillcolor="#eaf0ff", color="#8292f7"];
     Normalizer [label="<<internal stage>>\nDefinitionNormalizer\nvalidate · target · normalize", fillcolor="#eaf0ff", color="#8292f7"];
     RuntimeModel [label="EffectOperation / EffectBundle\npublic runtime input", fillcolor="#eefbf6", color="#61b99a"];
-    Executor [label="<<public interface>> IEffectExecutor\nExecute(Operation | Bundle, Context)", fillcolor="#eefbf6", color="#61b99a"];
-    Planner [label="<<public interface>> IEffectPlanner\nPrepare(EffectBundle, Context)", fillcolor="#e9fbff", color="#54b7cf"];
+    Executor [label="<<public interface>> IEffectExecutor\nExecute(Operation | Bundle, Context)\nuses OperationPlanBuilder", fillcolor="#eefbf6", color="#61b99a"];
+    Planner [label="<<public interface>> IEffectPlanner\nPrepare(EffectBundle, Context)\nreturns EffectBundlePlan\noptional target revalidation", fillcolor="#e9fbff", color="#54b7cf"];
     TargetResolver [label="TargetResolver\ncollect · filter · stable sort", fillcolor="#eaf0ff", color="#8292f7"];
-    OperationPlanner [label="<<internal stage>> OperationPlanBuilder\nDamageRequest · ApplyStatusRequest\nmutation + planned outbox", fillcolor="#eaf0ff", color="#8292f7"];
+    OperationPlanner [label="<<internal stage>> OperationPlanBuilder\nDamageRequest · ApplyStatusRequest\nqueries IStatQuery · ICombatResolver\nmutation + planned outbox", fillcolor="#eaf0ff", color="#8292f7"];
     Plan [label="<<public contract>> EffectBundlePlan\nBundleId · PrimaryOperations\nReactions", fillcolor="#eefbf6", color="#61b99a"];
-    EffectResult [label="EffectResult\nsuccess · failure · result items", fillcolor="#eaf0ff", color="#8292f7"];
-    EffectLog [label="DebugTrace\ncalculation evidence", fillcolor="#f3eefc", color="#ab8fe0"];
+    EffectResult [label="EffectResult\ncommit receipt\nsuccess · failure · result items", fillcolor="#eaf0ff", color="#8292f7"];
+    EffectLog [label="DebugTrace\nplanning trace · calculation evidence", fillcolor="#f3eefc", color="#ab8fe0"];
+    { rank=same; EffectRegistry; Normalizer; TargetResolver; }
+    { rank=same; EffectContext; RuntimeModel; }
+    { rank=same; Executor; Planner; }
+    { rank=same; OperationPlanner; Plan; }
+    { rank=same; EffectResult; EffectLog; }
   }
   subgraph cluster_external {
     label="Ports / Commit / Reaction"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=17;
@@ -36,6 +41,8 @@ digraph G {
     Facts [label="Committed facts\nEffectCompleted · DamageCommitted", fillcolor="#e9fbff", color="#54b7cf"];
     ReactionQueue [label="ReactionQueue\nstate-changing follow-up commands", fillcolor="#f3eefc", color="#ab8fe0"];
     StatusSystem [label="Status System\nApplyStatus command", fillcolor="#eefbf6", color="#61b99a"];
+    { rank=same; StatSystem; CombatSystem; }
+    { rank=same; Facts; ReactionQueue; StatusSystem; }
   }
 
   EffectDefinitionData -> EffectRegistry;
@@ -44,24 +51,24 @@ digraph G {
   ValueExpressionData -> Normalizer;
   ConditionData -> Normalizer;
   EffectRegistry -> Normalizer;
-  TargetResolver -> Normalizer [label="stable targets"];
-  Normalizer -> RuntimeModel [label="normalize"];
-  RuntimeModel -> Executor [label="input"];
-  RuntimeModel -> Planner [label="bundle input"];
-  EffectContext -> Executor [label="input"];
-  EffectContext -> Planner [label="input"];
-  Executor -> Planner [label="uses for bundle"];
-  Executor -> OperationPlanner [label="execute operation / plan"];
-  Planner -> TargetResolver [label="optional revalidation"];
-  OperationPlanner -> StatSystem [label="GetValue(owner, stat, ctx)"];
-  OperationPlanner -> CombatSystem [label="DamageRequest"];
-  Planner -> Plan [label="returns"];
-  Plan -> OperationPlanner [label="expand primary operations"];
-  CombatSystem -> OperationPlanner [label="DamageResult"];
-  OperationPlanner -> Committer [label="mutation + planned outbox"];
-  Committer -> Facts;
-  Facts -> ReactionQueue;
-  ReactionQueue -> StatusSystem [label="ApplyStatusRequest"];
-  Committer -> EffectResult [label="receipt"];
-  Planner -> EffectLog [label="trace"];
+  TargetResolver:w -> Normalizer:e [label="stable target set" color="#8292a8" style=dashed];
+  Normalizer:s -> RuntimeModel:n [label="create normalized runtime model" color="#5B6F8F"];
+  RuntimeModel:sw -> Executor:n [color="#3D8B6D"];
+  RuntimeModel:se -> Planner:n [color="#397B8C"];
+  EffectContext:sw -> Executor:ne [color="#8292a8" style=dashed];
+  EffectContext:se -> Planner:nw [color="#8292a8" style=dashed];
+  Executor:e -> Planner:w [color="#7257A6" style=dashed];
+  Executor:s -> OperationPlanner:n [label="execute selected operation" color="#5B6F8F"];
+  Planner:n -> TargetResolver:s [color="#8292a8" constraint=false style=dashed];
+  OperationPlanner:sw -> StatSystem:n [color="#8292a8" style=dashed];
+  OperationPlanner:se -> CombatSystem:n [color="#C45C6D"];
+  Planner:s -> Plan:n [label="return EffectBundlePlan" color="#397B8C"];
+  Plan:w -> OperationPlanner:e [label="expand primary operations" color="#5B6F8F"];
+  CombatSystem:e -> OperationPlanner:e [color="#C45C6D" constraint=false style=dashed];
+  OperationPlanner:s -> Committer:n [label="commit mutation + planned outbox" color="#3D8B6D"];
+  Committer:s -> Facts:n [label="dispatch committed facts" color="#397B8C"];
+  Facts:e -> ReactionQueue:w [label="enqueue state-changing follow-up" color="#7257A6"];
+  ReactionQueue:e -> StatusSystem:w [label="dequeue ApplyStatusRequest" color="#7257A6"];
+  Committer:e -> EffectResult:s [color="#8292a8" constraint=false style=dashed];
+  Planner:e -> EffectLog:w [color="#8292a8" constraint=false style=dotted];
 }

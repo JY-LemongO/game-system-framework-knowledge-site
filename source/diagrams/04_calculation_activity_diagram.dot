@@ -1,7 +1,7 @@
 digraph ActivityDiagram {
-	graph [bgcolor=white fontname="Noto Sans CJK KR" fontsize=18 label="UML Activity Diagram - GetFinalValue(statId, context)" labelloc=t nodesep=0.45 rankdir=TB ranksep=0.55 splines=ortho]
-	node [color="#425466" fontname="Noto Sans CJK KR" fontsize=11 style="rounded,filled"]
-	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans CJK KR" fontsize=10]
+	graph [bgcolor=white fontname="Noto Sans KR" fontsize=18 label="UML Activity Diagram - GetFinalValue(statId, context)" labelloc=t nodesep=0.55 rankdir=TB ranksep=0.62 splines=polyline]
+	node [color="#425466" fontname="Noto Sans KR" fontsize=11 style="rounded,filled"]
+	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans KR" fontsize=10]
 	start [label=Start fillcolor="#111827" fontcolor=white shape=circle width=0.35]
 	query [label="StatBlock.GetValue(statId, context)" fillcolor="#E8F0FE" shape=box]
 	exists [label="StatInstance exists?" fillcolor="#FFF3CD" shape=diamond]
@@ -11,9 +11,10 @@ digraph ActivityDiagram {
 	collect [label="Collect active modifiers
  filter expired without mutation" fillcolor="#DFF7E4" shape=box]
 	filter [label="Filter by Condition.Evaluate(context)" fillcolor="#DFF7E4" shape=box]
-	sort [label="Sort by phase, operation, priority" fillcolor="#E0F7FA" shape=box]
+	sort [label="Sort by phase, operation,\npriority" fillcolor="#E0F7FA" shape=box]
 	apply [label="Apply calculation phases
-Base -> Add -> Percent -> More/Less -> Override -> Clamp" fillcolor="#E0F7FA" shape=box]
+Base -> Add -> Percent -> More/Less
+-> Override -> Clamp" fillcolor="#E0F7FA" shape=box]
 	derived [label="Evaluate derived dependencies
 when formula requires other stats" fillcolor="#FFFDE7" shape=box]
 	breakdown [label="Build debug breakdown

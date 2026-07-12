@@ -481,8 +481,30 @@ if (len(dots),len(svgs),len(pngs)) != (34,34,34): error(f'diagram parity expecte
 for dot in dots:
     if not (ROOT/'assets/diagrams'/f'{dot.stem}.svg').exists(): error(f'missing SVG for {dot.name}')
     if not (ROOT/'assets/diagrams'/f'{dot.stem}.png').exists(): error(f'missing PNG for {dot.name}')
+    diagram_text = dot.read_text(encoding='utf-8')
+    if 'Noto Sans CJK KR' in diagram_text or 'Noto Sans KR' not in diagram_text:
+        error(f'{dot.relative_to(ROOT)} must use the reproducible Noto Sans KR font family')
+    if 'splines=ortho' in diagram_text and re.search(r'(?m)^\s*[^/\n]+->[^\n]+\blabel\s*=', diagram_text):
+        error(f'{dot.relative_to(ROOT)} combines splines=ortho with edge labels')
+    edge_counts = {}
+    for line in diagram_text.splitlines():
+        for statement in line.split('//', 1)[0].split(';'):
+            chain = re.match(
+                r'^\s*([A-Za-z_][\w]*(?::\w+)?(?:\s*->\s*[A-Za-z_][\w]*(?::\w+)?)+)',
+                statement,
+            )
+            if not chain:
+                continue
+            node_ids = re.findall(r'([A-Za-z_][\w]*)(?::\w+)?', chain.group(1))
+            for tail, head in zip(node_ids, node_ids[1:]):
+                edge_counts[(tail, head)] = edge_counts.get((tail, head), 0) + 1
+    duplicates = [f'{tail}->{head}' for (tail, head), count in edge_counts.items() if count > 1]
+    if duplicates:
+        error(f'{dot.relative_to(ROOT)} repeats directed edges: {duplicates}')
 for diagram_path in dots + svgs:
     diagram_text = diagram_path.read_text(encoding='utf-8')
+    if diagram_path.suffix == '.svg' and 'font-family="Noto Sans KR"' not in diagram_text:
+        error(f'{diagram_path.relative_to(ROOT)} is stale or was rendered with the wrong font family')
     for label, pattern in PUBLIC_CONTENT_PATTERNS.items():
         if pattern.search(diagram_text):
             error(f'{diagram_path.relative_to(ROOT)} retains {label}')
@@ -593,7 +615,9 @@ for relative_path, required_tokens in diagram_contract_requirements.items():
 gallery = soups.get(ROOT/'modules/diagram-gallery.html')
 if gallery:
     gallery_path = ROOT/'modules/diagram-gallery.html'
-    for index, card in enumerate(gallery.select('.gallery .thumb'), start=1):
+    gallery_cards = gallery.select('.gallery .thumb')
+    gallery_stems = []
+    for index, card in enumerate(gallery_cards, start=1):
         references = []
         image = card.select_one('img[src]')
         svg_link = card.select_one('a[href$=".svg"]')
@@ -604,6 +628,8 @@ if gallery:
         if not references:
             error(f'diagram gallery card {index} has no SVG reference')
             continue
+        if image:
+            gallery_stems.append(Path(unquote(image['src'].split('?', 1)[0])).stem)
         for raw in references:
             value = unquote(raw.split('?', 1)[0])
             target = (gallery_path.parent/value).resolve()
@@ -614,6 +640,16 @@ if gallery:
                 continue
             if target.suffix.lower() != '.svg' or not target.is_file():
                 error(f'diagram gallery card {index} invalid SVG: {raw}')
+    expected_stems = {dot.stem for dot in dots}
+    actual_stems = set(gallery_stems)
+    if len(gallery_cards) != len(dots):
+        error(f'diagram gallery expected {len(dots)} cards, got {len(gallery_cards)}')
+    if len(gallery_stems) != len(actual_stems):
+        error('diagram gallery contains duplicate diagram cards')
+    missing_stems = sorted(expected_stems - actual_stems)
+    extra_stems = sorted(actual_stems - expected_stems)
+    if missing_stems: error(f'diagram gallery omits assets: {missing_stems}')
+    if extra_stems: error(f'diagram gallery references unknown assets: {extra_stems}')
 
 # Runtime artifacts.
 kernel_source = ROOT/'source/runtime/runtime-kernel.js'

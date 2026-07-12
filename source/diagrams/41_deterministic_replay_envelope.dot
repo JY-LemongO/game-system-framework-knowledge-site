@@ -1,7 +1,7 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.34, ranksep=0.72, nodesep=0.48, splines=true];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#b8c5d8", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.18,0.13"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", arrowsize=0.75, penwidth=1.35];
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.34, ranksep=0.72, nodesep=0.58, splines=true];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#b8c5d8", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.18,0.13"];
+  edge [fontname="Noto Sans KR", color="#59687e", arrowsize=0.75, penwidth=1.35];
   rankdir=LR;
 
   Input [fillcolor="#f3eefc", label="Input\ncommand · snapshot\nroot seed"];

@@ -33,6 +33,8 @@ SCRIPT_MAP={
     'app.js':(ROOT/'assets/js/app.js').read_text(encoding='utf-8'),
 }
 PIXEL='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700"%3E%3Crect width="1200" height="700" fill="%23f3f4f6"/%3E%3C/svg%3E'
+WIDE_PIXEL='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="5000" height="700" viewBox="0 0 5000 700"%3E%3Crect width="5000" height="700" fill="%23f3f4f6"/%3E%3C/svg%3E'
+TALL_PIXEL='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="1900" viewBox="0 0 800 1900"%3E%3Crect width="800" height="1900" fill="%23f3f4f6"/%3E%3C/svg%3E'
 COMPONENT_LAYOUT_AUDIT=r"""
 () => {
   const px = (value) => Number.parseFloat(value) || 0;
@@ -130,7 +132,13 @@ def inline_page(file):
         else:
             script.decompose()
     for image in soup.select('img[src]'):
-        image['src']=PIXEL
+        source_name=Path(urlparse(image.get('src','')).path).name
+        if source_name in ('09_effect_component_diagram.svg', '39_runtime_ports_and_adapters.svg'):
+            image['src']=WIDE_PIXEL
+        elif source_name == '40_resolve_commit_reaction_sequence.svg':
+            image['src']=TALL_PIXEL
+        else:
+            image['src']=PIXEL
     return '<!DOCTYPE html>\n'+str(soup)
 
 def check(condition, label):
@@ -356,7 +364,33 @@ with sync_playwright() as p:
     check(page.evaluate('window.__printCalled'),'print:data-print-page-listener')
     page.locator('img.zoomable').first.click()
     check(page.locator('[data-diagram-modal]').evaluate('el => el.open'),'diagram:modal-open')
+    page.wait_for_function("document.querySelector('[data-zoom-reset]')?.textContent !== '100%'")
+    fit_label=page.locator('[data-zoom-reset]').inner_text()
+    check(fit_label.endswith('%') and int(fit_label[:-1]) < 100,'diagram:fit-scale-is-real-percentage')
+    page.locator('[data-zoom-reset]').click()
+    check(page.locator('[data-zoom-reset]').inner_text()=='100%','diagram:one-click-native-scale')
     page.keyboard.press('Escape')
+
+    gallery=context.new_page()
+    gallery.set_content(inline_page('modules/diagram-gallery.html'),wait_until='load')
+    gallery.wait_for_timeout(120)
+    check(gallery.locator('.gallery .thumb').count()==34,'diagram-gallery:all-assets-listed')
+    check(gallery.locator('.gallery .diagram-preview').count()==34,'diagram-gallery:scroll-previews-ready')
+    wide=gallery.locator('img[alt="Effect 컴포넌트"]')
+    check(wide.count()==1,'diagram-gallery:wide-diagram-present')
+    wide.scroll_into_view_if_needed()
+    gallery.wait_for_function("document.querySelector('img[alt=\"Effect 컴포넌트\"]')?.parentElement?.dataset.aspect === 'wide'")
+    wide_preview=wide.locator('xpath=..')
+    check(wide_preview.get_attribute('data-aspect')=='wide','diagram-gallery:wide-preview-classified')
+    check(wide_preview.evaluate('el => el.scrollWidth > el.clientWidth'),'diagram-gallery:wide-preview-scrollable')
+    wide.click()
+    gallery.wait_for_function("document.querySelector('[data-zoom-reset]')?.textContent !== '100%'")
+    wide_fit=gallery.locator('[data-zoom-reset]').inner_text()
+    check(wide_fit.endswith('%') and int(wide_fit[:-1]) < 50,'diagram-gallery:wide-fit-scale-reported')
+    gallery.locator('[data-zoom-reset]').click()
+    check(gallery.locator('[data-zoom-reset]').inner_text()=='100%','diagram-gallery:wide-native-scale')
+    gallery.keyboard.press('Escape')
+    gallery.close()
     context.close(); browser.close()
 
 report={'status':'pass' if not errors else 'fail','checks':len(checks),'passed':sum(1 for item in checks if item['pass']),'errors':errors}

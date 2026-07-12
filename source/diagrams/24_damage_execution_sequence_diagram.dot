@@ -1,24 +1,24 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.65, nodesep=0.45];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.16,0.10"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
-  rankdir=TB;
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.68, nodesep=0.58];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.20,0.12"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+  rankdir=TB; splines=polyline;
 
   start [shape=circle, width=.26, label="", fillcolor="#182033", color="#182033"];
   dmg [label="DamageEffect\nBuild DamageRequest", fillcolor="#eefbf6", color="#5ac39b"];
   req [label="DamageRequest\nAttackerId · DefenderId · FormulaId\nSource · DamageType · BaseValue\nCoefficientBps · Tags · Seed", fillcolor="#f8fafc"];
-  snapshot [label="CombatContext snapshot\nattacker/defender stats · status tags · versions\nAvailableShield · AvailableTargetHp", fillcolor="#fff8e7", color="#e4ad4f"];
+  snapshot [label="CombatContext snapshot\nattacker / defender stats\nstatus tags · versions\nAvailableShield · AvailableTargetHp", fillcolor="#fff8e7", color="#e4ad4f"];
   resolver [label="ICombatResolver\nResolve(request, context)\npure calculation", fillcolor="#eaf0ff", color="#8292f7"];
-  pipe [label="DamagePipeline\nHitOutcome → formula → critical → defense\nresistance → shield → clamp/round", fillcolor="#ffffff"];
-  result [label="DamageResult\nOutcome · Critical · RawDamage (pre-mitigation)\nResolvedDamage · ShieldAbsorbed · FinalHpDamage · Overkill", fillcolor="#eefbf6", color="#5ac39b"];
+  pipe [label="DamagePipeline\nHitOutcome → formula → critical\ndefense → resistance → shield\nclamp / round", fillcolor="#ffffff"];
+  result [label="DamageResult\nOutcome · Critical\nRawDamage (pre-mitigation)\nResolvedDamage · ShieldAbsorbed\nFinalHpDamage · Overkill", fillcolor="#eefbf6", color="#5ac39b"];
   trace [label="DebugTrace\ncalculation breakdown only", fillcolor="#f8fafc"];
-  commit [label="IDamageCommitService / RuntimeCommitter\nversion 재검사 · Shield/HP + outbox\n원자적 commit", fillcolor="#fff1f2", color="#e07b91"];
-  event [label="Committed facts dispatch\nDamageCommitted / EntityDefeated", fillcolor="#e9fbff", color="#54b7cf"];
-  reaction [label="ReactionQueue\n흡혈 · Burn · 반사 command", fillcolor="#f4efff", color="#a884e8"];
+  commit [label="IDamageCommitService /\nRuntimeCommitter\nversion 재검사\nShield / HP + outbox\n원자적 commit", fillcolor="#fff1f2", color="#e07b91"];
+  event [label="Committed facts dispatch\nDamageCommitted\nEntityDefeated", fillcolor="#e9fbff", color="#54b7cf"];
+  reaction [label="ReactionQueue\n흡혈 · Burn\n반사 command", fillcolor="#f4efff", color="#a884e8"];
   reject [shape=note, label="commit 실패\nmutation 없음 · event 없음", fillcolor="#fff0f3", color="#e07b91"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];
 
   start -> dmg -> req -> snapshot -> resolver -> pipe -> result -> commit -> event -> reaction -> end;
   result -> trace [style=dashed, label="explain"];
-  commit -> reject [style=dashed, label="version / invariant fail", color="#dc2626", fontcolor="#dc2626"];
+  commit -> reject [style=dashed, label="version /\ninvariant fail", color="#dc2626", fontcolor="#dc2626"];
 }

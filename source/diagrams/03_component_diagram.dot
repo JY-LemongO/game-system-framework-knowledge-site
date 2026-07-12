@@ -1,20 +1,21 @@
 digraph ComponentDiagram {
-	graph [bgcolor=white fontname="Noto Sans CJK KR" fontsize=18 label="UML Component Diagram - Reusable Stat Framework Boundary" labelloc=t nodesep=0.55 rankdir=TB ranksep=0.85 splines=ortho]
-	node [color="#425466" fontname="Noto Sans CJK KR" fontsize=11 shape=box style="rounded,filled"]
-	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans CJK KR" fontsize=10]
+	graph [bgcolor=white compound=true fontname="Noto Sans KR" fontsize=18 label="UML Component Diagram - Reusable Stat Framework Boundary" labelloc=t newrank=true nodesep=0.55 outputorder=edgesfirst rankdir=LR ranksep=1.1 splines=polyline]
+	node [color="#425466" fontname="Noto Sans KR" fontsize=11 shape=box style="rounded,filled"]
+	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans KR" fontsize=9 penwidth=1.2]
 	subgraph cluster_content {
-		color="#D0D7DE" fontname="Noto Sans CJK KR" label="Content / Data Layer" style=rounded
+		color="#D0D7DE" fontname="Noto Sans KR" label="Content / Data Layer" style=rounded
 		StatDefs [label="StatDefinition Data
 (JSON / CSV / ScriptableObject)" fillcolor="#FFF3CD"]
 		ModifierDefs [label="Modifier / Status / Item Data" fillcolor="#FFF3CD"]
-		FormulaDefs [label="Derived Stat Formula Data" fillcolor="#FFF3CD"]
+		FormulaDefs [label="Derived Stat Formula Data\nloads Calculation Pipeline" fillcolor="#FFF3CD"]
 	}
 	subgraph cluster_stat {
-		color="#8AA4F5" fontname="Noto Sans CJK KR" label="Reusable Stat Framework" style="rounded,bold"
+		color="#8AA4F5" fontname="Noto Sans KR" label="Reusable Stat Framework" style="rounded,bold"
 		Repo [label="Definition Repository" fillcolor="#E8F0FE"]
-		Block [label="StatBlock + StatInstance" fillcolor="#E8F0FE"]
+		Block [label="StatBlock + StatInstance\nstat/resource mutation source" fillcolor="#E8F0FE"]
 		ModReg [label="Modifier Registry
-Stack / Source / Duration" fillcolor="#DFF7E4"]
+Stack / Source / Duration
+modifier mutation source" fillcolor="#DFF7E4"]
 		Pipeline [label="Calculation Pipeline
 Operation Order + Clamp" fillcolor="#E0F7FA"]
 		Events [label="Stat Event Bus" fillcolor="#E0F7FA"]
@@ -23,31 +24,37 @@ Operation Order + Clamp" fillcolor="#E0F7FA"]
 		Save [label="Snapshot / Save Adapter" fillcolor="#F1F8E9"]
 	}
 	subgraph cluster_game {
-		color="#D0D7DE" fontname="Noto Sans CJK KR" label="Game-Specific Systems" style=rounded
-		Skill [label="Skill / Effect System" fillcolor="#FCE8E6"]
+		color="#D0D7DE" fontname="Noto Sans KR" label="Game-Specific Systems" style=rounded
+		Skill [label="Skill / Effect System\nquery values / submit plan" fillcolor="#FCE8E6"]
 		Combat [label="Combat Formula
-Damage / Hit / Crit" fillcolor="#FCE8E6"]
-		Equip [label="Equipment System" fillcolor="#FCE8E6"]
-		Status [label="Status / Buff System" fillcolor="#FCE8E6"]
-		UI [label="UI / HUD / Tooltip" fillcolor="#FCE8E6"]
-		AI [label="AI / Decision System" fillcolor="#FCE8E6"]
+Damage / Hit / Crit
+reads final stat values" fillcolor="#FCE8E6"]
+		Equip [label="Equipment System\nmodifier source add/remove" fillcolor="#FCE8E6"]
+		Status [label="Status / Buff System\nStatusInstanceId modifier plan" fillcolor="#FCE8E6"]
+		UI [label="UI / HUD / Tooltip\nsubscribes to committed facts" fillcolor="#FCE8E6"]
+		AI [label="AI / Decision System\nqueries StatContext" fillcolor="#FCE8E6"]
 	}
-	StatDefs -> Repo
-	ModifierDefs -> ModReg
-	FormulaDefs -> Pipeline
-	Repo -> Block
-	ModReg -> Block
-	Block -> Pipeline
-	Pipeline -> Debug
-	Pipeline -> Debug [label="pure value + breakdown"]
-	ModReg -> Commit [label="add/remove plan"]
-	Block -> Commit [label="resource/stat mutation"]
-	Commit -> Events [label="committed facts"]
-	Block -> Save
-	Skill -> Block [label="query / apply"]
-	Equip -> ModReg [label="add/remove by source"]
-	Status -> ModReg [label="plan by StatusInstanceId"]
-	Combat -> Block [label="read final values"]
-	UI -> Events [label=subscribe]
-	AI -> Block [label="query context"]
+	{ rank=same; StatDefs; ModifierDefs; FormulaDefs }
+	{ rank=same; Repo; ModReg }
+	{ rank=same; Block; Commit }
+	{ rank=same; Pipeline; Events; Save }
+	{ rank=same; Skill; Equip; Status; Combat; UI; AI }
+	StatDefs:e -> Repo:w [label="load stat definitions" color="#8A6D3B"]
+	ModifierDefs:e -> ModReg:w [label="load modifier definitions" color="#8A6D3B"]
+	FormulaDefs:e -> Pipeline:w [color="#8A6D3B"]
+	Repo:e -> Block:nw [label="definition lookup" color="#5B6F8F"]
+	ModReg:e -> Block:sw [label="active modifier view" color="#3D8B6D"]
+	Block:e -> Pipeline:nw [label="calculate value" color="#397B8C"]
+	Pipeline:e -> Debug:w [label="pure value + breakdown" color="#7257A6"]
+	ModReg:e -> Commit:nw [color="#3D8B6D"]
+	Block:e -> Commit:sw [color="#3D8B6D"]
+	Commit:e -> Events:w [label="committed facts" color="#397B8C"]
+	Block:e -> Save:w [label="snapshot state" color="#5B7F4A"]
+	Debug:e -> Skill:w [style=invis weight=100]
+	UI:w -> Events:e [color="#8292A8" constraint=false style=dashed]
+	Skill:w -> Block:e [color="#5B6F8F" constraint=false style=dashed]
+	Combat:w -> Block:e [color="#8292A8" constraint=false style=dashed]
+	AI:w -> Block:e [color="#8292A8" constraint=false style=dashed]
+	Equip:w -> ModReg:e [color="#3D8B6D" constraint=false]
+	Status:w -> ModReg:e [color="#3D8B6D" constraint=false]
 }
