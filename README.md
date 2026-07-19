@@ -98,9 +98,9 @@ GameSystemKnowledge/
 ├─ source/
 │  ├─ csharp/                 # 빌드 가능한 C# 계약 참조
 │  ├─ runtime/                # 브라우저·Node 공유 런타임 커널
+│  │  └─ tests/               # 런타임 커널 회귀 검증
 │  ├─ diagrams/               # 다이어그램 원본과 생성 입력
 │  └─ site-map.json           # 공개 검색 색인의 기준
-├─ tests/                     # 런타임·콘텐츠·브라우저 검증
 └─ DEVELOPMENT_WORKFLOW.md    # 브랜치 역할과 승격 절차
 ```
 
@@ -120,4 +120,4 @@ npm run qa
 
 공개 HTML은 현재 설명하는 개념, 계약, 예제, 실습만 담는다. 구현 로드맵, 릴리스 현황, 품질 감사 결과, 앞으로의 기능 계획은 공개 학습 페이지와 검색 색인에 포함하지 않는다.
 
-`QA_REPORT.md`, `PHASE3_REFERENCE_IMPLEMENTATION.md`, `PHASE3_IMPLEMENTATION_PLAN.md` 같은 파일은 당시 상태를 남긴 저장소 내부 검증·계획 기록이며, 공개 사이트의 학습 내비게이션과 분리한다.
+`QA_REPORT.md`, `PHASE3_IMPLEMENTATION_PLAN.md` 같은 파일은 당시 상태를 남긴 내부 검증·계획 기록이다. `PHASE3_REFERENCE_IMPLEMENTATION.md`는 현재 실행 참조의 내부 snapshot으로 함께 갱신한다. 이 파일들은 모두 공개 사이트의 학습 내비게이션과 분리한다.

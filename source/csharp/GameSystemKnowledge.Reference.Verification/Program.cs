@@ -131,7 +131,7 @@ internal sealed class ContractVerificationSuite
             new EntityId("modifier.rage.attack-power"),
             new EntityId("stat.attack-power"),
             ModifierOperation.PercentAdd,
-            20m,
+            0.20m,
             SourceRef.Status(new EntityId("status.rage"), statusInstanceId),
             priority: 10,
             new EntityId("stack-rule.stack"));
@@ -198,7 +198,7 @@ internal sealed class ContractVerificationSuite
         Equal(FireballReferenceScenario.CasterId, effectContext.CasterId, "effect context keeps caster");
         Equal(FireballReferenceScenario.TargetId, effectContext.InitialTargetId, "effect context keeps initial target");
         Equal(FireballReferenceScenario.SkillSource, effectContext.Source, "effect context keeps structured source");
-        Equal(61_710, effectContext.RandomSeed, "effect context keeps deterministic seed");
+        Equal(61_710u, effectContext.RandomSeed, "effect context keeps deterministic seed");
 
         var damageRequest = FireballReferenceScenario.CreateDamageRequest();
         var bundle = FireballReferenceScenario.CreateEffectBundle(damageRequest);
@@ -226,6 +226,21 @@ internal sealed class ContractVerificationSuite
         True(bundle.Reactions[0].RequiresHit, "Burn rule requires Hit");
         True(bundle.Reactions[0].RequiresTargetAlive, "Burn rule requires a living target");
 
+        var committedBundle = new EffectBundleResult(
+            committed: true,
+            bundle.BundleId,
+            appliedEffectCount: 1,
+            queuedReactionCount: 1);
+        True(committedBundle.Committed, "committed effect bundle result is explicit");
+        Equal(1, committedBundle.AppliedEffectCount, "committed bundle reports applied effects");
+        Equal(1, committedBundle.QueuedReactionCount, "committed bundle reports queued reactions");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new EffectBundleResult(true, bundle.BundleId, -1, 0),
+            "effect bundle result rejects a negative applied count");
+        Throws<ArgumentException>(
+            () => _ = new EffectBundleResult(false, bundle.BundleId, 1, 0),
+            "uncommitted effect bundle cannot report applied work");
+
         var applyStatus = new ApplyStatusRequest(
             FireballReferenceScenario.BurnDefinitionId,
             FireballReferenceScenario.TargetId,
@@ -243,6 +258,23 @@ internal sealed class ContractVerificationSuite
                 FireballReferenceScenario.SkillSource,
                 stackDelta: 0),
             "status request must change stacks");
+
+        var applied = StatusResult.Applied(new EntityId("status-instance.burn.0001"));
+        True(applied.Succeeded, "applied status result succeeds");
+        Equal(new EntityId("status-instance.burn.0001"), applied.StatusInstanceId, "applied status returns its instance");
+        Equal<StatusRemoveReason?>(null, applied.RemoveReason, "applied status has no removal reason");
+        Equal<StatusFailureReason?>(null, applied.FailureReason, "applied status has no failure reason");
+
+        var removed = StatusResult.Removed(
+            new EntityId("status-instance.burn.0001"),
+            StatusRemoveReason.Dispelled);
+        True(removed.Succeeded, "removed status result succeeds");
+        Equal<StatusRemoveReason?>(StatusRemoveReason.Dispelled, removed.RemoveReason, "removed status keeps its reason");
+
+        var failed = StatusResult.Failed(StatusFailureReason.Immune);
+        True(!failed.Succeeded, "failed status result is explicit");
+        Equal<StatusFailureReason?>(StatusFailureReason.Immune, failed.FailureReason, "failed status keeps its reason");
+        Equal<EntityId?>(null, failed.StatusInstanceId, "failed status cannot expose an instance");
     }
 
     private void VerifyFireballCalculation()
@@ -270,6 +302,19 @@ internal sealed class ContractVerificationSuite
             result.ResolvedDamage,
             result.ShieldAbsorbed + result.FinalHpDamage + result.Overkill,
             "damage conservation includes overkill");
+        Throws<ArgumentException>(
+            () => _ = new DamageResult(HitOutcome.Miss, true, 1, 1, 0, 1, 0),
+            "compact non-Hit damage result rejects critical and nonzero damage");
+        Throws<ArgumentException>(
+            () => _ = new DamageResult(
+                HitOutcome.Hit,
+                false,
+                int.MaxValue,
+                0,
+                int.MaxValue,
+                int.MaxValue,
+                2),
+            "damage conservation uses a widened sum and cannot pass through integer overflow");
 
         var lethal = resolver.Resolve(
             request,
@@ -304,6 +349,56 @@ internal sealed class ContractVerificationSuite
         Equal(2, plan.OutboxEvents.Count, "one atomic plan carries skill and damage facts");
         True(plan.OutboxEvents[0] is SkillCommitted, "SkillCommitted is planned first");
         True(plan.OutboxEvents[1] is DamageCommitted, "DamageCommitted is planned second");
+        Throws<ArgumentException>(
+            () => _ = new CommitPlan(
+                new EntityId("command.verify.missing-precondition"),
+                plan.Preconditions.Take(plan.Preconditions.Count - 1),
+                plan.Mutations),
+            "a mutation without a matching version precondition is rejected");
+        Throws<ArgumentException>(
+            () => _ = new CommitPlan(
+                new EntityId("command.verify.duplicate-precondition"),
+                plan.Preconditions.Concat(new[] { plan.Preconditions[0] }),
+                plan.Mutations),
+            "duplicate version preconditions are rejected");
+
+        var readOnlyPreconditionPlan = new CommitPlan(
+            new EntityId("command.verify.read-only-precondition"),
+            plan.Preconditions,
+            plan.Mutations.Take(plan.Mutations.Count - 1));
+        Equal(
+            4,
+            readOnlyPreconditionPlan.Preconditions.Count,
+            "a commit plan may retain an extra read-only version precondition");
+        var readOnlyPreconditionCommitter = new InMemoryRuntimeCommitter(
+            FireballReferenceScenario.CreateInitialState());
+        Equal(
+            CommitStatus.Committed,
+            readOnlyPreconditionCommitter.Commit(readOnlyPreconditionPlan).Status,
+            "a plan with a satisfied read-only precondition commits");
+        Equal(
+            7L,
+            readOnlyPreconditionCommitter.GetVersion(
+                FireballReferenceScenario.TargetHealthResourceId),
+            "a read-only precondition does not advance the resource version");
+
+        var maxVersionResourceId = new EntityId("resource.verify.max-version");
+        var maxVersionCommandId = new EntityId("command.verify.max-version");
+        var maxVersionPlan = new CommitPlan(
+            maxVersionCommandId,
+            new[] { new VersionPrecondition(maxVersionResourceId, long.MaxValue) },
+            new[] { new StateMutation(maxVersionResourceId, 9, "probe version overflow") });
+        var maxVersionCommitter = new InMemoryRuntimeCommitter(
+            new[] { new VersionedResourceState(maxVersionResourceId, 10, long.MaxValue) });
+        Throws<OverflowException>(
+            () => maxVersionCommitter.Commit(maxVersionPlan),
+            "resource version overflow is rejected before publication");
+        Equal(10L, maxVersionCommitter.GetValue(maxVersionResourceId), "version overflow keeps the prior value");
+        Equal(long.MaxValue, maxVersionCommitter.GetVersion(maxVersionResourceId), "version overflow keeps the prior version");
+        Equal(0, maxVersionCommitter.GetOutbox().Count, "version overflow appends no outbox events");
+        Throws<OverflowException>(
+            () => maxVersionCommitter.Commit(maxVersionPlan),
+            "version overflow does not consume command idempotency");
 
         var committer = new InMemoryRuntimeCommitter(
             FireballReferenceScenario.CreateInitialState());
@@ -339,6 +434,7 @@ internal sealed class ContractVerificationSuite
             FireballReferenceScenario.BurnIdempotencyKey,
             reactions[0].IdempotencyKey,
             "Burn command carries a separate idempotency key");
+        Equal(damageFact.EventId, reactions[0].CausationId, "Burn command preserves the triggering committed event ID");
         var burnRequest = FireballReferenceScenario.CreateBurnRequest(reactions[0]);
         Equal(FireballReferenceScenario.BurnDefinitionId, burnRequest.StatusId, "reaction creates Burn request");
         Equal(FireballReferenceScenario.TargetId, burnRequest.TargetId, "Burn targets the damaged entity");
@@ -351,7 +447,7 @@ internal sealed class ContractVerificationSuite
             FireballReferenceScenario.CreateDamageRequest(),
             FireballReferenceScenario.CreateCombatContext(availableTargetHp: 50));
         var lethalFact = new CommittedOutboxEvent(
-            Sequence: 99,
+            sequence: 99,
             new DamageCommitted(
                 new EntityId("event.damage-committed.fireball.lethal"),
                 FireballReferenceScenario.CommandId,
@@ -360,6 +456,15 @@ internal sealed class ContractVerificationSuite
                 FireballReferenceScenario.SkillSource,
                 lethalDamage,
                 TargetHpAfter: 0));
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new CommittedOutboxEvent(0, lethalFact.Event),
+            "committed outbox sequence must be positive");
+        Throws<ArgumentNullException>(
+            () => _ = new CommittedOutboxEvent(1, null!),
+            "committed outbox event cannot be null");
+        Throws<ArgumentException>(
+            () => _ = CommitReceipt.Empty(CommitStatus.Committed, FireballReferenceScenario.CommandId),
+            "empty receipt factory is reserved for non-committed outcomes");
         Equal(
             0,
             FireballReferenceScenario.CreateReactionCommands(bundle, lethalFact).Count,
@@ -404,6 +509,9 @@ internal sealed class ContractVerificationSuite
 
     private void VerifyReactionBoundsAndOrder()
     {
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new ReactionBudget(maxReactions: 1, maxDepth: 0, maxBudget: 0),
+            "reaction drain budget must be positive in both C# and JavaScript");
         var dispatched = new List<EntityId>();
         var queue = new DeterministicBoundedReactionQueue(
             maxReactions: 4,
@@ -417,6 +525,7 @@ internal sealed class ContractVerificationSuite
             new EntityId("effect.apply-burn"),
             FireballReferenceScenario.TargetId,
             source,
+            new EntityId("event.damage-committed.fireball.0001"),
             100,
             new EntityId("order.fireball.burn.0001"),
             depth: 1,
@@ -601,6 +710,7 @@ internal sealed class ContractVerificationSuite
             new EntityId("handler.test"),
             FireballReferenceScenario.TargetId,
             FireballReferenceScenario.SkillSource,
+            new EntityId($"event.test.trigger.{suffix}"),
             priority,
             new EntityId($"order.test.{order}"),
             depth,

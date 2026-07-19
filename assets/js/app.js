@@ -888,8 +888,11 @@
       const fields = [
         ['base', 'Base', 100],
         ['flat', 'Flat Add', 20],
-        ['inc', 'Increase %', 30],
+        ['inc', 'PercentAdd %', 30],
         ['more', 'More %', 20],
+        ['less', 'Less %', 0],
+        ['override', 'Override (optional)', ''],
+        ['min', 'Min Clamp', 0],
         ['clamp', 'Max Clamp', 9999]
       ];
       fields.forEach(([key, labelText, value]) => {
@@ -914,7 +917,7 @@
       box.appendChild(result);
       const note = document.createElement('p');
       note.className = 'calc-note';
-      note.textContent = 'min(clamp, (base + flat) × (1 + increase/100) × (1 + more/100))';
+      note.textContent = 'Round(Clamp(Override ?? (base + flat) × (1 + percentAdd/100) × (1 + more/100) × (1 - less/100)), 2)';
       box.appendChild(note);
     }
 
@@ -922,10 +925,17 @@
     function calculate() {
       const values = {};
       $$('input[data-calc-key]', box).forEach(input => {
-        values[input.dataset.calcKey] = Number.parseFloat(input.value) || 0;
+        const parsed = Number.parseFloat(input.value);
+        values[input.dataset.calcKey] = Number.isFinite(parsed) ? parsed : null;
       });
-      const raw = (values.base + values.flat) * (1 + values.inc / 100) * (1 + values.more / 100);
-      const finalValue = Math.min(values.clamp, raw);
+      // 입력 percent point를 ratio로 바꾼 뒤 문서의 stage 순서를 그대로 따른다.
+      const calculated = ((values.base ?? 0) + (values.flat ?? 0))
+        * (1 + (values.inc ?? 0) / 100)
+        * (1 + (values.more ?? 0) / 100)
+        * (1 - (values.less ?? 0) / 100);
+      const overridden = values.override ?? calculated;
+      const clamped = Math.min(values.clamp ?? Number.POSITIVE_INFINITY, Math.max(values.min ?? Number.NEGATIVE_INFINITY, overridden));
+      const finalValue = Math.round((clamped + Number.EPSILON) * 100) / 100;
       if (result) result.textContent = `Final Value = ${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 2 }).format(finalValue)}`;
     }
     box.addEventListener('input', calculate);

@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["schemaVersion", "eventId", "type", "correlationId", "causationId", "occurredTick", "payload"],
   "properties": {
-    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "schemaVersion": { "type": "integer", "const": 1 },
     "eventId": { "$ref": "#/$defs/namespacedId" },
     "type": { "type": "string", "minLength": 1 },
     "correlationId": { "$ref": "#/$defs/namespacedId" },

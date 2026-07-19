@@ -16,7 +16,7 @@ digraph G {
   StatusEffectHook [label="StatusEffectHook\nexecute periodic\neffects\nreact to events"];
   DispelPolicy [label="DispelPolicy\ncleanse / immunity\ntag-based remove"];
   StatusResult [shape=plain,label=<
-<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#99a8bd"><TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">StatusResult</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Applied</TD></TR><TR><TD ALIGN="LEFT">+ Refreshed</TD></TR><TR><TD ALIGN="LEFT">+ StackChanged</TD></TR><TR><TD ALIGN="LEFT">+ Immune</TD></TR><TR><TD ALIGN="LEFT">+ Removed</TD></TR></TABLE>>];
+<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#99a8bd"><TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">Conceptual StatusResult</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Applied</TD></TR><TR><TD ALIGN="LEFT">+ Refreshed</TD></TR><TR><TD ALIGN="LEFT">+ StackChanged</TD></TR><TR><TD ALIGN="LEFT">+ Immune</TD></TR><TR><TD ALIGN="LEFT">+ Removed</TD></TR></TABLE>>];
   StatusDefinition -> StackPolicy;
   StatusDefinition -> DurationPolicy;
   StatusDefinition -> TickPolicy;

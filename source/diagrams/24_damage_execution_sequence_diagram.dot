@@ -12,7 +12,7 @@ digraph G {
   pipe [label="DamagePipeline\nHitOutcome → formula → critical\ndefense → resistance → shield\nclamp / round", fillcolor="#ffffff"];
   result [label="DamageResult\nOutcome · Critical\nRawDamage (pre-mitigation)\nResolvedDamage · ShieldAbsorbed\nFinalHpDamage · Overkill", fillcolor="#eefbf6", color="#5ac39b"];
   trace [label="DebugTrace\ncalculation breakdown only", fillcolor="#f8fafc"];
-  commit [label="IDamageCommitService /\nRuntimeCommitter\nversion 재검사\nShield / HP + outbox\n원자적 commit", fillcolor="#fff1f2", color="#e07b91"];
+  commit [label="RuntimeCommitter\nCommit(CommitPlan): CommitReceipt\nversion 재검사\nShield / HP + outbox\n원자적 commit", fillcolor="#fff1f2", color="#e07b91"];
   event [label="Committed facts dispatch\nDamageCommitted\nEntityDefeated", fillcolor="#e9fbff", color="#54b7cf"];
   reaction [label="ReactionQueue\n흡혈 · Burn\n반사 command", fillcolor="#f4efff", color="#a884e8"];
   reject [shape=note, label="commit 실패\nmutation 없음 · event 없음", fillcolor="#fff0f3", color="#e07b91"];

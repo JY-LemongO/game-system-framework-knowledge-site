@@ -16,7 +16,7 @@ digraph G {
     DebugTrace [label="DebugTrace\n- formulaSteps\n- statReads\n- RNG decisions"];
   }
   subgraph cluster_commit { label="Commit Data"; color="#dbe3ef"; style="rounded";
-    AppliedDamage [label="AppliedDamage\n- committed Shield/HP\n- resulting versions\n- event ids"];
+    CommitReceipt [label="CommitReceipt\n- commit status\n- committed state snapshot\n- ordered outbox events"];
     Outbox [label="Outbox\n- DamageCommitted\n- EntityDefeated?"];
   }
 
@@ -24,6 +24,6 @@ digraph G {
   CombatFormulaDefinition -> DamageResult [label="calculation policy"];
   ResistanceTable -> DamageResult [label="mitigation policy"];
   DamageRequest -> CombatContext -> DamageResult -> DebugTrace;
-  DamageResult -> AppliedDamage [label="separate atomic commit"];
-  AppliedDamage -> Outbox [label="same transaction"];
+  DamageResult -> CommitReceipt [label="separate atomic commit"];
+  CommitReceipt -> Outbox [label="same transaction"];
 }

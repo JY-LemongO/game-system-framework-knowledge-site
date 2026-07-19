@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Fireball Case Study · GSF System Atlas</title>
-<meta content="Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름" name="description"/>
+<meta content="Fireball의 C# compact 계약, JavaScript 실행 fixture, 목표형 Skill·Effect·Combat·Status 조율을 구분한 수직 슬라이스" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <link href="../favicon.svg" rel="icon" sizes="any" type="image/svg+xml"/>
 <script>
@@ -214,10 +214,11 @@
        Fireball Case Study
       </h1>
 <p class="lead">
-       Fireball은 Skill, Effect, Combat, Status, Stat, Core Runtime의 C# 계약이 한 번에 연결되는 대표 예제다. SkillRequest에서 시작해 마나 commit, 피해 계산, Burn 적용과 tick, 이벤트 기록까지 요청·결과 타입의 흐름을 추적한다.
+       Fireball은 Skill, Effect, Combat, Status, Stat, Core Runtime 경계를 연결하는 대표 예제다. C# compact 계약·pre-resolved fixture로 요청, 피해, commit, reaction 경계를 확인하고, JavaScript 실행 fixture로 Burn instance 생성·tick·만료와 replay까지 이어서 추적한다.
       </p>
 <div class="badges">
 <span class="badge" data-example-language="csharp">예제 언어 · C#</span>
+<span class="badge" data-simulator-language="javascript">실행 fixture · JavaScript</span>
 <span class="badge">
         SkillRequest
        </span>
@@ -239,7 +240,7 @@
 </div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>하나의 C# command가 Skill·Effect·Combat·Status를 통과하는 전체 실행과 실패 분기를 추적한다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>C# 계약과 JavaScript 실행 fixture의 증거 범위를 구분하면서 하나의 command가 Skill·Effect·Combat·Status 경계를 지나는 흐름과 실패 분기를 추적한다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>각 시스템의 요청·결과 객체와 SourceRef, commit 이후 이벤트 개념을 먼저 이해한다.</p></article>
 </div>
 <h2 id="fireball-전체-흐름">
@@ -299,11 +300,11 @@
       </span>
 </div>
 <p>
-      Fireball은 전체 프레임워크의 수직 슬라이스다. Skill은 행동 사용 가능 여부와 실행 타이밍을 담당하고, 주 EffectBundle은 DamageEffect만 준비하며, Combat은 피해를 계산한다. RuntimeCommitter가 피해를 확정한 뒤 DamageCommitted를 ReactionCommand로 변환하고, ReactionQueue가 ApplyStatusEffect(effect.apply-burn)를 실행하면 Status가 Burn을 유지한다. 독립된 주 ApplyStatusEffect는 Status를 직접 요청할 수 있지만, 이 Fireball fixture의 Burn은 주 Damage와 병렬 실행하지 않는다. 아래 모든 수치는 Runtime Contract Lab의 단일 fixture와 같다.
+      Fireball은 전체 프레임워크의 수직 슬라이스다. Skill은 행동 사용 가능 여부와 실행 타이밍을 담당하고, 주 EffectBundle은 DamageEffect만 준비하며, Combat은 피해를 계산한다. RuntimeCommitter가 피해를 확정한 뒤 DamageCommitted를 ReactionCommand로 변환하고, ReactionQueue가 ApplyStatusEffect(effect.apply-burn)를 실행하면 Status가 Burn을 유지한다. 독립된 주 ApplyStatusEffect는 Status를 직접 요청할 수 있지만, 이 Fireball fixture의 Burn은 주 Damage와 병렬 실행하지 않는다. 아래 기본 피해 수치는 C# fixture와 JavaScript Runtime Lab이 공유하지만, C#은 Hit/Critical을 미리 정한 CombatContext로 받고 JavaScript는 keyed RNG로 판정한다.
      </p>
-<h3 id="csharp-fireball-orchestration">C# 실행 조율</h3>
-<p>Skill과 Effect는 release 시점에 비용·쿨다운·주 Damage의 변경 계획만 만든다. RuntimeCommitter가 이 mutation과 outbox를 한 transaction으로 확정한 뒤, commit된 DamageCommitted로 Burn ReactionCommand를 만든다. 따라서 Skill은 Combat이나 Burn 적용을 직접 호출하지 않고, Burn 실패도 이미 commit된 피해를 되돌리지 않는다.</p>
-<p>아래 코드는 공개 계약을 새로 정의하는 예제가 아니라 내부 조율 순서를 보여주는 축약 코드다. <code>SkillExecution</code>·<code>SkillReleasePlan</code>·<code>CommitPlanFactory</code>는 프로젝트별 타임라인과 저장 구조에 맞춘 내부 모델이고, 안정된 외부 경계는 SkillRequest·SkillDecision·SkillResult와 IEffectPlanner·IRuntimeCommitter다.</p>
+<h3 id="csharp-fireball-orchestration">개념적 C# 조율(비실행 의사코드)</h3>
+<p>목표형 Skill 정책에서는 release 시점에 비용·쿨다운·주 Damage의 변경 계획을 만들고 RuntimeCommitter가 mutation과 outbox를 한 transaction으로 확정한 뒤, commit된 DamageCommitted로 Burn ReactionCommand를 만든다. 이 경계라면 Burn 실패가 이미 commit된 피해를 되돌리지 않는다.</p>
+<p>아래 코드는 현재 저장소에서 빌드되는 구현이 아니라 내부 조율 순서를 보여주는 의사코드다. <code>SkillExecution</code>·<code>SkillReleasePlan</code>·<code>CommitPlanFactory</code>·release timeline과 자원 예약은 <code>Conceptual extension</code>이다. 현재 C#/JavaScript fixture는 검증 뒤 동등한 비용·쿨다운·Damage commit plan을 직접 만든다.</p>
 <pre><code class="language-csharp">public FireballResult Execute(FireballCommand command)
 {
     SkillExecution execution = _skills.Begin(command.SkillRequest);
@@ -330,16 +331,44 @@
       1. SkillRequest
      </h2>
 <p>
-      플레이어가 대상을 지정하면 불변 Skill command가 생성된다. Actor와 이번 실행을 나타내는 Command/Source, Target, DefinitionVersion, SimulationTick, RootSeed를 담는다. 이때 아직 마나가 차감되거나 피해가 적용되지 않는다.
+      플레이어가 대상을 지정하면 불변 요청이 생성되지만 C# compact 계약과 JavaScript envelope의 필드는 다르다. C# <code>SkillRequest</code>는 CasterId, SkillId, TargetId, RequestedTick, RootSeed 다섯 필드만 가진다. JavaScript는 command envelope에 command·actor·correlation·data version과 payload를 두고, RootSeed와 definition/formula/RNG version은 별도 replay header에 둔다. 어느 경로에서도 이 단계에는 아직 마나가 차감되거나 피해가 적용되지 않는다.
      </p>
-<pre><code class="language-json">{
-  "commandId": "command.fireball.cast.0001",
-  "actorId": "entity.caster",
-  "targetId": "entity.target",
-  "skillDefinitionId": "skill.fireball",
-  "requestedTick": 18240,
-  "rootSeed": 61710
-}</code></pre>
+<div class="grid cols2">
+<div class="card"><h3 id="csharp-skillrequest-shape">C# compact request</h3><pre><code class="language-csharp">SkillRequest request = new(
+    casterId: new("entity.caster"),
+    skillId: new("skill.fireball"),
+    targetId: new EntityId("entity.target"),
+    requestedTick: 18_240,
+    rootSeed: 61_710u);</code></pre></div>
+<div class="card"><h3 id="javascript-command-replay-shape">JavaScript command + replay header</h3><pre><code class="language-json">{
+  "command": {
+    "schemaVersion": 1,
+    "commandId": "command.fireball.cast.0001",
+    "actorId": "entity.caster",
+    "requestedTick": 18240,
+    "correlationId": "correlation.fireball.cast.0001",
+    "causationId": null,
+    "dataVersion": "data.2026.07",
+    "payload": {
+      "targetId": "entity.target",
+      "skillDefinitionId": "skill.fireball"
+    }
+  },
+  "replayHeader": {
+    "runtimeVersion": "3.3.0-reference",
+    "contractSchemaVersion": 1,
+    "replayFormatVersion": 1,
+    "rngAlgorithmVersion": "mulberry32-keyed-v1",
+    "rngKeySchemaVersion": "correlation-branch-target-v1",
+    "clockDomain": "simulation_tick",
+    "numericPolicyVersion": "integer-bps-half-away-from-zero-v1",
+    "dataVersion": "data.2026.07",
+    "definitionVersion": "definitions.fireball.v3",
+    "formulaVersion": "combat.fire.v3",
+    "rootSeed": 61710
+  }
+}</code></pre></div>
+</div>
 <h2 id="2-skillvalidator-cost-timeline">
       2. SkillValidator / Cost / Timeline
      </h2>
@@ -402,7 +431,7 @@
 </tr>
 <tr>
 <td>
-         사거리와 시야
+         대상 생존 유효성
         </td>
 <td>
          target 존재, target HP &gt; 0
@@ -414,13 +443,13 @@
 </table>
 </div>
 <p>
-      검증이 통과되면 CostPolicy가 마나 20을 예약한다. release marker에서는 비용·쿨다운·주 Damage mutation·outbox를 하나의 commit plan으로 준비한다. commit precondition이나 주 operation이 실패하면 plan 전체를 폐기한다. Burn은 이 commit 뒤의 별도 reaction이므로 실패해도 이미 확정된 비용·쿨다운·피해는 유지된다.
+      목표형 <code>reserve_then_commit</code> 정책에서는 검증 뒤 마나 20을 예약하고 release marker에서 비용·쿨다운·주 Damage mutation·outbox를 하나의 commit plan으로 준비한다. 현재 실행 fixture는 예약과 timeline을 구현하지 않고 이 원자적 plan을 직접 만든다. commit precondition이나 주 operation이 실패하면 plan 전체를 폐기하며, 별도 Burn reaction의 실패는 이미 확정된 비용·쿨다운·피해를 되돌리지 않는다.
      </p>
 <h2 id="3-effectbundle">
       3. EffectBundle
      </h2>
 <p>
-      release marker에 도달하면 SkillExecutor는 EffectContext를 만들고 Effect 계층에 EffectBundle plan 생성을 요청한다. 주 Damage mutation은 비용·쿨다운과 함께 commit하고, 그 도메인 사실로 Burn 적용 reaction을 만든다. Burn이 면역으로 실패해도 이미 commit된 피해 결과는 유지되도록
+      목표형 release 조율에서는 SkillExecutor가 EffectContext를 만들고 Effect 계층에 EffectBundle plan 생성을 요청한다. 현재 실행 fixture는 이 timeline 단계를 축약하지만, 주 Damage mutation을 비용·쿨다운과 함께 commit하고 그 도메인 사실로 Burn 적용 reaction을 만드는 경계는 실행 검증한다. 면역 정책을 추가한 확장에서도 후속 Burn 실패가 이미 commit된 피해 결과를 되돌리지 않도록
       <code>commit_then_react</code> 정책을 사용한다.
      </p>
 <pre><code class="language-json">{
@@ -455,16 +484,16 @@
 </div>
 <img alt="Fireball Damage 계산 흐름" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/23_damage_resolution_activity_diagram.svg"/>
 <figcaption class="cap">
-       Fireball의 DamageEffect는 DamageRequest를 만들고, Combat Resolution이 HitOutcome.Hit, 공식 subtotal, 치명타 RawDamage, 방어·저항, 보호막 순서로 불변 DamageResult를 만든다. 상태 변경과 DamageCommitted 발행은 RuntimeCommitter가 담당한다.
+       Fireball의 DamageEffect는 DamageRequest를 만든다. 현재 C# fixture는 이미 정해진 HitOutcome·Critical·ScalingStatValue·Resistance를 CombatContext로 받아 단일 계수식, 저항, 보호막 순서로 DamageResult를 만든다. JavaScript Runtime Lab은 Hit/Crit를 keyed RNG로 판정하지만 방어·관통 resolver는 두 참조 모두의 개념 확장이다. 상태 변경과 DamageCommitted 발행은 RuntimeCommitter가 담당한다.
       </figcaption>
 </figure>
 <p>
-      예시 값은 다음과 같다.
-      <code>spell_power</code>는 CombatFormula가 공격자 Stat snapshot에서 읽고, 대상의
+       예시 값은 다음과 같다. 현재 fixture에서는 호출자가 공격자
+       <code>spell_power</code> snapshot을 <code>CombatContext.ScalingStatValue</code>로 미리 해석하고, 대상의
       <code>
        fire_resistance
       </code>
-      와 보호막은 CombatPipeline에서 적용한다.
+       와 보호막도 미리 해석된 CombatContext 값으로 계산한다. CombatFormula가 직접 Stat을 조회하는 구조는 확장 설계다.
      </p>
 <div class="table-scroll">
 <table class="data-table">
@@ -575,11 +604,11 @@ static int MultiplyBpsHalfUp(int value, int bps)
 </div>
 <img alt="Burn 적용 흐름" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/28_status_apply_sequence_diagram.svg"/>
 <figcaption class="cap">
-       Fireball에서는 DamageCommitted로 만든 ReactionCommand를 ReactionQueue가 dispatch한 뒤 ApplyStatusEffect(effect.apply-burn)가 StatusSystem에 Burn 적용을 요청한다. StatusController가 면역·재적용·지속시간·Modifier 변경 plan을 만들고, RuntimeCommitter 또는 StatusCommitService가 상태와 StatusApplied outbox를 함께 확정한다.
+        Fireball에서는 DamageCommitted로 만든 ReactionCommand를 ReactionQueue가 dispatch한 뒤 ApplyStatusEffect(effect.apply-burn)가 StatusSystem에 Burn 적용을 요청한다. JavaScript fixture는 새 StatusInstance 생성과 tick 예약·만료를 실행한다. C# fixture는 ApplyStatusRequest 계약까지만 제공하며 StatusService 구현은 없다. 면역·재적용 병합·지속시간 refresh·Modifier 변경 plan은 두 참조 모두의 개념 확장 책임이다.
       </figcaption>
 </figure>
 <p>
-      이 fixture의 Burn은 6 simulation tick 동안 유지되고 +2, +4, +6에 periodic DamageEffect를 실행한다. 재적용은 중첩을 늘리지 않고 지속시간만 refresh한다. applyOn=hit이므로 보호막이 최초 피해를 모두 흡수해도 대상이 살아 있으면 적용된다. 적용 원천은 skill execution SourceRef로 추적하고 tick 예약은 StatusInstanceId로 정리한다.
+       현재 JavaScript fixture의 단일 Burn 인스턴스는 6 simulation tick 동안 유지되고 +2, +4, +6에 periodic DamageEffect를 실행한다. 보호막이 최초 피해를 모두 흡수해도 Hit이고 대상이 살아 있으면 적용된다. 적용 원천은 skill execution SourceRef로 추적하고 tick 예약은 StatusInstanceId로 정리한다. 아래 maxStacks=1·refresh 정책은 목표 설계 예시이며, 현재 fixture는 재적용 병합이나 면역을 구현·검증하지 않는다.
      </p>
 <pre><code class="language-json">{
   "status": "status.burn",
@@ -587,15 +616,15 @@ static int MultiplyBpsHalfUp(int value, int bps)
   "stackCount": 1,
   "maxStacks": 1,
   "tickIntervalTicks": 2,
-  "applyOn": "hit",
+  "outcomePredicate": "hit",
   "periodicEffect": "effect.burn-tick-damage",
-  "sourceRef": {
+  "applicationSourceRef": {
     "kind": "skill-execution",
     "definitionId": "skill.fireball",
     "instanceId": "command.fireball.cast.0001"
   },
   "statusInstanceId": "status-instance.10500ad49c7e40de",
-  "modifierSourceRef": {
+  "sourceRef": {
     "kind": "status",
     "definitionId": "status.burn",
     "instanceId": "status-instance.10500ad49c7e40de"
@@ -623,6 +652,10 @@ static int MultiplyBpsHalfUp(int value, int bps)
 <p>
       Burn tick의 공격 계수는 적용 당시 raw damage에서 snapshot하고, 대상의 현재 저항과 보호막은 매 tick 다시 읽는다. 이 fixture에서는 raw tick 30이 화염 저항 20%를 거쳐 매번 HP 24를 감소시키며, 세 번의 tick 뒤 대상 HP는 266이다. 따라서 매 tick도 DamageCalculated → DamageCommitted 경로를 거치며 치명 피해라면 EntityDefeated를 남긴다.
      </p>
+<div class="callout warn">
+<b>JavaScript fixture의 최소 tick 정책.</b>
+<p>적중한 공격의 raw damage와 Burn ratio가 모두 양수라면 BPS half-away-from-zero 계산 결과가 0이어도 raw tick을 최소 1로 올린다. <code>ratioBps = 0</code>은 Burn 비활성으로 취급해 <code>StatusApplied</code>를 만들지 않는다. 이는 보편 법칙이 아니라 저피해 DoT가 소실되지 않게 선택한 이 fixture의 명시적 정책이며, 제품에서는 최소값·반올림·0 ratio 의미를 데이터 계약과 경계 테스트로 고정해야 한다.</p>
+</div>
 <h2 id="7-event-debugtrace">
       7. Event / DebugTrace
      </h2>
@@ -642,9 +675,10 @@ DamageCommitted
 ReactionCommand
   handler=effect.apply-burn, cause=DamageCommitted, depth=1
 StatusApplied
-  status.burn durationTicks=6 nextTick=18242
+  status.burn durationTicks=6 nextTick=18242, applicationCause=DamageCommitted
 DamageCommitted + StatusTicked
   rawDamage=30, resolvedDamage=24 at +2/+4/+6
+  firstTrigger=StatusApplied, nextTrigger=previous StatusTicked
 StatusExpired
   finalTargetHp=266</code></pre>
 <div class="callout good">
@@ -653,6 +687,7 @@ StatusExpired
       </b>
       Prepare/Resolve와 DamageCalculated trace → 비용·쿨다운·Shield/HP·outbox atomic commit → SkillCommitted → DamageCommitted → Burn ReactionQueue → StatusApplied → periodic DamageCommitted/StatusTicked → 관찰 이벤트 순서로 한 번의 trace를 만든다.
      </div>
+<p><code>CorrelationId</code>는 이 전체 cast를 유지하고, 각 후속 command의 <code>CausationId</code>는 자신을 직접 촉발한 직전 event를 가리킨다. 따라서 첫 Burn tick은 <code>StatusApplied</code>, 다음 tick은 직전 <code>StatusTicked</code>를 trigger로 저장한다. 한 상태가 대상을 쓰러뜨려 다른 상태가 정리되면 그 정리 command의 직접 원인은 방금 발생한 <code>EntityDefeated</code>다.</p>
 <h2 id="실패-분기">
       실패 분기
      </h2>
@@ -693,13 +728,13 @@ StatusExpired
 </tr>
 <tr>
 <td>
-         명중 실패
+         명중 실패(JavaScript fixture)
         </td>
 <td>
-         Combat HitResolver
+         JavaScript keyed HitResolver
         </td>
 <td>
-         비용과 쿨다운은 commit, 피해와 Burn은 없음
+         JavaScript는 비용·쿨다운만 commit한다. C# compact fixture는 Miss DamageResult까지 계산하지만 end-to-end commit plan은 제공하지 않는다.
         </td>
 </tr>
 <tr>
@@ -707,10 +742,10 @@ StatusExpired
          대상이 status.immunity.burn
         </td>
 <td>
-         StatusSystem ImmunityChecker
+         개념 확장 StatusSystem ImmunityChecker
         </td>
 <td>
-         Damage는 성공, Burn만 immune으로 실패 가능
+         목표 정책은 Damage 성공·Burn만 immune 실패. 현재 fixture는 면역을 판정하지 않음
         </td>
 </tr>
 <tr>
@@ -721,7 +756,7 @@ StatusExpired
          Combat ShieldResolver
         </td>
 <td>
-         DamageResult.ShieldAbsorbed 기록. applyOn=hit이면 full shield에서도 Burn 적용
+         DamageResult.ShieldAbsorbed 기록. outcomePredicate=hit이면 full shield에서도 Burn 적용
         </td>
 </tr>
 <tr>
@@ -729,10 +764,10 @@ StatusExpired
          Burn 재적용
         </td>
 <td>
-         Status StackPolicy
+         개념 확장 Status StackPolicy
         </td>
 <td>
-         stack은 1로 유지하고 duration refresh
+         목표 정책은 stack 1 유지·duration refresh. 현재 fixture는 재적용 시 별도 instance 생성
         </td>
 </tr>
 </table>
@@ -743,8 +778,8 @@ StatusExpired
 <p class="checkpoint-intro">Fireball 한 번의 prepare·commit·reaction 경계와 시스템별 책임을 확인한다.</p>
 <ol class="checkpoint-grid">
 <li><span>01 · 원자적 Commit</span><details data-checkpoint-question="" data-question-id="fireball.q1"><summary>Damage를 resolve한 뒤 대상 version이 바뀌어 commit precondition이 실패하면 마나와 쿨다운은 남아야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">남지 않아야 한다. 비용·쿨다운·주 Damage mutation·outbox가 하나의 CommitPlan이므로 VERSION_CONFLICT에서는 모두 미적용된다.</p></div></details></li>
-<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="fireball.q2"><summary>HitOutcome은 Hit이지만 보호막이 피해를 전부 흡수하면 applyOn=hit Burn은 적용될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">대상이 살아 있고 Burn 면역이 아니라면 적용된다. applyOn=hit은 FinalHpDamage가 아니라 HitOutcome을 기준으로 하므로 full shield와 구분된다.</p></div></details></li>
-<li><span>03 · 후속 반응</span><details data-checkpoint-question="" data-question-id="fireball.q3"><summary>DamageCommitted 뒤 Burn 면역 판정이 실패하면 이미 적용된 Fireball 피해도 롤백해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">아니다. commit_then_react에서 주 Damage는 먼저 commit되고 Burn은 ReactionQueue의 별도 ApplyStatusEffect다. Burn 실패는 StatusResult에 남기되 비용·쿨다운·피해는 유지한다.</p></div></details></li>
+<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="fireball.q2"><summary>HitOutcome은 Hit이지만 보호막이 피해를 전부 흡수하면 outcomePredicate=hit Burn은 적용될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">현재 fixture에서는 대상이 살아 있으면 적용된다. outcomePredicate=hit은 FinalHpDamage가 아니라 HitOutcome을 기준으로 하므로 full shield와 구분된다. 현재 fixture에는 Burn 면역 검사가 없다.</p></div></details></li>
+<li><span>03 · 후속 반응</span><details data-checkpoint-question="" data-question-id="fireball.q3"><summary>개념 확장에 Burn 면역을 추가했을 때 DamageCommitted 뒤 면역 판정이 실패하면 이미 적용된 피해도 롤백해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">아니다. commit_then_react에서 주 Damage는 먼저 commit되고 Burn은 별도 ApplyStatusEffect다. 확장된 면역 실패는 StatusResult에 남기되 비용·쿨다운·피해는 유지한다. 현재 실행 fixture는 면역 입력과 판정을 제공하지 않는다.</p></div></details></li>
 </ol>
 </section>
 <h2 id="요약">
@@ -770,8 +805,8 @@ StatusExpired
 </div>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/integration-map.html"><span>← 이전</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a>
-<a class="next" href="../modules/runtime-reference.html"><span>다음 →</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a>
+<a class="prev" href="../modules/integration-map.html"><span>← 이전</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향</small></a>
+<a class="next" href="../modules/runtime-reference.html"><span>다음 →</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -936,7 +971,7 @@ StatusExpired
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a aria-current="page" class="is-active" href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# Status 요청·결과 계약과 JavaScript Burn 실행 참조를 바탕으로 버프, DoT, 중첩, tick, 정화, 면역을 설계하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a aria-current="page" class="is-active" href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# compact 계약, JavaScript 실행 fixture, 목표형 Skill·Effect·Combat·Status 조율을 구분한 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

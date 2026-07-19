@@ -26,7 +26,7 @@ digraph G {
   HitOutcome [label="HitOutcome\nHit · Miss · Blocked\nImmune · Rejected", fillcolor="#fff7e6", color="#e0ad4e"];
   DamageResult [shape=plain,label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a"><TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">DamageResult</FONT></B></TD></TR><TR><TD ALIGN="LEFT">+ Outcome: HitOutcome</TD></TR><TR><TD ALIGN="LEFT">+ Critical</TD></TR><TR><TD ALIGN="LEFT">+ RawDamage (post-critical, pre-mitigation)</TD></TR><TR><TD ALIGN="LEFT">+ ResolvedDamage</TD></TR><TR><TD ALIGN="LEFT">+ ShieldAbsorbed</TD></TR><TR><TD ALIGN="LEFT">+ FinalHpDamage</TD></TR><TR><TD ALIGN="LEFT">+ Overkill</TD></TR><TR><TD ALIGN="LEFT"><B>Invariant:</B> ResolvedDamage =</TD></TR><TR><TD ALIGN="LEFT">ShieldAbsorbed + FinalHpDamage + Overkill</TD></TR></TABLE>>];
-  DamageCommit [label="IDamageCommitService / RuntimeCommitter\n+ Commit(defenderId, result): AppliedDamage\nShield · HP · outbox atomic", fillcolor="#eefbf6", color="#61b99a"];
+  DamageCommit [label="RuntimeCommitter\n+ Commit(CommitPlan): CommitReceipt\nShield · HP · outbox atomic", fillcolor="#eefbf6", color="#61b99a"];
   CombatLogBuilder [label="CombatLogBuilder\n+ BuildHumanReadableLog()"];
   NonHitBranch [shape=note, label="Non-damaging branch\nMiss / Blocked / Immune / Rejected", fillcolor="#fff7e6", color="#e0ad4e"];
 

@@ -89,7 +89,7 @@
     "anchor": "#combat-resolution-system",
     "title": "Combat Resolution",
     "short": "홈",
-    "desc": "DamageEffect가 만든 DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막 계산으로 해석한다.",
+    "desc": "DamageRequest와 사전 판정 CombatContext로 수치·저항·보호막·HP 분배를 검증하고, 전체 판정 pipeline은 확장 경계로 구분한다.",
     "group": "시작",
     "level": "H3",
     "text": "home learning path c# csharp",
@@ -221,7 +221,7 @@
     "anchor": "#책임-경계",
     "title": "책임 경계",
     "short": "Core Runtime",
-    "desc": "",
+    "desc": "실행 참조의 event envelope. JavaScript Runtime Lab은 EventId·CorrelationId·CausationId·OccurredTick·SchemaVersion을 모두 실행 검증한다. 현재 compact C# DomainEvent 는…",
     "group": "Foundation",
     "level": "H2",
     "text": "core entity source event context time random c# csharp interface readonly struct",
@@ -281,7 +281,7 @@
     "anchor": "#gamecontext",
     "title": "GameContext",
     "short": "Core Runtime",
-    "desc": "ActorId, TargetId, Position, Source, Tags, Random, Time, CustomPayload를 묶는 실행 문맥이다. StatContext, EffectContext, SkillContext는 모두 GameContext의 특화 형태로 볼 수 있다.",
+    "desc": "ActorId, TargetId, Position, Source, Tags, Random, Time, CustomPayload를 묶어 생각하는 Conceptual umbrella 다. 현재 C# 참조에는 GameContext 나 SkillContext 타입이 없고 실제 타입은 StatContext ,…",
     "group": "Foundation",
     "level": "H3",
     "text": "core entity source event context time random c# csharp interface readonly struct",
@@ -339,9 +339,9 @@
     "type": "section",
     "file": "modules/core-runtime.html",
     "anchor": "#csharp-core-contracts",
-    "title": "C# 계약 예제",
+    "title": "C# 실행 값 타입과 개념적 포트",
     "short": "Core Runtime",
-    "desc": "식별자는 문자열을 그대로 전달하지 않고 값 타입으로 감싼다. 이 예제는 entity.caster 처럼 소문자 namespace와 local ID가 점으로 구분된 형식만 허용한다. 시간·랜덤·이벤트는 소비자가 필요한 최소 인터페이스로 주입한다.",
+    "desc": "EntityId·SourceRef 부분은 현재 source/csharp/ 실행 참조와 같은 계약이다. 이어지는 IGameClock·IRandomStream·IEventBus는 소비자가 필요로 하는 최소 경계를 보여주는 Normative conceptual contract 이며 현재 C# 프로젝트에는…",
     "group": "Foundation",
     "level": "H3",
     "text": "core entity source event context time random c# csharp interface readonly struct",
@@ -353,7 +353,7 @@
     "anchor": "#sourceref와-추적성",
     "title": "SourceRef와 추적성",
     "short": "Core Runtime",
-    "desc": "SourceRef는 원천 종류와 정의, 실행 인스턴스를 함께 보존한다. Modifier 제거, 중첩 판정, 이벤트 원인 분석, 저장/로드 복원은 이 구조화된 값에 의존한다. 로그나 JavaScript 실습에 표시되는 sourceId 는 검색 편의를 위해 SourceRef.InstanceId 를…",
+    "desc": "SourceRef는 원천 종류와 정의, 실행 인스턴스를 함께 보존한다. Modifier 제거, 중첩 판정, 이벤트 원인 분석, 저장/로드 복원은 이 구조화된 값에 의존한다. 로그나 JavaScript 실습에 표시되는 sourceId 는 검색 편의를 위한 보조 필드다. 값은…",
     "group": "Foundation",
     "level": "H2",
     "text": "core entity source event context time random c# csharp interface readonly struct",
@@ -401,7 +401,7 @@
     "anchor": "#결정론과-테스트",
     "title": "결정론과 테스트",
     "short": "Core Runtime",
-    "desc": "전투 시스템은 디버그하기 어렵기 때문에 “같은 입력이면 같은 결과”를 최대한 보장해야 한다. IRandomStream은 전역 랜덤을 바로 호출하지 않고, CastId, AttackerId, TargetId, EventIndex 같은 값을 조합해 분기별 랜덤 스트림을 만든다.",
+    "desc": "전투 시스템은 디버그하기 어렵기 때문에 “같은 입력이면 같은 결과”를 최대한 보장해야 한다. 위 개념 포트의 root IRandomStream 은 전역 랜덤을 바로 소비하지 않고 CastId + Branch + TargetId + EventIndex 로 만든 RandomKey 를 Fork 하여 판정별…",
     "group": "Foundation",
     "level": "H2",
     "text": "core entity source event context time random c# csharp interface readonly struct",
@@ -509,10 +509,10 @@
     "anchor": "",
     "title": "Stat System",
     "short": "Stat System",
-    "desc": "C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조",
+    "desc": "C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조",
     "group": "Core Systems",
     "level": "Core",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -524,7 +524,7 @@
     "desc": "원본 값과 Modifier를 C# 타입으로 분리하고, 계산 순서·조건·리소스 정책이 재현 가능한 Stat 모델을 설계한다.",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -533,10 +533,10 @@
     "anchor": "#선수-개념",
     "title": "선수 개념",
     "short": "Stat System",
-    "desc": "Core Runtime의 EntityId, SourceRef, GameContext와 기본적인 수치 연산 순서를 먼저 이해한다.",
+    "desc": "Core Runtime의 EntityId, SourceRef, 개념적 GameContext와 기본적인 수치 연산 순서를 먼저 이해한다.",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -548,7 +548,7 @@
     "desc": "Stat System은 “최종 공격력이 얼마인가?”에 답하는 시스템이지, “그 공격력으로 피해량을 어떻게 계산하는가?”까지 담당하면 안 된다. 피해 공식은 Combat System의 책임이다.",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -557,10 +557,10 @@
     "anchor": "#핵심-객체-읽기",
     "title": "핵심 객체 읽기",
     "short": "Stat System",
-    "desc": "StatDefinition 스탯 종류의 설계도다. 예를 들어 attack_power, crit_chance, max_hp 같은 스탯의 표시명, 기본값, 최소/최대, 표시 형식, 반올림 정책을 정의한다. StatInstance 특정 Entity가 가진 스탯 하나의 런타임 값이다. C# 속성으로는…",
+    "desc": "증거 범위. StatDefinition · StatInstance · StatBlock 은 production 구현을 설명하는 개념적 확장 모델이다. 현재 C# 실행 참조에 실제로 선언된 타입은 아래 StatContext · IStatQuery · StatModifier 계열이며, 캐시와…",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -572,7 +572,7 @@
     "desc": "스탯 종류의 설계도다. 예를 들어 attack_power, crit_chance, max_hp 같은 스탯의 표시명, 기본값, 최소/최대, 표시 형식, 반올림 정책을 정의한다.",
     "group": "Core Systems",
     "level": "H3",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -581,10 +581,10 @@
     "anchor": "#statinstance",
     "title": "StatInstance",
     "short": "Stat System",
-    "desc": "특정 Entity가 가진 스탯 하나의 런타임 값이다. C# 속성으로는 BaseValue, CachedValue, IsDirty, Modifiers를 가진다.",
+    "desc": "특정 Entity가 가진 스탯 하나의 개념적 런타임 값이다. production 확장 시 BaseValue, CachedValue, IsDirty, Modifiers 같은 필드를 둘 수 있지만 현재 C# 실행 참조에 이 타입은 없다.",
     "group": "Core Systems",
     "level": "H3",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -593,10 +593,10 @@
     "anchor": "#statblock",
     "title": "StatBlock",
     "short": "Stat System",
-    "desc": "Entity 하나의 스탯 보관함이다. Player, Monster, Summon, Tower가 모두 StatBlock을 가질 수 있다.",
+    "desc": "Entity 하나의 개념적 스탯 보관함이다. Player, Monster, Summon, Tower가 공유할 수 있는 목표 모델이며 현재 C# 실행 참조에 이 타입은 없다.",
     "group": "Core Systems",
     "level": "H3",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -608,7 +608,7 @@
     "desc": "장비, 버프, 디버프, 패시브, 던전 룰처럼 스탯을 바꾸는 원인이다. 최종값을 직접 바꾸지 않고 Modifier를 등록한다.",
     "group": "Core Systems",
     "level": "H3",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -620,7 +620,7 @@
     "desc": "정의와 보정자는 불변 데이터로 만들고, 계산기는 이 목록을 안정적인 순서로 읽는다.",
     "group": "Core Systems",
     "level": "H3",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -632,7 +632,7 @@
     "desc": "좋은 스탯 시스템은 숫자만 보관하지 않고 “왜 그 숫자가 되었는지”를 추적한다. 공격력 156이라는 결과보다 더 중요한 것은 기본값 100, 철검 +20, 분노 버프 +30%라는 원인이다.",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -644,7 +644,7 @@
     "desc": "Modifier의 적용 순서는 결과를 바꾼다. 따라서 모든 프로젝트에서 같은 규칙을 쓰려면 파이프라인을 명시해야 한다.",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -656,7 +656,7 @@
     "desc": "모든 Modifier가 항상 적용되는 것은 아니다. “화상 상태의 적을 공격할 때 치명타 확률 +10%” 같은 효과는 현재 대상, 사용 스킬, 거리, 태그를 알아야 평가할 수 있다.",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -668,7 +668,7 @@
     "desc": "target , 거리, 스킬 태그에 따라 값이 달라지는 Modifier가 있다면 StatInstance 하나에 “최종값 하나”만 캐시하면 잘못된 값을 재사용할 수 있다. 안전한 기본값은 무조건부 레이어까지만 캐시하고, 조건부 레이어는 정규화된 context key별로 평가하거나 질의 시 계산하는…",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -680,7 +680,7 @@
     "desc": "max_hp, max_mana, shield_capacity 같은 최대치와 파생값은 Stat이 계산한다. 현재 HP, Mana, Shield는 자주 변하는 ResourceController의 상태이며 Stat 캐시 안에서 직접 증감하지 않는다. 아래 정책은 최대치가 바뀔 때…",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -692,7 +692,7 @@
     "desc": "Stat 확장 클래스 다이어그램 SVG PNG DerivedStat, ResourceController, EventBus, SaveAdapter, DebugBreakdown을 포함한 확장 구조다.",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -704,7 +704,7 @@
     "desc": "최종값은 저장하지 않는 편이 좋다. 최종값은 공식과 Modifier의 결과이기 때문이다. 저장해야 하는 것은 원인이다.",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -716,7 +716,7 @@
     "desc": "버프가 AttackPower += 30처럼 최종값을 직접 수정하는 구조 장비 해제 시 어떤 보정자를 제거해야 하는지 source 추적이 없는 구조 Stat System 안에 damage formula를 넣어 Combat System과 결합하는 구조 파생 스탯 의존성 그래프 없이 수동으로 재계산하는…",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -728,7 +728,7 @@
     "desc": "Combat과 Status는 Stat System을 강하게 확장하지만, Stat의 책임을 침범해서는 안 된다. Combat은 공격자와 방어자의 최종 스탯 값을 읽어 피해를 계산하고, Status는 상태가 제공하는 StatModifier를 등록/제거한다.",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -740,7 +740,7 @@
     "desc": "최종 수치 계산, 현재 리소스 상태, 조건부 문맥이 각각 어느 경계에 속하는지 먼저 판단한 뒤 해설을 확인한다.",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -749,10 +749,10 @@
     "anchor": "#설계-점검",
     "title": "설계 점검",
     "short": "Stat System",
-    "desc": "StatDefinition과 StatInstance가 분리되어 있다. Modifier는 SourceRef, Operation, Priority, StackRuleId, Condition을 가진다. Base/Add/Percent/More/Override/Clamp 계산 순서가 명시되어 있다.…",
+    "desc": "StatDefinition과 StatInstance가 분리되어 있다. Modifier는 SourceRef, Operation, Priority, StackRuleId, Condition을 가진다. Base/Add/PercentAdd/More/Less/Override/Clamp/Round 계산 순서,…",
     "group": "Core Systems",
     "level": "H2",
-    "text": "stat modifier resource calculation c# csharp",
+    "text": "stat modifier resource conceptual calculation numeric policy c# csharp",
     "pageOrder": 2
   },
   {
@@ -821,7 +821,7 @@
     "anchor": "#핵심-객체-상세",
     "title": "핵심 객체 상세",
     "short": "Effect System",
-    "desc": "EffectDefinition 효과의 정적 데이터다. C# 속성으로는 EffectId, Type, TargetSelector, ValueExpression, Conditions, Tags, Timing, OrderingPolicy를 가진다. EffectContext 실행 시점의 상황이다. 최소 계약은…",
+    "desc": "증거 범위. EffectDefinition · TargetSelector · ValueExpression 은 콘텐츠 로딩 계층을 위한 개념적 확장이다. 현재 C# 실행 참조는 EffectContext , EffectOperation / EffectBundle , 결과 타입과…",
     "group": "Core Systems",
     "level": "H2",
     "text": "effect damage status target context c# csharp interface",
@@ -833,7 +833,7 @@
     "anchor": "#effectdefinition",
     "title": "EffectDefinition",
     "short": "Effect System",
-    "desc": "효과의 정적 데이터다. C# 속성으로는 EffectId, Type, TargetSelector, ValueExpression, Conditions, Tags, Timing, OrderingPolicy를 가진다.",
+    "desc": "효과의 개념적 정적 데이터다. production 콘텐츠 정의에는 EffectId, Type, TargetSelector, ValueExpression, Conditions, Tags, Timing, OrderingPolicy 같은 필드를 둘 수 있지만 현재 C# 실행 참조에 이 타입은 없다.",
     "group": "Core Systems",
     "level": "H3",
     "text": "effect damage status target context c# csharp interface",
@@ -905,7 +905,7 @@
     "anchor": "#csharp-effect-contracts",
     "title": "C# 핵심 계약",
     "short": "Effect System",
-    "desc": "EffectDefinition 은 콘텐츠 작성·로딩 단계의 정적 데이터다. 로더와 대상 선택기가 이를 검증해 실행 가능한 EffectOperation 또는 EffectBundle 로 정규화한다. 공개 IEffectExecutor 는 이 런타임 모델만 받으며, DamageEffect는 피해를 직접…",
+    "desc": "개념적 EffectDefinition 은 콘텐츠 작성·로딩 단계의 목표 정적 데이터다. production 로더와 대상 선택기는 이를 검증해 실행 가능한 실제 계약인 EffectOperation 또는 EffectBundle 로 정규화한다. 공개 IEffectExecutor 는 이 런타임 모델만…",
     "group": "Core Systems",
     "level": "H3",
     "text": "effect damage status target context c# csharp interface",
@@ -915,9 +915,9 @@
     "type": "section",
     "file": "modules/effect-system.html",
     "anchor": "#effect-실행-파이프라인",
-    "title": "Effect 실행 파이프라인",
+    "title": "개념적 Effect 실행 파이프라인",
     "short": "Effect System",
-    "desc": "Effect 실행 시퀀스 다이어그램 SVG Skill, Status, Item이 EffectService에 실행을 요청하면 EffectExecutor가 TargetSelector·Stat·Combat을 읽어 plan을 만든다. RuntimeCommitter가 상태와 outbox를 원자적으로 확정한 뒤…",
+    "desc": "증거 범위. 아래 순서는 production adapter가 구현할 목표 조율이다. 현재 C# 실행 참조는 EffectOperation · EffectBundle · EffectBundlePlan ·결과 타입과 IEffectPlanner / IEffectExecutor 인터페이스, Fireball…",
     "group": "Core Systems",
     "level": "H2",
     "text": "effect damage status target context c# csharp interface",
@@ -953,7 +953,7 @@
     "anchor": "#valueexpression-예시",
     "title": "ValueExpression과 DamageRequest 예시",
     "short": "Effect System",
-    "desc": "Heal이나 ModifyResource처럼 Effect가 결과값을 소유하는 경우에는 ValueExpression을 계산한다. 피해는 같은 표현식을 Effect와 Combat에서 두 번 계산하지 않도록, DamageEffect가 아래 입력을 요청으로 만들고 CombatFormula가 Stat 조회와…",
+    "desc": "Heal이나 ModifyResource처럼 Effect가 결과값을 소유하는 경우에는 ValueExpression을 계산한다. 피해는 같은 표현식을 Effect와 Combat에서 두 번 계산하지 않도록 DamageEffect가 아래 입력을 요청으로 만든다. 현재 실행 참조는 한 개의…",
     "group": "Core Systems",
     "level": "H2",
     "text": "effect damage status target context c# csharp interface",
@@ -965,7 +965,7 @@
     "anchor": "#csharp-damage-handoff",
     "title": "C# DamageRequest handoff",
     "short": "Effect System",
-    "desc": "JSON 정의를 읽은 DamageEffect는 C# 요청 타입을 만들고, 계산은 ICombatResolver에 위임한다.",
+    "desc": "JSON 정의를 읽은 DamageEffect adapter는 실제 C# 요청 타입을 만들고, 계산은 ICombatResolver 에 위임한다. DamageRequest 생성자는 빈 damageType , 음수 base/coefficient, null tags와 빈 tag를 거부하고…",
     "group": "Core Systems",
     "level": "H3",
     "text": "effect damage status target context c# csharp interface",
@@ -1011,9 +1011,9 @@
     "type": "section",
     "file": "modules/effect-system.html",
     "anchor": "#csharp-effect-execution",
-    "title": "C# 실행 조율",
+    "title": "C# 계약을 사용하는 개념 조율",
     "short": "Effect System",
-    "desc": "정의 로더가 대상과 조건을 해석해 operation을 만든 뒤 공개 executor에 전달한다. executor 내부의 검증과 계획 생성은 상태를 바꾸지 않고, RuntimeCommitter가 mutation과 outbox를 같은 transaction으로 확정한다. 아래 호출은 실행 참조의 실제 공개…",
+    "desc": "정의 로더가 대상과 조건을 해석해 operation을 만든 뒤 executor port에 전달하는 목표 형태다. executor 내부의 검증과 계획 생성은 상태를 바꾸지 않고, RuntimeCommitter가 mutation과 outbox를 같은 transaction으로 확정한다. 아래 코드는 실행…",
     "group": "Core Systems",
     "level": "H3",
     "text": "effect damage status target context c# csharp interface",
@@ -1049,7 +1049,7 @@
     "anchor": "#생명주기",
     "title": "생명주기",
     "short": "Effect System",
-    "desc": "Effect 생명주기 상태 다이어그램 SVG PNG Created, Validated, TargetResolved, Applied, Completed, Failed 상태 흐름을 보여준다.",
+    "desc": "Effect 생명주기 상태 다이어그램 SVG PNG Defined와 Registered부터 Requested, Validating, Resolving Targets, Planning, Prepared, Atomic Commit, Committed, Reaction Queued까지의 실행 상태와…",
     "group": "Core Systems",
     "level": "H2",
     "text": "effect damage status target context c# csharp interface",
@@ -1109,7 +1109,7 @@
     "anchor": "#csharp-apply-status-request",
     "title": "C# ApplyStatusRequest handoff",
     "short": "Effect System",
-    "desc": "applyOn 은 어떤 committed fact가 상태 적용을 시작하는지 정하는 EffectDefinition·ReactionRule 정책이다. durationScale 과 상태 tag도 정의 및 Status 적용 정책에서 해석한다. 이미 해석된 operation이 Status에 전달하는…",
+    "desc": "triggerFact 는 어떤 committed fact가 상태 적용을 시작하는지 정하고, outcomePredicate 는 Hit 같은 결과 조건을 표현한다. durationScale 과 상태 tag도 정의 및 Status 적용 정책에서 해석한다. 이미 해석된 operation이 Status에…",
     "group": "Core Systems",
     "level": "H3",
     "text": "effect damage status target context c# csharp interface",
@@ -1145,7 +1145,7 @@
     "anchor": "",
     "title": "Skill / Action System",
     "short": "Skill / Action",
-    "desc": "C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조",
+    "desc": "C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조",
     "group": "Core Systems",
     "level": "Action",
     "text": "skill action cooldown targeting timeline c# csharp request result",
@@ -1157,7 +1157,7 @@
     "anchor": "#학습-목표",
     "title": "학습 목표",
     "short": "Skill / Action",
-    "desc": "C# 요청·결과 타입으로 비용·쿨다운·타겟팅·타임라인을 조율하되 피해 계산과 상태 유지를 소유하지 않는 Skill 경계를 설계한다.",
+    "desc": "현재 C# 요청·결과 계약과 목표형 production 조율을 구분하면서, 비용·쿨다운·타겟팅·타임라인을 조율하되 피해 계산과 상태 유지를 소유하지 않는 Skill 경계를 설계한다.",
     "group": "Core Systems",
     "level": "H2",
     "text": "skill action cooldown targeting timeline c# csharp request result",
@@ -1241,7 +1241,7 @@
     "anchor": "#실행-파이프라인",
     "title": "실행 파이프라인",
     "short": "Skill / Action",
-    "desc": "Skill 실행 시퀀스 SVG 입력 또는 AI 요청이 SkillValidator, SkillRuntime, ActionTimeline, EffectService를 거쳐 결과로 정리되는 흐름이다.",
+    "desc": "증거 수준. 아래 ActionTimeline과 reserve_then_commit 단계는 production 조율을 위한 Conceptual extension 이다. 현재 실행 참조가 검증하는 범위는 불변 요청·결과 계약과 비용·쿨다운·주 Damage를 묶는 원자적 commit 경계다.",
     "group": "Core Systems",
     "level": "H2",
     "text": "skill action cooldown targeting timeline c# csharp request result",
@@ -1349,7 +1349,7 @@
     "anchor": "#타겟팅-정책",
     "title": "타겟팅 정책",
     "short": "Skill / Action",
-    "desc": "",
+    "desc": "실행 계약과 확장 입력. 현재 안정 C# SkillRequest 는 명시적 단일 대상용 TargetId 만 표현한다. 아래 self·ground_position·direction·area_preview·smart_target은 TargetIntent 판별 합집합과 공간 query adapter를…",
     "group": "Core Systems",
     "level": "H2",
     "text": "skill action cooldown targeting timeline c# csharp request result",
@@ -1445,7 +1445,7 @@
     "anchor": "#3-cost-and-timeline",
     "title": "3. Cost & Timeline",
     "short": "Skill / Action",
-    "desc": "마나 20을 예약하고 release marker에서 비용·쿨다운·Damage 주 효과를 하나의 plan으로 준비한다. RuntimeCommitter가 이 plan을 한 transaction으로 commit하며, 비용은 release 도달 자체가 아니라 commit 성공 receipt에서 최종…",
+    "desc": "목표형 정책에서는 마나 20을 예약하고 release marker에서 비용·쿨다운·Damage 주 효과를 하나의 plan으로 준비한다. 현재 fixture는 예약과 timeline을 축약하고 동등한 plan을 직접 commit한다. 비용의 최종 확정 기준은 commit 성공 receipt다.",
     "group": "Core Systems",
     "level": "H3",
     "text": "skill action cooldown targeting timeline c# csharp request result",
@@ -1577,7 +1577,7 @@
     "anchor": "#status-result",
     "title": "StatusResult",
     "short": "Skill / Action",
-    "desc": "Burn 같은 상태의 적용, 면역, 중첩, 지속시간 갱신, tick 예약 결과를 반환한다.",
+    "desc": "목표형 확장에서는 Burn 같은 상태의 적용, 면역, 중첩, 지속시간 갱신, tick 예약 결과를 반환한다. 현재 C# compact 결과는 성공 여부, instance ID, 제거 이유, 실패 이유를 Applied · Removed · Failed factory로 유효하게 조합한다.",
     "group": "Core Systems",
     "level": "H3",
     "text": "skill action cooldown targeting timeline c# csharp request result",
@@ -1601,7 +1601,7 @@
     "anchor": "#설계-점검",
     "title": "설계 점검",
     "short": "Skill / Action",
-    "desc": "SkillDefinition이 비용, 쿨다운, 타겟팅, 타임라인, EffectBundle을 모두 데이터로 표현한다. SkillRuntime이 Entity별 쿨다운, 차지, 시전 상태를 보관한다. SkillValidator가 상태 이상, 비용, 사거리, 시야, 장비 조건을 검증한다.…",
+    "desc": "SkillDefinition이 비용, 쿨다운, 타겟팅, 타임라인, EffectBundle을 모두 데이터로 표현한다. SkillRuntime이 Entity별 배운 레벨, 쿨다운, 차지 같은 장기 availability를 보관하고, SkillExecution이 cast 한 번의 실행 상태를 보관한다.…",
     "group": "Core Systems",
     "level": "H2",
     "text": "skill action cooldown targeting timeline c# csharp request result",
@@ -1613,7 +1613,7 @@
     "anchor": "",
     "title": "Combat Resolution System",
     "short": "Combat",
-    "desc": "C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조",
+    "desc": "C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조",
     "group": "Core Systems",
     "level": "Resolution",
     "text": "combat damage hit critical armor resistance shield c# csharp",
@@ -1649,7 +1649,7 @@
     "anchor": "#combat의-역할",
     "title": "Combat의 역할",
     "short": "Combat",
-    "desc": "DamageEffect는 “대상에게 fire damage를 주어라”라는 요청을 만들 수 있지만, 최종 피해량을 직접 계산하지 않는다. Combat은 이 요청을 받아 대상이 맞았는지, 치명타가 터졌는지, 방어력과 저항이 얼마나 줄였는지, 보호막이 얼마를 흡수했는지를 계산한다.",
+    "desc": "DamageEffect는 “대상에게 fire damage를 주어라”라는 요청을 만들 수 있지만 최종 피해량을 직접 계산하지 않는다. 현재 실행 참조에서 Combat은 호출자가 미리 판정한 Outcome·Critical·유효 저항과 scaling snapshot을 받아 수치 계산과…",
     "group": "Core Systems",
     "level": "H2",
     "text": "combat damage hit critical armor resistance shield c# csharp",
@@ -1661,7 +1661,7 @@
     "anchor": "#핵심-객체",
     "title": "핵심 객체",
     "short": "Combat",
-    "desc": "Combat 핵심 클래스 SVG PNG DamageRequest가 DamagePipeline을 통과하면서 HitOutcome, Formula, Critical, Defense, Resistance, Shield 단계로 분리되는 구조다. Blocked는 Miss와 다른 HitOutcome으로 표현한다.",
+    "desc": "Combat 핵심 클래스 SVG PNG 실제 C# DamageRequest·DamageResult 경계와 개념 확장의 DamagePipeline을 함께 그린 구조다. Formula, Critical, Defense, Resistance, Shield의 개별 resolver는 현재 미구현이며 C#…",
     "group": "Core Systems",
     "level": "H2",
     "text": "combat damage hit critical armor resistance shield c# csharp",
@@ -1685,7 +1685,7 @@
     "anchor": "#피해-계산-파이프라인",
     "title": "피해 계산 파이프라인",
     "short": "Combat",
-    "desc": "Damage Resolution 활동 흐름 SVG PNG 피해 계산은 순서가 곧 설계다. 각 단계는 독립적으로 테스트 가능해야 하며, DebugTrace에 계산 근거를 남겨야 한다.",
+    "desc": "개념 확장 경계. 다음 HitResolver → DamageFormula → CriticalResolver → Defense/Resistance → Shield 순서는 완전한 전투 엔진의 권장 분해다. 현재 실행 C#은 이 resolver들을 구현하지 않고 CombatContext.Outcome 과…",
     "group": "Core Systems",
     "level": "H2",
     "text": "combat damage hit critical armor resistance shield c# csharp",
@@ -1695,9 +1695,9 @@
     "type": "section",
     "file": "modules/combat-resolution-system.html",
     "anchor": "#csharp-damage-pipeline",
-    "title": "C# 파이프라인 조율",
+    "title": "개념 확장 C# 파이프라인 조율",
     "short": "Combat",
-    "desc": "각 단계는 같은 DamageDraft를 직접 공유하지 않고 새 값을 반환해 단계별 테스트와 trace를 단순하게 만든다.",
+    "desc": "아래는 현재 실행 참조 코드가 아니라 전체 resolver를 추가할 때의 구조 예시다. 각 단계가 새 DamageDraft를 반환하면 단계별 테스트와 trace를 단순화할 수 있다.",
     "group": "Core Systems",
     "level": "H3",
     "text": "combat damage hit critical armor resistance shield c# csharp",
@@ -1721,7 +1721,7 @@
     "anchor": "#damageeffect와의-연결",
     "title": "DamageEffect와의 연결",
     "short": "Combat",
-    "desc": "Damage 실행 흐름 SVG DamageEffect는 CombatResolver에 계산을 위임한다. CombatResolver는 StatSystem의 최종값과 Status/Tag의 읽기 전용 스냅샷을 CombatContext로 받아 DamagePipeline을 실행하고 DamageResult와…",
+    "desc": "Damage 실행 흐름 SVG DamageEffect는 CombatResolver에 계산을 위임한다. 현재 실행 참조의 CombatResolver는 호출자가 만든 사전 해석 CombatContext로 단일 scaling 항, 치명타 배율, 저항, 보호막·HP 분배를 계산한다. Stat/Status…",
     "group": "Core Systems",
     "level": "H2",
     "text": "combat damage hit critical armor resistance shield c# csharp",
@@ -1733,7 +1733,7 @@
     "anchor": "#데이터-모델",
     "title": "데이터 모델",
     "short": "Combat",
-    "desc": "Combat 데이터 모델 SVG PNG DamageTypeDefinition, CombatFormulaDefinition 같은 정적 정책과 DamageRequest, CombatContext, DamageResult 같은 런타임 데이터를 분리한다.",
+    "desc": "Combat 데이터 모델 SVG PNG 개념적 DamageTypeDefinition·CombatFormulaDefinition 정적 정책과 실제 compact DamageRequest·CombatContext·DamageResult 런타임 계약을 분리하는 목표 모델이다. definition…",
     "group": "Core Systems",
     "level": "H2",
     "text": "combat damage hit critical armor resistance shield c# csharp",
@@ -1745,7 +1745,7 @@
     "anchor": "#fireball-계산-예시",
     "title": "Fireball 계산 예시",
     "short": "Combat",
-    "desc": "",
+    "desc": "위 JSON의 damageResult 는 실제 C# compact 결과의 일곱 필드만 표시한다. DamageType 은 요청에, ResistanceBps 는 CombatContext 와 trace에 남고 결과 carrier에 중복 저장하지 않는다.",
     "group": "Core Systems",
     "level": "H2",
     "text": "combat damage hit critical armor resistance shield c# csharp",
@@ -1769,7 +1769,7 @@
     "anchor": "#설계-변형-포인트",
     "title": "설계 변형 포인트",
     "short": "Combat",
-    "desc": "공식 교체형 Combat DamagePipeline의 순서는 유지하되 DamageFormulaDefinition을 바꾸면 장르별 공식 차이를 흡수할 수 있다. 무적과 회피 프레임 무적은 Stat이 아니라 CombatContext 또는 Status tag로 판정하는 편이 추적하기 쉽다. 보호막 우선순위…",
+    "desc": "공식 교체형 Combat 개념 확장에서 DamagePipeline 순서를 유지하되 DamageFormulaDefinition을 바꾸면 장르별 공식 차이를 흡수할 수 있다. 현재 실행 참조는 FormulaId를 조회하지 않는 고정 단일 계수식이다. 무적과 회피 프레임 무적은 Stat이 아니라…",
     "group": "Core Systems",
     "level": "H2",
     "text": "combat damage hit critical armor resistance shield c# csharp",
@@ -1781,7 +1781,7 @@
     "anchor": "#공식-교체형-combat",
     "title": "공식 교체형 Combat",
     "short": "Combat",
-    "desc": "DamagePipeline의 순서는 유지하되 DamageFormulaDefinition을 바꾸면 장르별 공식 차이를 흡수할 수 있다.",
+    "desc": "개념 확장에서 DamagePipeline 순서를 유지하되 DamageFormulaDefinition을 바꾸면 장르별 공식 차이를 흡수할 수 있다. 현재 실행 참조는 FormulaId를 조회하지 않는 고정 단일 계수식이다.",
     "group": "Core Systems",
     "level": "H3",
     "text": "combat damage hit critical armor resistance shield c# csharp",
@@ -1817,7 +1817,7 @@
     "anchor": "#결정론적-랜덤",
     "title": "결정론적 랜덤",
     "short": "Combat",
-    "desc": "DamageRequest의 Seed와 RandomStream은 확률 분기를 재현하는 입력이다. 전체 리플레이에는 입력 스냅샷, Definition·공식·수치 버전, 대상 정렬과 반올림 정책도 함께 고정해야 한다.",
+    "desc": "개념 확장에서 DamageRequest의 Seed와 RandomStream은 확률 분기를 재현하는 입력이다. 현재 실행 참조는 Seed를 소비하지 않고 Outcome·Critical을 fixture로 받는다. 전체 리플레이에는 입력 스냅샷, Definition·공식·수치 버전, 대상 정렬과 반올림…",
     "group": "Core Systems",
     "level": "H3",
     "text": "combat damage hit critical armor resistance shield c# csharp",
@@ -1865,7 +1865,7 @@
     "anchor": "",
     "title": "Status System",
     "short": "Status",
-    "desc": "C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조",
+    "desc": "C# Status 요청·결과 계약과 JavaScript Burn 실행 참조를 바탕으로 버프, DoT, 중첩, tick, 정화, 면역을 설계하는 구조",
     "group": "Core Systems",
     "level": "Runtime",
     "text": "status buff debuff stack duration tick burn rage c# csharp",
@@ -1923,9 +1923,9 @@
     "type": "section",
     "file": "modules/status-system.html",
     "anchor": "#csharp-status-contracts",
-    "title": "C# 정의·인스턴스 계약",
+    "title": "개념적 정의와 C# compact 요청·결과",
     "short": "Status",
-    "desc": "StatusDefinition은 공유 규칙이고 StatusInstance는 대상별 변경 상태다. 외부 시스템은 IStatusService의 요청·결과만 사용한다.",
+    "desc": "아래 StatusDefinition은 production 데이터 모델을 설명하는 Conceptual extension 이다. 현재 C# 실행 참조가 실제 제공하는 범위는 ApplyStatusRequest, compact StatusResult, IStatusService와 별도의…",
     "group": "Core Systems",
     "level": "H3",
     "text": "status buff debuff stack duration tick burn rage c# csharp",
@@ -1961,7 +1961,7 @@
     "anchor": "#applystatuseffect와의-연결",
     "title": "ApplyStatusEffect와의 연결",
     "short": "Status",
-    "desc": "Status 적용 흐름 SVG ApplyStatusEffect는 StatusSystem에 요청하고, StatusController가 면역·중첩·지속시간 정책으로 instance·Modifier·tick 변경 계획을 만든다. RuntimeCommitter 또는 Status commit 경계가 상태와…",
+    "desc": "Status 적용 흐름 SVG 이 그림은 목표형 확장 흐름이다. ApplyStatusEffect가 StatusSystem에 요청하고, StatusController가 면역·중첩·지속시간 정책으로 instance·Modifier·tick 변경 계획을 만든 뒤 commit 경계가 상태와 outbox를…",
     "group": "Core Systems",
     "level": "H2",
     "text": "status buff debuff stack duration tick burn rage c# csharp",
@@ -1983,9 +1983,9 @@
     "type": "section",
     "file": "modules/status-system.html",
     "anchor": "#csharp-status-tick",
-    "title": "C# Tick 순서",
+    "title": "개념적 C# Tick 조율(비실행 의사코드)",
     "short": "Status",
-    "desc": "정상 경로에서는 마지막 tick과 만료 시각이 같으면 tick을 먼저 계산하고, 그 tick의 원자적 commit 안에서 만료까지 함께 확정한다. 한 번의 advance에서는 MaxCatchUpTicks까지만 처리한다. 상한에 도달했어도 상태가 아직 active라면 남은 overdue tick을…",
+    "desc": "아래 코드는 production 조율 순서를 설명하는 Conceptual extension 이다. 현재 C# 실행 참조는 StatusCatchUpPolicy.Evaluate 의 실행·지연·제거 결정을 검증하지만 StatusSnapshot · EffectPlan · StatusTransition ·…",
     "group": "Core Systems",
     "level": "H3",
     "text": "status buff debuff stack duration tick burn rage c# csharp",
@@ -2009,7 +2009,7 @@
     "anchor": "#burn-예시",
     "title": "Burn 예시",
     "short": "Status",
-    "desc": "Burn은 Status System을 설명하기 좋은 대표 DoT다. 아래 기본 예시는 Runtime Contract Lab과 같은 단일 인스턴스·refresh 정책을 사용한다. 강도 중첩을 쓰는 다른 상태는 TickBaseDamage × StackCount 처럼 공식을 별도로 명시해야 한다.",
+    "desc": "Burn은 Status System을 설명하기 좋은 대표 DoT다. 아래 JSON은 단일 인스턴스·refresh-only·최대 1 stack을 목표로 한 개념 확장 정책이다. 현재 실행 fixture는 한 번 적용된 Burn의 tick 경로만 검증하며, 동일 상태 재적용 병합과 면역 판정은 구현하지…",
     "group": "Core Systems",
     "level": "H2",
     "text": "status buff debuff stack duration tick burn rage c# csharp",
@@ -2117,7 +2117,7 @@
     "anchor": "",
     "title": "Integration Map",
     "short": "통합 구조",
-    "desc": "Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약",
+    "desc": "Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향",
     "group": "Architecture",
     "level": "Architecture",
     "text": "integration dependency contract reaction c# csharp interface",
@@ -2129,7 +2129,7 @@
     "anchor": "#학습-목표",
     "title": "학습 목표",
     "short": "통합 구조",
-    "desc": "여섯 시스템의 C# 인터페이스와 handoff 타입을 한 흐름으로 읽고, 금지해야 할 역방향 의존성을 찾는다.",
+    "desc": "여섯 시스템에서 실행 가능한 C# 인터페이스·handoff 타입과 개념적 product port를 구분해 한 흐름으로 읽고, 금지해야 할 역방향 의존성을 찾는다.",
     "group": "Architecture",
     "level": "H2",
     "text": "integration dependency contract reaction c# csharp interface",
@@ -2177,7 +2177,7 @@
     "anchor": "#시스템별-계약",
     "title": "시스템별 계약",
     "short": "통합 구조",
-    "desc": "",
+    "desc": "표 읽기. 현재 C# 실행 계약의 공통 값은 EntityId 와 SourceRef 다. TagSet · IEventBus · IGameClock · IRandomStream 은 production adapter가 추가할 규범적 개념 port이며 현재 C# 프로젝트에는 선언되어 있지 않다.",
     "group": "Architecture",
     "level": "H2",
     "text": "integration dependency contract reaction c# csharp interface",
@@ -2225,7 +2225,7 @@
     "anchor": "#이벤트-흐름",
     "title": "이벤트 흐름",
     "short": "통합 구조",
-    "desc": "각 실행기와 Controller는 event payload를 plan에 준비할 뿐 직접 발행하지 않는다. commit 소유자가 상태와 outbox를 함께 확정하고, transaction 성공 뒤 외부 adapter가 outbox를 dispatch한다.",
+    "desc": "Commit 소유자 범위. 현재 C# 실행 타입은 IRuntimeCommitter / RuntimeCommitter 다. 아래 *CommitService 이름들은 product가 시스템별 adapter를 분리할 때 사용할 수 있는 개념적 대안이며 저장소의 실제 타입이 아니다.…",
     "group": "Architecture",
     "level": "H2",
     "text": "integration dependency contract reaction c# csharp interface",
@@ -2285,10 +2285,10 @@
     "anchor": "",
     "title": "Fireball Case Study",
     "short": "Fireball 예제",
-    "desc": "Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름",
+    "desc": "Fireball의 C# compact 계약, JavaScript 실행 fixture, 목표형 Skill·Effect·Combat·Status 조율을 구분한 수직 슬라이스",
     "group": "Practice",
     "level": "Case Study",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2297,10 +2297,10 @@
     "anchor": "#학습-목표",
     "title": "학습 목표",
     "short": "Fireball 예제",
-    "desc": "하나의 C# command가 Skill·Effect·Combat·Status를 통과하는 전체 실행과 실패 분기를 추적한다.",
+    "desc": "C# 계약과 JavaScript 실행 fixture의 증거 범위를 구분하면서 하나의 command가 Skill·Effect·Combat·Status 경계를 지나는 흐름과 실패 분기를 추적한다.",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2312,7 +2312,7 @@
     "desc": "각 시스템의 요청·결과 객체와 SourceRef, commit 이후 이벤트 개념을 먼저 이해한다.",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2324,19 +2324,19 @@
     "desc": "Input → Skill → EffectBundle → Combat → Atomic Commit → DamageCommitted → ReactionQueue → Status → EventLog",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
     "type": "section",
     "file": "modules/fireball-case-study.html",
     "anchor": "#csharp-fireball-orchestration",
-    "title": "C# 실행 조율",
+    "title": "개념적 C# 조율(비실행 의사코드)",
     "short": "Fireball 예제",
-    "desc": "Skill과 Effect는 release 시점에 비용·쿨다운·주 Damage의 변경 계획만 만든다. RuntimeCommitter가 이 mutation과 outbox를 한 transaction으로 확정한 뒤, commit된 DamageCommitted로 Burn ReactionCommand를 만든다.…",
+    "desc": "목표형 Skill 정책에서는 release 시점에 비용·쿨다운·주 Damage의 변경 계획을 만들고 RuntimeCommitter가 mutation과 outbox를 한 transaction으로 확정한 뒤, commit된 DamageCommitted로 Burn ReactionCommand를 만든다. 이…",
     "group": "Practice",
     "level": "H3",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2345,10 +2345,34 @@
     "anchor": "#1-skillrequest",
     "title": "1. SkillRequest",
     "short": "Fireball 예제",
-    "desc": "플레이어가 대상을 지정하면 불변 Skill command가 생성된다. Actor와 이번 실행을 나타내는 Command/Source, Target, DefinitionVersion, SimulationTick, RootSeed를 담는다. 이때 아직 마나가 차감되거나 피해가 적용되지 않는다.",
+    "desc": "플레이어가 대상을 지정하면 불변 요청이 생성되지만 C# compact 계약과 JavaScript envelope의 필드는 다르다. C# SkillRequest 는 CasterId, SkillId, TargetId, RequestedTick, RootSeed 다섯 필드만 가진다. JavaScript는…",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
+    "pageOrder": 8
+  },
+  {
+    "type": "section",
+    "file": "modules/fireball-case-study.html",
+    "anchor": "#csharp-skillrequest-shape",
+    "title": "C# compact request",
+    "short": "Fireball 예제",
+    "desc": "",
+    "group": "Practice",
+    "level": "H3",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
+    "pageOrder": 8
+  },
+  {
+    "type": "section",
+    "file": "modules/fireball-case-study.html",
+    "anchor": "#javascript-command-replay-shape",
+    "title": "JavaScript command + replay header",
+    "short": "Fireball 예제",
+    "desc": "",
+    "group": "Practice",
+    "level": "H3",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2357,10 +2381,10 @@
     "anchor": "#2-skillvalidator-cost-timeline",
     "title": "2. SkillValidator / Cost / Timeline",
     "short": "Fireball 예제",
-    "desc": "검증이 통과되면 CostPolicy가 마나 20을 예약한다. release marker에서는 비용·쿨다운·주 Damage mutation·outbox를 하나의 commit plan으로 준비한다. commit precondition이나 주 operation이 실패하면 plan 전체를 폐기한다.…",
+    "desc": "목표형 reserve_then_commit 정책에서는 검증 뒤 마나 20을 예약하고 release marker에서 비용·쿨다운·주 Damage mutation·outbox를 하나의 commit plan으로 준비한다. 현재 실행 fixture는 예약과 timeline을 구현하지 않고 이 원자적…",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2369,10 +2393,10 @@
     "anchor": "#3-effectbundle",
     "title": "3. EffectBundle",
     "short": "Fireball 예제",
-    "desc": "release marker에 도달하면 SkillExecutor는 EffectContext를 만들고 Effect 계층에 EffectBundle plan 생성을 요청한다. 주 Damage mutation은 비용·쿨다운과 함께 commit하고, 그 도메인 사실로 Burn 적용 reaction을 만든다.…",
+    "desc": "목표형 release 조율에서는 SkillExecutor가 EffectContext를 만들고 Effect 계층에 EffectBundle plan 생성을 요청한다. 현재 실행 fixture는 이 timeline 단계를 축약하지만, 주 Damage mutation을 비용·쿨다운과 함께 commit하고 그…",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2381,10 +2405,10 @@
     "anchor": "#4-combat-resolution",
     "title": "4. Combat Resolution",
     "short": "Fireball 예제",
-    "desc": "Fireball Damage 계산 흐름 SVG PNG Fireball의 DamageEffect는 DamageRequest를 만들고, Combat Resolution이 HitOutcome.Hit, 공식 subtotal, 치명타 RawDamage, 방어·저항, 보호막 순서로 불변 DamageResult를…",
+    "desc": "Fireball Damage 계산 흐름 SVG PNG Fireball의 DamageEffect는 DamageRequest를 만든다. 현재 C# fixture는 이미 정해진 HitOutcome·Critical·ScalingStatValue·Resistance를 CombatContext로 받아 단일…",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2393,10 +2417,10 @@
     "anchor": "#5-status-application",
     "title": "5. Status Application",
     "short": "Fireball 예제",
-    "desc": "Burn 적용 흐름 SVG Fireball에서는 DamageCommitted로 만든 ReactionCommand를 ReactionQueue가 dispatch한 뒤 ApplyStatusEffect(effect.apply-burn)가 StatusSystem에 Burn 적용을 요청한다.…",
+    "desc": "Burn 적용 흐름 SVG Fireball에서는 DamageCommitted로 만든 ReactionCommand를 ReactionQueue가 dispatch한 뒤 ApplyStatusEffect(effect.apply-burn)가 StatusSystem에 Burn 적용을 요청한다. JavaScript…",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2408,7 +2432,7 @@
     "desc": "Burn tick 흐름 SVG Burn은 tick 시점마다 EffectContext를 만들고 burn tick DamageEffect를 실행한다. 직접 HP를 수정하지 않는다.",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2420,7 +2444,7 @@
     "desc": "Fireball의 모든 실행 결과는 ExecutionId, CorrelationId, DefinitionVersion으로 묶여야 한다. Seed만으로 재현한다고 가정하지 않고 입력/스탯 스냅샷과 정렬·반올림 정책을 함께 남긴다.",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2432,7 +2456,7 @@
     "desc": "",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2444,7 +2468,7 @@
     "desc": "Fireball 한 번의 prepare·commit·reaction 경계와 시스템별 책임을 확인한다.",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2456,7 +2480,7 @@
     "desc": "책임 분리 Skill은 행동, Effect는 결과 요청, Combat은 피해 계산, Status는 지속 상태, Stat은 숫자 계산, Core는 공통 계약을 맡는다. 학습 포인트 Fireball 하나를 끝까지 추적하면 게임 시스템 프레임워크가 왜 계층화되어야 하는지 자연스럽게 이해할 수 있다.",
     "group": "Practice",
     "level": "H2",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2468,7 +2492,7 @@
     "desc": "Skill은 행동, Effect는 결과 요청, Combat은 피해 계산, Status는 지속 상태, Stat은 숫자 계산, Core는 공통 계약을 맡는다.",
     "group": "Practice",
     "level": "H3",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2480,7 +2504,7 @@
     "desc": "Fireball 하나를 끝까지 추적하면 게임 시스템 프레임워크가 왜 계층화되어야 하는지 자연스럽게 이해할 수 있다.",
     "group": "Practice",
     "level": "H3",
-    "text": "case fireball burn damage vertical slice c# csharp command",
+    "text": "case fireball burn damage vertical slice c# csharp javascript command conceptual executable",
     "pageOrder": 8
   },
   {
@@ -2489,10 +2513,10 @@
     "anchor": "",
     "title": "Runtime Contract Lab",
     "short": "Runtime Lab",
-    "desc": "C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습",
+    "desc": "C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습",
     "group": "Practice",
     "level": "Lab",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2501,10 +2525,10 @@
     "anchor": "#학습-목표",
     "title": "학습 목표",
     "short": "Runtime Lab",
-    "desc": "C# 구현이 보장할 동일 입력 replay, 원자적 commit, 제한된 reaction과 context cache 결과를 직접 관찰한다. 저장 문서의 단계별 migration은 필수 흐름을 익힌 뒤 선택해서 확인한다.",
+    "desc": "C# 핵심 계약과 JavaScript 확장 Lab이 각각 검증하는 replay, 원자적 commit, 제한된 reaction, context cache 결과를 증거 범위에 맞춰 관찰한다. 저장 문서의 단계별 migration은 필수 흐름을 익힌 뒤 선택해서 확인한다.",
     "group": "Practice",
     "level": "H2",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2516,7 +2540,19 @@
     "desc": "Fireball 사례를 먼저 읽고 다음 경계를 설명할 수 있어야 한다.",
     "group": "Practice",
     "level": "H2",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
+    "pageOrder": 9
+  },
+  {
+    "type": "section",
+    "file": "modules/runtime-reference.html",
+    "anchor": "#runtime-reference-scope",
+    "title": "증거 수준과 실행 참조 한계",
+    "short": "Runtime Lab",
+    "desc": "Normative contract 는 요청·결과 경계, 정렬 순서, 원자성, replay 불변식처럼 구현이 지켜야 할 규칙이다. Executable reference 는 이 저장소의 C# 참조와 JavaScript 커널이 실제 빌드·테스트로 검증하는 동작이다. Conceptual extension 은…",
+    "group": "Practice",
+    "level": "H2",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2528,7 +2564,7 @@
     "desc": "C# 도메인 커널은 UI나 저장소를 직접 알지 않는다. 이 페이지의 JavaScript 시뮬레이터도 같은 command, snapshot, committed result, observation event 경계를 재현한다.",
     "group": "Practice",
     "level": "H2",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2540,7 +2576,7 @@
     "desc": "Combat 같은 resolver는 불변 snapshot에서 DamageResult처럼 상태를 바꾸지 않는 결과를 만들고, 상위 planning 단계가 이를 실행 참조의 CommitPlan 으로 조합한다. Committer는 사전 조건을 다시 확인한 뒤 상태와 outbox를 함께 확정하고…",
     "group": "Practice",
     "level": "H3",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2552,7 +2588,7 @@
     "desc": "고정 snapshot, version envelope, keyed RNG만으로 immutable outcome과 operation plan을 만든다. target이나 caster 객체는 변경하지 않는다.",
     "group": "Practice",
     "level": "H3",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2564,7 +2600,7 @@
     "desc": "idempotency와 entity version을 먼저 확인하고 working copy에서 모든 operation과 resource invariant를 검증한 뒤 state를 한 번 교체한다.",
     "group": "Practice",
     "level": "H3",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2576,7 +2612,7 @@
     "desc": "numeric priority 오름차순(작은 값 우선), stableOrderKey ordinal 오름차순, reactionId ordinal 오름차순으로 정렬한다. 한 번의 Drain 이 하나의 causation wave를 열며, dispatch 중 추가된 reaction도 같은…",
     "group": "Practice",
     "level": "H3",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2588,7 +2624,7 @@
     "desc": "Burn은 +2, +4, +6에 tick하고 +6 tick을 commit한 뒤 expire한다. 프레임 지연 catch-up에는 instance별 budget이 있다.",
     "group": "Practice",
     "level": "H3",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2600,7 +2636,7 @@
     "desc": "아래 참조 코드는 식별자와 요청·결과 계약, 순수 피해 계산, 원자적 commit, commit 이후 reaction을 실제 빌드로 검증한다. Fireball 검증기는 본문의 기준 수치인 168 → 252 → 202 → Shield 40 → HP 162 와 Block·Miss 구분, 중복…",
     "group": "Practice",
     "level": "H2",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2612,7 +2648,7 @@
     "desc": "아래 입력은 이 페이지의 JavaScript 시뮬레이터에 전달된다. 같은 입력을 반복 실행하면 replay hash와 trace hash가 유지되고, seed나 전투 수치를 바꾸면 첫 divergent decision부터 결과가 달라진다.",
     "group": "Practice",
     "level": "H2",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2624,7 +2660,7 @@
     "desc": "happy path만 보여주지 않고 실제로 가장 위험한 세 실패를 같은 kernel에서 재현한다. 실패 전후 state hash가 같아야 probe를 통과한다.",
     "group": "Practice",
     "level": "H2",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2636,7 +2672,7 @@
     "desc": "owner 하나에 최종값 하나를 캐시하지 않는다. 실제 Modifier가 읽는 context path를 선언하고 target·tag·거리 값으로 fingerprint를 만든다.",
     "group": "Practice",
     "level": "H2",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2648,7 +2684,7 @@
     "desc": "저장 문서는 임의 버전으로 바로 뛰지 않고 vN→vN+1 edge를 순서대로 통과한다. 각 단계는 source를 변경하지 않으며 before/after hash를 audit trail에 남긴다.",
     "group": "Practice",
     "level": "H2",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2660,7 +2696,7 @@
     "desc": "Replay contract seed 하나가 아니라 실행 의미 전체를 versioning한다 SVG DOT",
     "group": "Practice",
     "level": "H2",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2672,7 +2708,7 @@
     "desc": "실행 결과를 계산하는 단계와 실제 상태를 확정하는 단계, 그리고 같은 실행을 재현하기 위해 고정해야 할 입력을 구분해 본다.",
     "group": "Practice",
     "level": "H2",
-    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator",
+    "text": "runtime lab deterministic replay atomic commit reaction cache migration fireball c# csharp javascript browser simulator normative contract executable reference conceptual extension out of scope durable outbox net9.0 unity",
     "pageOrder": 9
   },
   {
@@ -2813,7 +2849,7 @@
     "anchor": "#Effect-핵심-클래스",
     "title": "Effect 핵심 클래스",
     "short": "다이어그램",
-    "desc": "Effect EffectBundle, 공개 executor, 내부 operation 전략, Context, Result 관계",
+    "desc": "Effect 실제 C# EffectBundle·공개 port와 현재 미구현인 개념적 pipeline·내부 operation 전략, Context, Result 관계",
     "group": "Reference",
     "level": "H3",
     "text": "diagrams uml class sequence activity state c# csharp",
@@ -2861,7 +2897,7 @@
     "anchor": "#Effect-생명주기",
     "title": "Effect 생명주기",
     "short": "다이어그램",
-    "desc": "Effect Requested, Validated, Executed, Failed 상태",
+    "desc": "Effect 정의·요청·검증·대상 해석·계획·원자적 commit·후속 reaction까지의 상태",
     "group": "Reference",
     "level": "H3",
     "text": "diagrams uml class sequence activity state c# csharp",
@@ -3029,7 +3065,7 @@
     "anchor": "#Status-적용-흐름",
     "title": "Status 적용 흐름",
     "short": "다이어그램",
-    "desc": "Status ApplyStatusEffect가 StatusSystem으로 상태를 적용하는 흐름",
+    "desc": "Status ApplyStatusEffect가 StatusSystem으로 상태를 적용하는 개념 확장 흐름",
     "group": "Reference",
     "level": "H3",
     "text": "diagrams uml class sequence activity state c# csharp",
@@ -3149,7 +3185,7 @@
     "anchor": "#sourceid",
     "title": "Source identity",
     "short": "용어집",
-    "desc": "Modifier, Effect, Status가 어디서 왔는지 나타내는 원천 식별 개념이다. 공개 C# 계약에서는 별도 문자열 SourceId 대신 구조화된 SourceRef를 사용한다. JavaScript 실습이나 로그의 sourceId는 SourceRef.InstanceId를 평탄화한 검색용 보조…",
+    "desc": "Modifier, Effect, Status가 어디서 왔는지 나타내는 원천 식별 개념이다. 공개 C# 계약에서는 별도 문자열 SourceId 대신 구조화된 SourceRef를 사용한다. JavaScript 실습이나 로그의 sourceId는 SourceRef.InstanceId가 있으면 그 값을,…",
     "group": "Reference",
     "level": "H3",
     "text": "glossary terms uml c# csharp interface readonly struct",
@@ -3161,7 +3197,7 @@
     "anchor": "#sourceref",
     "title": "SourceRef",
     "short": "용어집",
-    "desc": "Kind와 DefinitionId를 가진 구조화된 C# 원천 참조다. SkillExecution과 Status는 InstanceId가 필수이고 System은 생략할 수 있다. 공개 예제의 ID는 command.fireball.cast.0001처럼 점 구분 문법을 사용한다.",
+    "desc": "readonly record struct 로 표현하는 불변 C# 값 타입이며 Kind와 DefinitionId를 가진다. SkillExecution과 Status는 InstanceId가 필수이고 System은 생략할 수 있다. 공개 예제의 ID는 command.fireball.cast.0001처럼 점…",
     "group": "Reference",
     "level": "H3",
     "text": "glossary terms uml c# csharp interface readonly struct",
@@ -3185,7 +3221,7 @@
     "anchor": "#gamecontext",
     "title": "GameContext",
     "short": "용어집",
-    "desc": "ActorId, TargetId, Position, Source, Tags, Time, RandomStream을 담는 C# 실행 문맥이다.",
+    "desc": "ActorId, TargetId, Position, Source, Tags, Time, RandomStream처럼 실행에 필요한 값을 묶어 설명하는 개념적 umbrella다. 현재 C# 참조에는 이 이름의 타입이 없으며 StatContext · EffectContext 와 SkillRequest 가…",
     "group": "Reference",
     "level": "H3",
     "text": "glossary terms uml c# csharp interface readonly struct",
@@ -3209,7 +3245,7 @@
     "anchor": "#timeservice",
     "title": "IGameClock",
     "short": "용어집",
-    "desc": "Duration, Tick, Cooldown, Schedule 같은 시간 기준을 제공하는 C# 인터페이스다.",
+    "desc": "Duration, Tick, Cooldown, Schedule 같은 시간 기준을 제공하도록 권장하는 Normative conceptual contract 다. Core 페이지의 C# 모양은 adapter 경계를 설명하지만 현재 source/csharp/ 프로젝트에는 이 인터페이스 선언이나 구현이…",
     "group": "Reference",
     "level": "H3",
     "text": "glossary terms uml c# csharp interface readonly struct",
@@ -3257,7 +3293,7 @@
     "anchor": "#statdefinition",
     "title": "StatDefinition",
     "short": "용어집",
-    "desc": "스탯 종류의 정의 데이터. 표시명, 기본값, 최소/최대, 표시 형식, 반올림 정책을 포함한다.",
+    "desc": "스탯 종류의 개념적 정적 설계 데이터다. 표시명, 기본값, 최소/최대, 표시 형식, 반올림 정책을 포함하며 현재 C# 실행 참조에는 이 타입이 없다.",
     "group": "Reference",
     "level": "H3",
     "text": "glossary terms uml c# csharp interface readonly struct",
@@ -3269,7 +3305,7 @@
     "anchor": "#statinstance",
     "title": "StatInstance",
     "short": "용어집",
-    "desc": "특정 Entity가 가진 스탯 하나의 런타임 상태다.",
+    "desc": "특정 Entity가 가진 스탯 하나의 개념적 목표 런타임 상태다. 현재 C# 실행 참조에는 이 타입이 없다.",
     "group": "Reference",
     "level": "H3",
     "text": "glossary terms uml c# csharp interface readonly struct",
@@ -3317,7 +3353,7 @@
     "anchor": "#effectdefinition",
     "title": "EffectDefinition",
     "short": "용어집",
-    "desc": "효과의 정적 데이터다. Type, TargetSelector, ValueExpression, Conditions, Tags를 가진다.",
+    "desc": "효과의 개념적 정적 설계 데이터다. Type, TargetSelector, ValueExpression, Conditions, Tags를 가지며 현재 C# 실행 참조에는 이 타입이 없다.",
     "group": "Reference",
     "level": "H3",
     "text": "glossary terms uml c# csharp interface readonly struct",
@@ -3389,7 +3425,7 @@
     "anchor": "#effectresult",
     "title": "EffectResult",
     "short": "용어집",
-    "desc": "Effect 실행 성공 여부, 대상별 결과, 실패 이유, 이벤트, 디버그 로그를 담는다.",
+    "desc": "호출 분기에 필요한 최소 성공·commit 정보만 담는다. 대상별 계산, 실패 근거, 이벤트와 디버그 메시지는 EffectTrace와 각 소유 시스템 결과에 별도로 둔다.",
     "group": "Reference",
     "level": "H3",
     "text": "glossary terms uml c# csharp interface readonly struct",
@@ -3401,7 +3437,7 @@
     "anchor": "#skilldefinition",
     "title": "SkillDefinition",
     "short": "용어집",
-    "desc": "스킬의 정적 데이터다. Costs, Cooldown, Targeting, Tags, Timeline, EffectBundle 참조를 가진다.",
+    "desc": "스킬의 개념적 정적 설계 데이터다. Costs, Cooldown, Targeting, Tags, Timeline, EffectBundle 참조를 가지며 현재 C# 실행 참조에는 이 타입이 없다.",
     "group": "Reference",
     "level": "H3",
     "text": "glossary terms uml c# csharp interface readonly struct",
@@ -3413,7 +3449,19 @@
     "anchor": "#skillruntime",
     "title": "SkillRuntime",
     "short": "용어집",
-    "desc": "특정 Entity가 가진 스킬의 현재 상태. 쿨다운, 차지, 시전 중 여부를 보관한다.",
+    "desc": "특정 Entity가 가진 스킬의 장기 availability 상태다. 배운 레벨, 쿨다운, 차지, runtime override를 보관하며 한 번의 시전 상태는 SkillExecution에 둔다.",
+    "group": "Reference",
+    "level": "H3",
+    "text": "glossary terms uml c# csharp interface readonly struct",
+    "pageOrder": 11
+  },
+  {
+    "type": "section",
+    "file": "modules/glossary.html",
+    "anchor": "#skillexecution",
+    "title": "SkillExecution",
+    "short": "용어집",
+    "desc": "한 번의 cast 또는 channel을 나타내는 임시 실행 인스턴스다. ExecutionId, Phase, ReservedCost, TargetSnapshot, CancellationToken 같은 실행 생명주기를 소유한다.",
     "group": "Reference",
     "level": "H3",
     "text": "glossary terms uml c# csharp interface readonly struct",
@@ -3557,7 +3605,7 @@
     "anchor": "#statusdefinition",
     "title": "StatusDefinition",
     "short": "용어집",
-    "desc": "버프/디버프의 정적 데이터다. Duration, StackPolicy, TickPolicy, Modifiers, RemoveConditions를 정의한다.",
+    "desc": "버프/디버프의 개념적 정적 설계 데이터다. Duration, StackPolicy, TickPolicy, Modifiers, RemoveConditions를 정의하며 현재 C# 실행 참조에는 이 타입이 없다.",
     "group": "Reference",
     "level": "H3",
     "text": "glossary terms uml c# csharp interface readonly struct",

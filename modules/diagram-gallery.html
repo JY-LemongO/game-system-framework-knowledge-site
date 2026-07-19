@@ -244,6 +244,7 @@
 <p>
       클래스와 인터페이스의 공개 멤버는 C# PascalCase를 사용한다. 비율이 긴 썸네일은 미리보기 안에서 스크롤할 수 있고, 클릭하면 화면 맞춤과 원본 100%를 전환해 자세히 확인할 수 있다.
      </p>
+<div class="callout"><b>범위 읽기.</b> 이 갤러리는 현재 compact 실행 참조와 개념 확장 설계를 함께 시각화한다. 특히 Combat의 Hit/Crit/Defense pipeline과 Status의 immunity·재적용 정책은 구조 확장 예시이며, 현재 fixture에서 모두 구현됐다는 뜻이 아니다. 실행 여부는 연결된 본문과 Runtime Lab의 계약 표를 기준으로 판단한다.</div>
 <div class="filter">
 <label class="sr-only" for="diagram-filter">다이어그램 검색</label>
 <input class="input" data-filter="diagrams" id="diagram-filter" placeholder="검색: core, stat, effect, skill, combat, status, damage, burn" type="search"/>
@@ -438,7 +439,7 @@
 <span class="tag">
          Effect
         </span>
-        EffectBundle, 공개 executor, 내부 operation 전략, Context, Result 관계
+        실제 C# EffectBundle·공개 port와 현재 미구현인 개념적 pipeline·내부 operation 전략, Context, Result 관계
        </p>
 <div class="da">
 <a class="small" href="../assets/diagrams/10_effect_core_class_diagram.svg" target="_blank">
@@ -506,7 +507,7 @@
         </a>
 </div>
 </div>
-<div class="thumb" data-item="Effect 생명주기 Effect Requested, Validated, Executed, Failed 상태 lifecycle">
+<div class="thumb" data-item="Effect 생명주기 Defined, Registered, Requested, Validating, Resolving Targets, Planning, Prepared, Committing, Committed, Reaction Queued, Scheduled, Failed 상태 lifecycle">
 <img alt="Effect 생명주기" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/14_effect_lifecycle_state_diagram.svg"/>
 <h3 id="Effect-생명주기">
         Effect 생명주기
@@ -515,7 +516,7 @@
 <span class="tag">
          Effect
         </span>
-        Requested, Validated, Executed, Failed 상태
+        정의·요청·검증·대상 해석·계획·원자적 commit·후속 reaction까지의 상태
        </p>
 <div class="da">
 <a class="small" href="../assets/diagrams/14_effect_lifecycle_state_diagram.svg" target="_blank">
@@ -777,7 +778,7 @@
         </a>
 </div>
 </div>
-<div class="thumb" data-item="Status 적용 흐름 Status ApplyStatusEffect가 StatusSystem으로 상태를 적용하는 흐름 sequence">
+<div class="thumb" data-item="Status 적용 흐름 Status ApplyStatusEffect가 StatusSystem으로 상태를 적용하는 개념 확장 흐름 sequence">
 <img alt="Status 적용 흐름" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/28_status_apply_sequence_diagram.svg"/>
 <h3 id="Status-적용-흐름">
         Status 적용 흐름
@@ -786,7 +787,7 @@
 <span class="tag">
          Status
         </span>
-        ApplyStatusEffect가 StatusSystem으로 상태를 적용하는 흐름
+        ApplyStatusEffect가 StatusSystem으로 상태를 적용하는 개념 확장 흐름
        </p>
 <div class="da">
 <a class="small" href="../assets/diagrams/28_status_apply_sequence_diagram.svg" target="_blank">
@@ -854,7 +855,7 @@
 <div class="thumb" data-item="Runtime Ports &amp; Adapters Runtime 입력, 저장소, 엔진, 관찰 adapter와 reference kernel의 경계"><img alt="Runtime Ports &amp; Adapters" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/39_runtime_ports_and_adapters.svg"/><h3 id="39_runtime_ports_and_adapters">Runtime Ports &amp; Adapters</h3><p class="cap"><span class="tag">Runtime</span>입력, 저장소, 엔진, 관찰 adapter와 reference kernel의 경계</p><div class="da"><a class="small" href="../assets/diagrams/39_runtime_ports_and_adapters.svg" target="_blank">SVG</a><a class="small" href="../assets/diagrams/39_runtime_ports_and_adapters.png" target="_blank">PNG</a></div></div><div class="thumb" data-item="Resolve · Commit · Reaction Runtime pure resolve, optimistic precondition, atomic commit, bounded reaction의 실행 순서"><img alt="Resolve · Commit · Reaction" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/40_resolve_commit_reaction_sequence.svg"/><h3 id="40_resolve_commit_reaction_sequence">Resolve · Commit · Reaction</h3><p class="cap"><span class="tag">Runtime</span>pure resolve, optimistic precondition, atomic commit, bounded reaction의 실행 순서</p><div class="da"><a class="small" href="../assets/diagrams/40_resolve_commit_reaction_sequence.svg" target="_blank">SVG</a><a class="small" href="../assets/diagrams/40_resolve_commit_reaction_sequence.png" target="_blank">PNG</a></div></div><div class="thumb" data-item="Deterministic Replay Envelope Runtime 입력, 버전, 정렬 정책, trace hash를 포함하는 replay 계약"><img alt="Deterministic Replay Envelope" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/41_deterministic_replay_envelope.svg"/><h3 id="41_deterministic_replay_envelope">Deterministic Replay Envelope</h3><p class="cap"><span class="tag">Runtime</span>입력, 버전, 정렬 정책, trace hash를 포함하는 replay 계약</p><div class="da"><a class="small" href="../assets/diagrams/41_deterministic_replay_envelope.svg" target="_blank">SVG</a><a class="small" href="../assets/diagrams/41_deterministic_replay_envelope.png" target="_blank">PNG</a></div></div></section>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/runtime-reference.html"><span>← 이전</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a>
+<a class="prev" href="../modules/runtime-reference.html"><span>← 이전</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습</small></a>
 <a class="next" href="../modules/glossary.html"><span>다음 →</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a>
 </nav>
 </main>
@@ -990,7 +991,7 @@
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a aria-current="page" class="is-active" href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# Status 요청·결과 계약과 JavaScript Burn 실행 참조를 바탕으로 버프, DoT, 중첩, tick, 정화, 면역을 설계하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# compact 계약, JavaScript 실행 fixture, 목표형 Skill·Effect·Combat·Status 조율을 구분한 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a aria-current="page" class="is-active" href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

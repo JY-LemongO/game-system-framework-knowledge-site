@@ -8,7 +8,7 @@ digraph G {
   effect [label="ApplyStatusEffect /\nReactionCommand\nBuild ApplyStatusRequest", fillcolor="#eefbf6", color="#5ac39b"];
   system [label="StatusSystem\nread target status snapshot", fillcolor="#eaf0ff", color="#8292f7"];
   immune [shape=diamond, label="immune or protected?"];
-  rejected [label="StatusResult\nimmune / rejected\nno mutation · no outbox", fillcolor="#fff1f2", color="#e07b91"];
+  rejected [label="Conceptual StatusResult\nimmune / rejected\nno mutation · no outbox", fillcolor="#fff1f2", color="#e07b91"];
   stack [label="StackPolicy\nadd · replace · refresh-only", fillcolor="#fff8e7", color="#e4ad4f"];
   duration [label="DurationPolicy\nrefresh · extend · fixed", fillcolor="#fff8e7", color="#e4ad4f"];
   instance [label="Prepare StatusInstance mutation\nexpireTick · stackCount\nnextTickAt", fillcolor="#eefbf6", color="#5ac39b"];
@@ -17,8 +17,8 @@ digraph G {
   plan [label="StatusCommitPlan\ninstance + modifier + tick\n+ planned outbox", fillcolor="#e9fbff", color="#54b7cf"];
   commit [label="RuntimeCommitter /\nStatus commit\nstate + outbox atomic", fillcolor="#eefbf6", color="#5ac39b"];
   event [label="Committed facts dispatch\nStatusApplied\nStatusRefreshed", fillcolor="#f8fafc"];
-  result [label="StatusResult\napplied · refreshed\nstackChanged · tickScheduled", fillcolor="#eefbf6", color="#5ac39b"];
-  failed [label="StatusResult\nversion / invariant failed\nno partial state\nno event", fillcolor="#fff1f2", color="#e07b91"];
+  result [label="Conceptual StatusResult\napplied · refreshed\nstackChanged · tickScheduled", fillcolor="#eefbf6", color="#5ac39b"];
+  failed [label="Conceptual StatusResult\nversion / invariant failed\nno partial state\nno event", fillcolor="#fff1f2", color="#e07b91"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];
 
   start -> effect -> system -> immune;

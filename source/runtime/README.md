@@ -10,7 +10,10 @@
 - HP/Shield/비용/쿨다운의 all-or-nothing commit
 - post-commit domain event outbox
 - bounded deterministic ReactionQueue
-- Burn 적용, fixed tick, tick-before-expire, catch-up budget
+- commit·clock 재진입 차단, trace payload 동결 snapshot, trace observer의 queue enqueue 차단
+- exact-v1 공개 입력의 단일 canonical clone, `__proto__` 보존, sparse/accessor 등 비-JSON container 거부
+- Burn 적용, 적용 Skill과 실행 Status의 SourceRef 분리, 직전 status event 기반 causation, fixed tick, tick-before-expire, catch-up budget
+- restore·status add·status patch 전 구간의 applied/next tick 단조성 검증
 - context fingerprint 기반 Stat query cache
 - 순차 N−2 schema migration registry와 audit hash
 - replay hash, trace hash, golden fixture

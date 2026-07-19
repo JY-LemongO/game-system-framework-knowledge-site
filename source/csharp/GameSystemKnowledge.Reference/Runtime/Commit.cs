@@ -67,9 +67,24 @@ public sealed record DamageCommitted(
     long TargetHpAfter)
     : DomainEvent(EventId, CommandId, Source);
 
-public sealed record CommittedOutboxEvent(
-    long Sequence,
-    DomainEvent Event);
+public sealed record CommittedOutboxEvent
+{
+    public CommittedOutboxEvent(long sequence, DomainEvent @event)
+    {
+        if (sequence <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sequence));
+        }
+
+        ArgumentNullException.ThrowIfNull(@event);
+        Sequence = sequence;
+        Event = @event;
+    }
+
+    public long Sequence { get; }
+
+    public DomainEvent Event { get; }
+}
 
 public sealed class CommitPlan
 {
@@ -119,7 +134,7 @@ public sealed class CommitPlan
             .Select(item => item.ResourceId)
             .ToHashSet();
 
-        if (!preconditionResources.SetEquals(mutationResources))
+        if (!mutationResources.IsSubsetOf(preconditionResources))
         {
             throw new ArgumentException(
                 "Every mutated resource must have exactly one version precondition.");
@@ -168,10 +183,57 @@ public enum CommitStatus
     PreconditionFailed
 }
 
-public sealed record CommitReceipt(
-    CommitStatus Status,
-    EntityId CommandId,
-    IReadOnlyList<CommittedOutboxEvent> OutboxEvents);
+public sealed record CommitReceipt
+{
+    private CommitReceipt(
+        CommitStatus status,
+        EntityId commandId,
+        IEnumerable<CommittedOutboxEvent> outboxEvents)
+    {
+        if (!Enum.IsDefined(status))
+        {
+            throw new ArgumentOutOfRangeException(nameof(status));
+        }
+
+        var outboxCopy = outboxEvents?.ToArray() ??
+            throw new ArgumentNullException(nameof(outboxEvents));
+        if (status != CommitStatus.Committed && outboxCopy.Length != 0)
+        {
+            throw new ArgumentException(
+                "A non-committed receipt cannot expose outbox events.",
+                nameof(outboxEvents));
+        }
+
+        Status = status;
+        CommandId = commandId;
+        OutboxEvents = Array.AsReadOnly(outboxCopy);
+    }
+
+    public CommitStatus Status { get; }
+
+    public EntityId CommandId { get; }
+
+    public ReadOnlyCollection<CommittedOutboxEvent> OutboxEvents { get; }
+
+    public static CommitReceipt Committed(
+        EntityId commandId,
+        IEnumerable<CommittedOutboxEvent> outboxEvents) =>
+        new(CommitStatus.Committed, commandId, outboxEvents);
+
+    public static CommitReceipt Empty(
+        CommitStatus status,
+        EntityId commandId)
+    {
+        if (status == CommitStatus.Committed)
+        {
+            throw new ArgumentException(
+                "Committed receipts must use the Committed factory.",
+                nameof(status));
+        }
+
+        return new(status, commandId, Array.Empty<CommittedOutboxEvent>());
+    }
+}
 
 public interface IRuntimeCommitter
 {
@@ -229,17 +291,25 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
             foreach (var mutation in plan.Mutations)
             {
                 var current = GetStateUnsafe(mutation.ResourceId);
+                if (current.Version == long.MaxValue)
+                {
+                    throw new OverflowException(
+                        $"Resource version cannot advance beyond Int64.MaxValue: {mutation.ResourceId}.");
+                }
+
                 nextState[mutation.ResourceId] = new VersionedResourceState(
                     mutation.ResourceId,
                     mutation.NewValue,
-                    current.Version + 1);
+                    checked(current.Version + 1));
             }
 
             var committedEvents = plan.OutboxEvents
                 .Select((item, index) => new CommittedOutboxEvent(
-                    _nextOutboxSequence + index,
+                    checked(_nextOutboxSequence + index),
                     item))
                 .ToArray();
+            var nextOutboxSequence = checked(
+                _nextOutboxSequence + committedEvents.LongLength);
             var nextOutbox = new List<CommittedOutboxEvent>(_outbox);
             nextOutbox.AddRange(committedEvents);
             var nextCommittedCommands = new HashSet<EntityId>(_committedCommands)
@@ -250,10 +320,9 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
             _state = nextState;
             _outbox = nextOutbox;
             _committedCommands = nextCommittedCommands;
-            _nextOutboxSequence += committedEvents.Length;
+            _nextOutboxSequence = nextOutboxSequence;
 
-            return new CommitReceipt(
-                CommitStatus.Committed,
+            return CommitReceipt.Committed(
                 plan.CommandId,
                 Array.AsReadOnly(committedEvents));
         }
@@ -286,7 +355,7 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
     private static CommitReceipt EmptyReceipt(
         CommitStatus status,
         EntityId commandId) =>
-        new(status, commandId, Array.Empty<CommittedOutboxEvent>());
+        CommitReceipt.Empty(status, commandId);
 
     private VersionedResourceState GetStateUnsafe(EntityId resourceId) =>
         _state.TryGetValue(resourceId, out var state)

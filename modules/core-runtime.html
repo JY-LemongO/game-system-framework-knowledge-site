@@ -214,7 +214,7 @@
        Core Runtime / System Contract
       </h1>
 <p class="lead">
-       Core Runtime은 Stat, Effect, Skill, Combat, Status가 같은 계약으로 대화하게 만드는 기반 계층이다. EntityId는 C# 값 타입으로, SourceRef는 불변 참조 타입으로, 시간·랜덤·이벤트는 작은 인터페이스로 정의한다.
+       Core Runtime은 Stat, Effect, Skill, Combat, Status가 같은 계약으로 대화하게 만드는 기반 계층이다. 현재 C# 실행 참조는 EntityId와 SourceRef 불변 값 타입을 제공하고, 시간·랜덤·이벤트 포트는 이 페이지의 normative conceptual contract로 설계한다.
       </p>
 <div class="badges">
 <span class="badge" data-example-language="csharp">예제 언어 · C#</span>
@@ -231,7 +231,7 @@
         EventBus
        </span>
 <span class="badge">
-        GameContext
+        GameContext · Concept
        </span>
 <span class="badge">
         RandomStream
@@ -277,7 +277,7 @@
 </tr>
 <tr>
 <td>
-         TagSet, GameContext, IEventBus 같은 시스템 간 계약
+         TagSet, GameContext 개념, IEventBus 같은 시스템 간 계약
         </td>
 <td>
          스킬 사용 가능 여부와 쿨다운 정책
@@ -317,6 +317,7 @@
 </tr>
 </table>
 </div>
+<div class="callout"><b>실행 참조의 event envelope.</b> JavaScript Runtime Lab은 EventId·CorrelationId·CausationId·OccurredTick·SchemaVersion을 모두 실행 검증한다. 현재 compact C# <code>DomainEvent</code>는 EventId·CommandId·Source만 보존하므로, correlation·causation·version envelope 전체는 C# 실행 완료가 아닌 normative 확장 계약이다.</div>
 <h2 id="핵심-컴포넌트">
       핵심 컴포넌트
      </h2>
@@ -388,7 +389,7 @@
         GameContext
        </h3>
 <p>
-        ActorId, TargetId, Position, Source, Tags, Random, Time, CustomPayload를 묶는 실행 문맥이다. StatContext, EffectContext, SkillContext는 모두 GameContext의 특화 형태로 볼 수 있다.
+        ActorId, TargetId, Position, Source, Tags, Random, Time, CustomPayload를 묶어 생각하는 <code>Conceptual umbrella</code>다. 현재 C# 참조에는 <code>GameContext</code>나 <code>SkillContext</code> 타입이 없고 실제 타입은 <code>StatContext</code>, <code>EffectContext</code>, <code>SkillRequest</code>다. 제품에서는 공통 기반 타입으로 강제하기보다 각 소비자가 필요한 필드만 가진 문맥으로 특화한다.
        </p>
 </div>
 <div class="card">
@@ -473,7 +474,7 @@
 </tr>
 </table>
 </div>
-<p>다음 JSON은 C# 런타임 객체를 저장·리플레이 경계에서 직렬화한 데이터 예시다.</p>
+<p>다음 JSON은 저장·replay envelope를 설명하기 위한 <code>Conceptual extension</code> 예시다. 현재 C# 참조에는 이 구조의 <code>GameContext</code> 타입이나 serializer가 없으며, 실제 값 타입은 아래 C# 계약과 <code>source/csharp/</code>를 기준으로 한다.</p>
 <pre><code class="language-json">{
   "entityId": "entity.player.001",
   "source": {
@@ -482,9 +483,16 @@
     "instanceId": "status-instance.burn.8231"
   },
   "context": {
-    "time": 42.75,
+    "clock": {
+      "domain": "simulation_tick",
+      "currentTick": 4275
+    },
     "tags": ["fire", "dot", "skill"],
-    "randomStream": "random.combat.cast.0904"
+    "random": {
+      "rootSeed": 61710,
+      "algorithmVersion": "mulberry32-keyed-v1",
+      "keySchema": "cast-branch-target-event-index-v1"
+    }
   }
 }</code></pre>
 <h2 id="시스템-계약-api">
@@ -555,10 +563,10 @@
          IRandomStream
         </td>
 <td>
-         RollBps(int probabilityBps), Range(int min, int max)
+         Fork(RandomKey key), RollBps(int probabilityBps), Range(int min, int max)
         </td>
 <td>
-         CombatResolver가 명중과 치명타를 결정론적으로 판정한다.
+         CombatResolver가 판정 key로 분기한 stream에서 명중과 치명타를 결정론적으로 판정한다.
         </td>
 </tr>
 <tr>
@@ -574,8 +582,8 @@
 </tr>
 </table>
 </div>
-<h3 id="csharp-core-contracts">C# 계약 예제</h3>
-<p>식별자는 문자열을 그대로 전달하지 않고 값 타입으로 감싼다. 이 예제는 <code>entity.caster</code>처럼 소문자 namespace와 local ID가 점으로 구분된 형식만 허용한다. 시간·랜덤·이벤트는 소비자가 필요한 최소 인터페이스로 주입한다.</p>
+<h3 id="csharp-core-contracts">C# 실행 값 타입과 개념적 포트</h3>
+<p>EntityId·SourceRef 부분은 현재 <code>source/csharp/</code> 실행 참조와 같은 계약이다. 이어지는 IGameClock·IRandomStream·IEventBus는 소비자가 필요로 하는 최소 경계를 보여주는 <code>Normative conceptual contract</code>이며 현재 C# 프로젝트에는 구현·선언되어 있지 않다. Unity나 서버에 적용할 때 해당 adapter와 전달 보장을 별도로 구현한다.</p>
 <pre><code class="language-csharp">using System.Text.RegularExpressions;
 
 public readonly record struct EntityId : IComparable&lt;EntityId&gt;
@@ -660,8 +668,15 @@ public interface IGameClock
     void Schedule(long tick, Action callback);
 }
 
+public readonly record struct RandomKey(
+    EntityId CastId,
+    string Branch,
+    EntityId TargetId,
+    int EventIndex);
+
 public interface IRandomStream
 {
+    IRandomStream Fork(RandomKey key);
     bool RollBps(int probabilityBps);
     int Range(int minInclusive, int maxExclusive);
 }
@@ -675,7 +690,7 @@ public interface IEventBus
 	      SourceRef와 추적성
      </h2>
 <p>
-	      SourceRef는 원천 종류와 정의, 실행 인스턴스를 함께 보존한다. Modifier 제거, 중첩 판정, 이벤트 원인 분석, 저장/로드 복원은 이 구조화된 값에 의존한다. 로그나 JavaScript 실습에 표시되는 <code>sourceId</code>는 검색 편의를 위해 <code>SourceRef.InstanceId</code>를 평탄화한 보조 필드이며, 독립적인 원천 계약이 아니다.
+	      SourceRef는 원천 종류와 정의, 실행 인스턴스를 함께 보존한다. Modifier 제거, 중첩 판정, 이벤트 원인 분석, 저장/로드 복원은 이 구조화된 값에 의존한다. 로그나 JavaScript 실습에 표시되는 <code>sourceId</code>는 검색 편의를 위한 보조 필드다. 값은 <code>SourceRef.InstanceId</code>가 있으면 그 ID, instance가 없는 System source라면 <code>DefinitionId</code>이며, 독립적인 원천 계약이 아니다.
      </p>
 <div class="grid cols3">
 <div class="card">
@@ -712,11 +727,15 @@ public interface IEventBus
        </p>
 </div>
 </div>
+<div class="callout warn"><b>현재 SourceKind 범위.</b> C#과 JavaScript 실행 계약이 허용하는 원천 종류는 <code>SkillExecution</code>/<code>skill-execution</code>, <code>Status</code>/<code>status</code>, <code>System</code>/<code>system</code> 세 가지뿐이다. 장비·아이템·패시브 전용 원천 종류는 현재 실행 참조 범위 밖이다. product 확장에서 이를 독립 종류로 추가할 때는 <code>SourceKind</code>, 직렬화 schema, 저장·event·replay migration을 함께 버전업해야 한다.</div>
 <h2 id="결정론과-테스트">
       결정론과 테스트
      </h2>
 <p>
-      전투 시스템은 디버그하기 어렵기 때문에 “같은 입력이면 같은 결과”를 최대한 보장해야 한다. IRandomStream은 전역 랜덤을 바로 호출하지 않고, CastId, AttackerId, TargetId, EventIndex 같은 값을 조합해 분기별 랜덤 스트림을 만든다.
+      전투 시스템은 디버그하기 어렵기 때문에 “같은 입력이면 같은 결과”를 최대한 보장해야 한다. 위 개념 포트의 root <code>IRandomStream</code>은 전역 랜덤을 바로 소비하지 않고 <code>CastId + Branch + TargetId + EventIndex</code>로 만든 <code>RandomKey</code>를 <code>Fork</code>하여 판정별 scoped stream을 만든다. 따라서 한 분기의 호출 추가가 다른 분기의 값을 밀어내지 않는다. JavaScript 실행 참조는 같은 의도를 stream 객체 대신 <code>sampleBps([correlationId, branch, targetId])</code>로 직접 검증하며, 이 compact key 모양은 <code>rngKeySchemaVersion=correlation-branch-target-v1</code>으로 별도 고정한다.
+     </p>
+<p>
+      <code>AttackerId</code>처럼 결과에 영향을 주는 식별자가 필요하면 <code>RandomKey</code>의 명시적 필드나 안정된 key part로 추가한다. 어떤 필드를 쓰든 key schema와 RNG algorithm version을 replay envelope에 고정해야 한다.
      </p>
 <div class="table-scroll">
 <table class="data-table">
@@ -778,6 +797,7 @@ public interface IEventBus
       </code>
       에 넣어 다음 단계에서 순서대로 실행한다.
      </p>
+<p>관찰 callback은 동결된 trace snapshot만 받아야 하며, callback 실행 중 commit·clock advance·ReactionQueue enqueue/drain 같은 mutation entry를 다시 호출할 수 없어야 한다. 예외를 삼키는 것만으로는 충분하지 않다. 관찰자가 새 작업을 주입하거나 optimistic version 검사 사이에 재진입하면 실행 결과와 replay가 달라지기 때문이다.</p>
 <div class="table-scroll">
 <table class="data-table">
 <thead>
@@ -907,7 +927,7 @@ public interface IEventBus
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
 <a class="prev" href="../index.html"><span>← 이전</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a>
-<a class="next" href="../modules/stat-system.html"><span>다음 →</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a>
+<a class="next" href="../modules/stat-system.html"><span>다음 →</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -1065,7 +1085,7 @@ public interface IEventBus
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a aria-current="page" class="is-active" href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a aria-current="page" class="is-active" href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# Status 요청·결과 계약과 JavaScript Burn 실행 참조를 바탕으로 버프, DoT, 중첩, tick, 정화, 면역을 설계하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# compact 계약, JavaScript 실행 fixture, 목표형 Skill·Effect·Combat·Status 조율을 구분한 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

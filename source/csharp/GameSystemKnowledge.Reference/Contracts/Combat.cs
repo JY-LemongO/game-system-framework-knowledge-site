@@ -153,10 +153,18 @@ public sealed class DamageResult
             throw new ArgumentOutOfRangeException(nameof(rawDamage));
         }
 
-        if (shieldAbsorbed + finalHpDamage + overkill != resolvedDamage)
+        if ((long)shieldAbsorbed + finalHpDamage + overkill != resolvedDamage)
         {
             throw new ArgumentException(
                 "Resolved damage must equal shield absorption, final HP damage, and overkill.");
+        }
+
+        if (outcome != HitOutcome.Hit &&
+            (critical || rawDamage != 0 || resolvedDamage != 0 ||
+             shieldAbsorbed != 0 || finalHpDamage != 0 || overkill != 0))
+        {
+            throw new ArgumentException(
+                "The compact resolver policy requires every non-Hit outcome to carry zero damage and no critical flag.");
         }
 
         Outcome = outcome;

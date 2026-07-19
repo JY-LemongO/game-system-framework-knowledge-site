@@ -199,6 +199,7 @@ public static class FireballReferenceScenario
                 rule.HandlerId,
                 damage.DefenderId,
                 damage.Source,
+                committedEvent.Event.EventId,
                 rule.Priority,
                 rule.StableOrderKey,
                 rule.Depth,

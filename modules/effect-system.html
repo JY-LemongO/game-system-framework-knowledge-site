@@ -214,7 +214,7 @@
        Effect System
       </h1>
 <p class="lead">
-       Effect System은 스킬, 아이템, 상태, 보상이 실제 게임 결과를 요청하는 공통 실행 계층이다. C#의 EffectContext와 실행 인터페이스가 대상 선택을 조율하고, 피해·상태·자원 변경은 각 소유 시스템에 위임한다.
+       Effect System은 스킬, 아이템, 상태, 보상이 실제 게임 결과를 요청하는 공통 실행 경계다. 현재 C# 참조는 <code>EffectContext</code>, operation·bundle 값과 planner/executor 포트 모양을 제공하고, 대상 선택·계획·commit 조율 구현은 개념 확장으로 설명한다. 피해·상태·자원 변경은 각 소유 시스템에 위임한다.
       </p>
 <div class="badges">
 <span class="badge" data-example-language="csharp">예제 언어 · C#</span>
@@ -314,7 +314,7 @@
 </div>
 <img alt="Effect 핵심 클래스 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/10_effect_core_class_diagram.svg"/>
 <figcaption class="cap">
-         EffectBundle과 공개 IEffectExecutor, 내부 IEffectOperationExecutor 전략, EffectContext, EffectResult의 관계를 보여준다.
+         실제 C#의 EffectBundle·IEffectExecutor·IEffectPlanner·EffectContext·EffectResult 포트와, product가 추가할 개념적 EffectDefinition·TargetSelector·EffectPipeline·IEffectOperationExecutor 전략의 관계를 함께 보여준다. 개념 타입의 구현은 현재 저장소에 없다.
         </figcaption>
 </figure>
 </div>
@@ -363,13 +363,14 @@
 <h2 id="핵심-객체-상세">
       핵심 객체 상세
      </h2>
+<div class="callout warn"><b>증거 범위.</b> <code>EffectDefinition</code>·<code>TargetSelector</code>·<code>ValueExpression</code>은 콘텐츠 로딩 계층을 위한 개념적 확장이다. 현재 C# 실행 참조는 <code>EffectContext</code>, <code>EffectOperation</code>/<code>EffectBundle</code>, 결과 타입과 planner/executor 포트까지만 선언한다.</div>
 <div class="grid cols2">
 <div class="card">
 <h3 id="effectdefinition">
         EffectDefinition
        </h3>
 <p>
-        효과의 정적 데이터다. C# 속성으로는 EffectId, Type, TargetSelector, ValueExpression, Conditions, Tags, Timing, OrderingPolicy를 가진다.
+        효과의 개념적 정적 데이터다. production 콘텐츠 정의에는 EffectId, Type, TargetSelector, ValueExpression, Conditions, Tags, Timing, OrderingPolicy 같은 필드를 둘 수 있지만 현재 C# 실행 참조에 이 타입은 없다.
        </p>
 </div>
 <div class="card">
@@ -414,12 +415,12 @@
 </div>
 </div>
 <h3 id="csharp-effect-contracts">C# 핵심 계약</h3>
-<p><code>EffectDefinition</code>은 콘텐츠 작성·로딩 단계의 정적 데이터다. 로더와 대상 선택기가 이를 검증해 실행 가능한 <code>EffectOperation</code> 또는 <code>EffectBundle</code>로 정규화한다. 공개 <code>IEffectExecutor</code>는 이 런타임 모델만 받으며, DamageEffect는 피해를 직접 계산하지 않고 <code>DamageRequest</code>를 Combat에 전달한다.</p>
+<p>개념적 <code>EffectDefinition</code>은 콘텐츠 작성·로딩 단계의 목표 정적 데이터다. production 로더와 대상 선택기는 이를 검증해 실행 가능한 실제 계약인 <code>EffectOperation</code> 또는 <code>EffectBundle</code>로 정규화한다. 공개 <code>IEffectExecutor</code>는 이 런타임 모델만 받으며, DamageEffect는 피해를 직접 계산하지 않고 <code>DamageRequest</code>를 Combat에 전달한다.</p>
 <pre><code class="language-csharp">public sealed record EffectContext(
     EntityId CasterId,
     EntityId? InitialTargetId,
     SourceRef Source,
-    int RandomSeed);
+    uint RandomSeed);
 
 public abstract record EffectOperation(EntityId OperationId);
 
@@ -429,11 +430,34 @@ public sealed record EffectOperationResult(
     bool Succeeded,
     EntityId OperationId) : EffectResult(Succeeded);
 
-public sealed record EffectBundleResult(
-    bool Committed,
-    EntityId BundleId,
-    int AppliedEffectCount,
-    int QueuedReactionCount) : EffectResult(Committed);
+public sealed record EffectBundleResult : EffectResult
+{
+    public EffectBundleResult(
+        bool committed,
+        EntityId bundleId,
+        int appliedEffectCount,
+        int queuedReactionCount) : base(committed)
+    {
+        if (appliedEffectCount &lt; 0)
+            throw new ArgumentOutOfRangeException(nameof(appliedEffectCount));
+        if (queuedReactionCount &lt; 0)
+            throw new ArgumentOutOfRangeException(nameof(queuedReactionCount));
+        if (!committed &amp;&amp;
+            (appliedEffectCount != 0 || queuedReactionCount != 0))
+            throw new ArgumentException(
+                "An uncommitted bundle cannot report applied work.");
+
+        Committed = committed;
+        BundleId = bundleId;
+        AppliedEffectCount = appliedEffectCount;
+        QueuedReactionCount = queuedReactionCount;
+    }
+
+    public bool Committed { get; }
+    public EntityId BundleId { get; }
+    public int AppliedEffectCount { get; }
+    public int QueuedReactionCount { get; }
+}
 
 public interface IEffectExecutor
 {
@@ -454,8 +478,9 @@ public interface IEffectPlanner
 }</code></pre>
 <p><code>EffectDefinition → EffectOperation</code> 변환은 내부 정의 해석 단계다. 공개 <code>IEffectExecutor</code>는 독립 command를 끝까지 실행할 때 사용하고, Skill처럼 비용·쿨다운과 주 Effect를 같은 transaction으로 묶어야 하는 상위 조율자는 순수 <code>IEffectPlanner.Prepare</code>로 target-resolved <code>EffectBundlePlan</code>을 먼저 얻는다. 실행 참조에는 두 포트가 모두 있으므로 <code>Execute(EffectDefinition, ...)</code> 같은 혼합 API를 만들지 않는다.</p>
 <h2 id="effect-실행-파이프라인">
-      Effect 실행 파이프라인
+      개념적 Effect 실행 파이프라인
      </h2>
+<div class="callout warn"><b>증거 범위.</b><p>아래 순서는 production adapter가 구현할 목표 조율이다. 현재 C# 실행 참조는 <code>EffectOperation</code>·<code>EffectBundle</code>·<code>EffectBundlePlan</code>·결과 타입과 <code>IEffectPlanner</code>/<code>IEffectExecutor</code> 인터페이스, Fireball bundle 구성을 검증하지만 planner/executor/TargetSelector 구현은 포함하지 않는다.</p></div>
 <figure class="diagram">
 <div class="dh">
 <strong>
@@ -469,7 +494,7 @@ public interface IEffectPlanner
 </div>
 <img alt="Effect 실행 시퀀스 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/11_effect_execution_sequence_diagram.svg"/>
 <figcaption class="cap">
-       Skill, Status, Item이 EffectService에 실행을 요청하면 EffectExecutor가 TargetSelector·Stat·Combat을 읽어 plan을 만든다. RuntimeCommitter가 상태와 outbox를 원자적으로 확정한 뒤 외부 adapter가 committed fact를 dispatch한다.
+       개념적 product 흐름에서는 Skill, Status, Item이 EffectService에 실행을 요청하면 EffectExecutor adapter가 TargetSelector·Stat·Combat을 읽어 plan을 만든다. RuntimeCommitter가 상태와 outbox를 원자적으로 확정한 뒤 외부 adapter가 committed fact를 dispatch한다.
       </figcaption>
 </figure>
 <ol>
@@ -492,7 +517,7 @@ public interface IEffectPlanner
        대상별 조건을 다시 검증한다.
       </li>
 <li>
-       일반 Effect는 ValueExpression을 계산한다. DamageEffect는 계산 입력을 DamageRequest로 정규화하고 Stat 조회와 피해 공식은 Combat에 위임한다.
+       일반 Effect는 ValueExpression을 계산한다. DamageEffect는 계산 입력을 DamageRequest로 정규화한다. 현재 실행 참조에서는 호출자가 Stat snapshot을 <code>CombatContext.ScalingStatValue</code>로 미리 해석하고 Combat은 단일 계수식을 계산하며, 전체 Stat 조회와 공식 registry는 개념 확장이다.
       </li>
 <li>
        EffectOperation의 mutation과 outbox를 EffectPlan으로 준비한다.
@@ -734,7 +759,7 @@ public interface IEffectPlanner
       ValueExpression과 DamageRequest 예시
      </h2>
 <p>
-      Heal이나 ModifyResource처럼 Effect가 결과값을 소유하는 경우에는 ValueExpression을 계산한다. 피해는 같은 표현식을 Effect와 Combat에서 두 번 계산하지 않도록, DamageEffect가 아래 입력을 요청으로 만들고 CombatFormula가 Stat 조회와 계산을 전담한다.
+       Heal이나 ModifyResource처럼 Effect가 결과값을 소유하는 경우에는 ValueExpression을 계산한다. 피해는 같은 표현식을 Effect와 Combat에서 두 번 계산하지 않도록 DamageEffect가 아래 입력을 요청으로 만든다. 현재 실행 참조는 한 개의 <code>CoefficientBps</code>와 미리 해석된 <code>ScalingStatValue</code>만 지원한다. 여러 scaling 항과 Combat 내부 Stat 조회는 개념 확장이다.
      </p>
 <pre><code class="language-json">{
   "id": "effect.fireball-damage",
@@ -744,58 +769,35 @@ public interface IEffectPlanner
   "damageRequest": {
     "formulaId": "combat.fire.v3",
     "baseValue": 24,
-    "scaling": [
-      { "stat": "spell_power", "coefficientBps": 12000 }
-    ]
+    "coefficientBps": 12000
   },
-  "conditions": ["target_is_alive", "has_line_of_sight"],
+  "combatContext": { "scalingStatValue": 120 },
+  "conditions": ["target_is_alive"],
   "tags": ["spell", "fire", "single-target"]
 }</code></pre>
 <h3 id="csharp-damage-handoff">C# DamageRequest handoff</h3>
-<p>JSON 정의를 읽은 DamageEffect는 C# 요청 타입을 만들고, 계산은 ICombatResolver에 위임한다.</p>
-<pre><code class="language-csharp">public sealed class DamageRequest
-{
-    public EntityId AttackerId { get; }
-    public EntityId DefenderId { get; }
-    public SourceRef Source { get; }
-    public EntityId FormulaId { get; }
-    public string DamageType { get; }
-    public int BaseValue { get; }
-    public int CoefficientBps { get; }
-    public IReadOnlyList&lt;string&gt; Tags { get; }
-    public uint Seed { get; }
+<p>JSON 정의를 읽은 DamageEffect adapter는 실제 C# 요청 타입을 만들고, 계산은 <code>ICombatResolver</code>에 위임한다. <code>DamageRequest</code> 생성자는 빈 <code>damageType</code>, 음수 base/coefficient, null tags와 빈 tag를 거부하고 <code>IEnumerable&lt;string&gt;</code>을 읽기 전용 복사본으로 보존한다.</p>
+<pre><code class="language-csharp">DamageRequest request = new(
+    attackerId,
+    defenderId,
+    SourceRef.SkillExecution(skillDefinitionId, commandId),
+    formulaId,
+    damageType: "fire",
+    baseValue: 24,
+    coefficientBps: 12_000,
+    tags: new[] { "spell", "fire", "single-target" },
+    seed: 61_710u);
 
-    public DamageRequest(
-        EntityId attackerId,
-        EntityId defenderId,
-        SourceRef source,
-        EntityId formulaId,
-        string damageType,
-        int baseValue,
-        int coefficientBps,
-        string[] tags,
-        uint seed)
-    {
-        if (tags == null)
-            throw new ArgumentNullException(nameof(tags));
-
-        AttackerId = attackerId;
-        DefenderId = defenderId;
-        Source = source;
-        FormulaId = formulaId;
-        DamageType = damageType;
-        BaseValue = baseValue;
-        CoefficientBps = coefficientBps;
-        Tags = Array.AsReadOnly((string[])tags.Clone());
-        Seed = seed;
-    }
-}</code></pre>
+// CombatContext는 상위 계층이 미리 해석한 snapshot 값이다.
+DamageResult result = combatResolver.Resolve(request, combatContext);</code></pre>
+<p>전체 생성자 불변식과 필드 타입은 <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Combat.cs">실행 참조의 Combat.cs</a>가 기준이며, Combat 페이지의 <a href="../modules/combat-resolution-system.html#csharp-combat-contracts">C# 요청·결과 계약</a>에서 함께 설명한다.</p>
 <h2 id="effectresult와-로그">
       EffectResult와 실행 trace
      </h2>
 <p>
       공개 결과 타입은 호출자가 분기할 최소 정보만 반환한다. 단일 operation은 성공 여부와 OperationId, 묶음은 commit 여부와 적용·reaction 개수를 제공한다. 대상별 계산값, 생성 이벤트, 실패 근거와 디버그 메시지는 EffectTrace와 각 소유 시스템 결과에 별도로 남겨 결과 계약이 비대해지지 않게 한다.
      </p>
+<p><code>EffectBundleResult</code> 생성자는 두 count의 음수를 거부하고, <code>Committed == false</code>이면 적용 effect와 queued reaction 수가 모두 0이도록 강제한다. 실패했는데 일부 적용을 보고하는 모순된 carrier를 만들 수 없다.</p>
 <pre><code class="language-text">EffectTrace effect.fireball-damage
   - sourceRef: { kind: skill-execution, definitionId: skill.fireball, instanceId: command.fireball.cast.0001 }
   - caster: entity.caster
@@ -868,7 +870,7 @@ public interface IEffectPlanner
          CommitThenReact
         </td>
 <td>
-         주 transaction의 committed fact만 ReactionQueue command로 변환한다. Burn 면역 실패는 이미 확정된 피해를 되돌리지 않는다.
+         주 transaction의 committed fact만 ReactionQueue command로 변환한다. 면역 정책을 추가한 확장에서는 Burn 면역 실패가 이미 확정된 피해를 되돌리지 않는다.
         </td>
 </tr>
 <tr>
@@ -884,7 +886,7 @@ public interface IEffectPlanner
 </tr>
 </table>
 </div>
-<div class="callout"><b>Fireball의 조합.</b> 비용·쿨다운·Damage 주 효과는 AllOrNothing으로 같은 commit에 넣고, Burn은 CommitThenReact로 분리한다. Burn 면역은 후속 command의 정상 실패이므로 보상 작업도 필요하지 않다.</div>
+<div class="callout"><b>Fireball의 조합.</b> 비용·쿨다운·Damage 주 효과는 AllOrNothing으로 같은 commit에 넣고, Burn은 CommitThenReact로 분리한다. 현재 실행 fixture는 Burn 면역을 판정하지 않는다. 면역 정책을 추가한다면 후속 command의 정상 실패로 처리한다.</div>
 <h2 id="plan-commit-boundary">
       실행 계획과 Commit 경계
      </h2>
@@ -918,9 +920,10 @@ public interface IEffectPlanner
        Dispatch committed facts
       </span>
 </div>
-<h3 id="csharp-effect-execution">C# 실행 조율</h3>
-<p>정의 로더가 대상과 조건을 해석해 operation을 만든 뒤 공개 executor에 전달한다. executor 내부의 검증과 계획 생성은 상태를 바꾸지 않고, RuntimeCommitter가 mutation과 outbox를 같은 transaction으로 확정한다. 아래 호출은 실행 참조의 실제 공개 타입과 같은 경계를 사용한다.</p>
-<pre><code class="language-csharp">EffectOperation damage = new DamageEffectOperation(
+<h3 id="csharp-effect-execution">C# 계약을 사용하는 개념 조율</h3>
+<p>정의 로더가 대상과 조건을 해석해 operation을 만든 뒤 executor port에 전달하는 목표 형태다. executor 내부의 검증과 계획 생성은 상태를 바꾸지 않고, RuntimeCommitter가 mutation과 outbox를 같은 transaction으로 확정한다. 아래 코드는 실행 참조의 실제 공개 타입과 인터페이스를 사용하는 <strong>통합 의사 코드</strong>이며, <code>_effectExecutor</code> 구현과 RuntimeCommitter 연결은 저장소에 포함되지 않는다.</p>
+<pre><code class="language-csharp">// Conceptual product adapter; no executor implementation ships in this repository.
+EffectOperation damage = new DamageEffectOperation(
     operationId,
     damageRequest);
 
@@ -935,7 +938,7 @@ EffectBundleResult result = _effectExecutor.Execute(bundle, context);
 if (!result.Committed)
     return; // 주 transaction 실패: reaction을 시작하지 않는다.
 
-// Executor는 committed fact에서 만든 reaction만 queue에 넣는다.</code></pre>
+// Product executor는 committed fact에서 만든 reaction만 queue에 넣는다.</code></pre>
 <h2 id="결정론과-랜덤-시드">
       결정론과 랜덤 시드
      </h2>
@@ -986,7 +989,7 @@ if (!result.Committed)
 </div>
 <img alt="Effect 생명주기 상태 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/14_effect_lifecycle_state_diagram.svg"/>
 <figcaption class="cap">
-       Created, Validated, TargetResolved, Applied, Completed, Failed 상태 흐름을 보여준다.
+       Defined와 Registered부터 Requested, Validating, Resolving Targets, Planning, Prepared, Atomic Commit, Committed, Reaction Queued까지의 실행 상태와 Scheduled·Cancelled·Failed 분기를 보여준다.
       </figcaption>
 </figure>
 <h2 id="구현-안티패턴">
@@ -1114,14 +1117,14 @@ if (!result.Committed)
     public SourceRef Source { get; }
     public int StackDelta { get; }
 }</code></pre>
-<p><code>applyOn</code>은 어떤 committed fact가 상태 적용을 시작하는지 정하는 EffectDefinition·ReactionRule 정책이다. <code>durationScale</code>과 상태 tag도 정의 및 Status 적용 정책에서 해석한다. 이미 해석된 operation이 Status에 전달하는 <code>ApplyStatusRequest</code>에는 위 네 필드만 넣어 요청과 정책 메타데이터를 섞지 않는다.</p>
+<p><code>triggerFact</code>는 어떤 committed fact가 상태 적용을 시작하는지 정하고, <code>outcomePredicate</code>는 Hit 같은 결과 조건을 표현한다. <code>durationScale</code>과 상태 tag도 정의 및 Status 적용 정책에서 해석한다. 이미 해석된 operation이 Status에 전달하는 <code>ApplyStatusRequest</code>에는 위 네 필드만 넣어 요청과 정책 메타데이터를 섞지 않는다.</p>
 <section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
 <span class="section-kicker">Comprehension check</span>
 <h2 id="이해도-확인">이해도 확인</h2>
 <p class="checkpoint-intro">Effect가 결과를 직접 소유하는 부분과 Combat·Status에 요청으로 넘겨야 하는 부분을 구분해 본다.</p>
 <ol class="checkpoint-grid">
 <li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="effect.q1"><summary>DamageEffect가 주문력 계수, 치명타, 저항과 보호막까지 계산해 최종 피해를 만들어도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">안 된다. Effect는 FormulaId, BaseValue, CoefficientBps, 대상과 SourceRef를 DamageRequest에 담고 최종 피해 계산은 Combat에 위임한다.</p></div></details></li>
-<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="effect.q2"><summary>CommitThenReact Fireball의 피해가 commit된 뒤 대상이 Burn 면역으로 판정되면 어떤 결과가 남아야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">주 transaction에서 이미 commit된 피해와 EffectBundleResult는 유지한다. Burn reaction의 면역 실패는 별도 StatusResult와 trace에 남기며, 주 EffectBundleResult를 실패로 바꾸거나 피해를 rollback하지 않는다.</p></div></details></li>
+<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="effect.q2"><summary>개념 확장에 Burn 면역을 추가한 뒤 후속 판정이 실패하면 어떤 결과가 남아야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">주 transaction에서 이미 commit된 피해와 EffectBundleResult는 유지하고, 면역 실패는 별도 StatusResult와 trace에 남긴다. 현재 실행 fixture에는 면역 입력과 판정이 없다.</p></div></details></li>
 <li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="effect.q3"><summary>입력 시점에 유효했던 대상이 release 시점에 이동했다면 Skill과 Effect는 각각 어디까지 다시 판단해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Skill의 TargetingSpec은 사용자가 조준할 수 있는 입력을 검증한다. Effect의 TargetSelector는 release 또는 hit 시점의 실제 영향 대상을 다시 해석해 Combat이나 Status 요청으로 넘긴다.</p></div></details></li>
 </ol>
 </section>
@@ -1150,8 +1153,8 @@ if (!result.Committed)
 </ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/stat-system.html"><span>← 이전</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a>
-<a class="next" href="../modules/skill-action-system.html"><span>다음 →</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a>
+<a class="prev" href="../modules/stat-system.html"><span>← 이전</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a>
+<a class="next" href="../modules/skill-action-system.html"><span>다음 →</span><b>Skill / Action</b><small>C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -1334,7 +1337,7 @@ if (!result.Committed)
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a aria-current="page" class="is-active" href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a aria-current="page" class="is-active" href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# Status 요청·결과 계약과 JavaScript Burn 실행 참조를 바탕으로 버프, DoT, 중첩, tick, 정화, 면역을 설계하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# compact 계약, JavaScript 실행 fixture, 목표형 Skill·Effect·Combat·Status 조율을 구분한 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

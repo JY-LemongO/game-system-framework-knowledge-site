@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Skill / Action System · GSF System Atlas</title>
-<meta content="C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조" name="description"/>
+<meta content="C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <link href="../favicon.svg" rel="icon" sizes="any" type="image/svg+xml"/>
 <script>
@@ -214,7 +214,7 @@
        Skill / Action System
       </h1>
 <p class="lead">
-       Skill System은 입력이나 AI 의도를 C# SkillRequest로 받아 비용, 쿨다운, 타겟팅, 액션 타임라인, EffectBundle 실행으로 변환한다. Effect가 결과 요청이라면 Skill은 그 요청을 언제 어떤 조건으로 보낼지 조율한다.
+       Skill System은 입력이나 AI 의도를 비용, 쿨다운, 타겟팅, 액션 타임라인, EffectBundle 실행으로 변환하는 목표형 조율 계층이다. 현재 C# 참조는 불변 <code>SkillRequest</code>·<code>SkillDecision</code>·<code>SkillResult</code>와 validator port를 제공하고, validator/coordinator/timeline 구현은 개념 확장이다. Effect가 결과 요청이라면 Skill은 그 요청을 언제 어떤 조건으로 보낼지 소유한다.
       </p>
 <div class="badges">
 <span class="badge" data-example-language="csharp">예제 언어 · C#</span>
@@ -239,7 +239,7 @@
 </div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>C# 요청·결과 타입으로 비용·쿨다운·타겟팅·타임라인을 조율하되 피해 계산과 상태 유지를 소유하지 않는 Skill 경계를 설계한다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>현재 C# 요청·결과 계약과 목표형 production 조율을 구분하면서, 비용·쿨다운·타겟팅·타임라인을 조율하되 피해 계산과 상태 유지를 소유하지 않는 Skill 경계를 설계한다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>EffectBundle과 EffectContext, Entity·Source 식별 규칙을 먼저 읽는다.</p></article>
 </div>
 <h2 id="skill-system의-책임-경계">
@@ -409,7 +409,7 @@
          SkillRuntime
         </td>
 <td>
-         특정 Entity가 가진 스킬의 현재 상태. 쿨다운, 차지, 시전 중 여부, 런타임 오버라이드를 가진다.
+         특정 Entity가 가진 스킬의 장기 availability 상태. 배운 레벨, 쿨다운, 차지, 런타임 오버라이드를 가진다. 한 번의 시전 상태는 SkillExecution이 소유한다.
         </td>
 </tr>
 <tr>
@@ -584,10 +584,11 @@ public sealed class SkillResult
             (effects ?? Enumerable.Empty&lt;EffectResult&gt;()).ToArray());
     }
 }</code></pre>
-<p>검증에 통과한 뒤 Skill coordinator가 <code>SkillExecution</code>을 만들고 release marker에서 비용·쿨다운·주 Effect의 commit plan을 준비한다. 이 내부 생명주기 API와 위의 안정된 요청·결과 계약을 분리하면, 프로젝트별 타임라인 구현을 바꿔도 호출 경계는 유지된다.</p>
+<p>목표형 실행기에서는 검증 뒤 Skill coordinator가 <code>SkillExecution</code>을 만들고 <code>reserve_then_commit</code> 정책이 release marker에서 비용·쿨다운·주 Effect의 commit plan을 준비한다. 현재 C#/JavaScript Fireball fixture는 예약·timeline·release 상태 머신을 구현하지 않고 검증 뒤 동등한 원자적 plan을 직접 만든다. 다른 CostPolicy의 확정 시점도 프로젝트 정책으로 별도 정의한다.</p>
 <h2 id="실행-파이프라인">
       실행 파이프라인
      </h2>
+<div class="callout"><b>증거 수준.</b> 아래 ActionTimeline과 <code>reserve_then_commit</code> 단계는 production 조율을 위한 <code>Conceptual extension</code>이다. 현재 실행 참조가 검증하는 범위는 불변 요청·결과 계약과 비용·쿨다운·주 Damage를 묶는 원자적 commit 경계다.</div>
 <figure class="diagram">
 <div class="dh">
 <strong>
@@ -624,7 +625,7 @@ public sealed class SkillResult
        ActionTimeline을 시작하고 windup, cast, release marker, recovery를 진행한다.
       </li>
 <li>
-	       release marker에 도달하면 비용·쿨다운 mutation과 EffectBundle의 주 효과를 하나의 CommitPlan으로 준비한다.
+	       목표형 <code>reserve_then_commit</code> 정책이면 release marker에서 비용·쿨다운 mutation과 EffectBundle의 주 효과를 하나의 CommitPlan으로 준비한다.
       </li>
 <li>
        RuntimeCommitter가 plan을 한 번에 commit한다. 성공하면 outbox의 SkillCommitted와 주 효과 이벤트를 발행하고, 그 이벤트로 만든 후속 반응은 ReactionQueue에 넣는다. 검증 실패는 SkillResult와 trace로 반환한다.
@@ -886,6 +887,7 @@ public sealed class SkillResult
 <h2 id="타겟팅-정책">
       타겟팅 정책
      </h2>
+<div class="callout"><b>실행 계약과 확장 입력.</b> 현재 안정 C# <code>SkillRequest</code>는 명시적 단일 대상용 <code>TargetId</code>만 표현한다. 아래 self·ground_position·direction·area_preview·smart_target은 <code>TargetIntent</code> 판별 합집합과 공간 query adapter를 추가할 때의 개념 확장이다. 현재 타입만으로 이 입력들이 실행 지원된다고 해석하면 안 된다.</div>
 <div class="table-scroll">
 <table class="data-table">
 <tr>
@@ -1029,7 +1031,7 @@ public sealed class SkillResult
          비용·쿨다운·주 Effect mutation과 outbox를 하나의 plan으로 검증하고 원자적으로 commit한다.
         </td>
 <td>
-         Burn 면역처럼 후속 반응이 실패해도 이미 commit된 피해는 유지한다. 실패는 별도 StatusResult와 trace에 남긴다.
+         면역 정책을 추가한 확장에서 후속 Burn 반응이 실패해도 이미 commit된 피해는 유지한다. 현재 실행 fixture에는 Burn 면역 판정이 없다.
         </td>
 </tr>
 </table>
@@ -1157,7 +1159,7 @@ public sealed class SkillResult
         3. Cost &amp; Timeline
        </h3>
 <p>
-        마나 20을 예약하고 release marker에서 비용·쿨다운·Damage 주 효과를 하나의 plan으로 준비한다. RuntimeCommitter가 이 plan을 한 transaction으로 commit하며, 비용은 release 도달 자체가 아니라 commit 성공 receipt에서 최종 확정된다.
+         목표형 정책에서는 마나 20을 예약하고 release marker에서 비용·쿨다운·Damage 주 효과를 하나의 plan으로 준비한다. 현재 fixture는 예약과 timeline을 축약하고 동등한 plan을 직접 commit한다. 비용의 최종 확정 기준은 commit 성공 receipt다.
        </p>
 </div>
 <div class="ti">
@@ -1370,7 +1372,7 @@ public sealed class SkillResult
         StatusResult
        </h3>
 <p>
-        Burn 같은 상태의 적용, 면역, 중첩, 지속시간 갱신, tick 예약 결과를 반환한다.
+         목표형 확장에서는 Burn 같은 상태의 적용, 면역, 중첩, 지속시간 갱신, tick 예약 결과를 반환한다. 현재 C# compact 결과는 성공 여부, instance ID, 제거 이유, 실패 이유를 <code>Applied</code>·<code>Removed</code>·<code>Failed</code> factory로 유효하게 조합한다.
        </p>
 </a>
 </div>
@@ -1380,8 +1382,8 @@ public sealed class SkillResult
 <p class="checkpoint-intro">Skill이 조율해야 할 실행 정책과 Effect·Combat·Status에 넘겨야 할 결과 책임을 나눠서 생각한다.</p>
 <ol class="checkpoint-grid">
 <li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="skill.q1"><summary>스킬 UI가 실제 쿨다운을 보관하고 SkillExecutor가 release 시 대상 HP를 직접 감소시키는 구조가 왜 잘못됐을까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">실제 쿨다운은 SkillRuntime이 소유하고 UI는 표시만 해야 한다. SkillExecutor는 검증·비용·타임라인을 조율하며 HP 변경은 Effect와 Combat 경로로 위임한다.</p></div></details></li>
-<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="skill.q2"><summary>reserve_then_commit Fireball이 release 전에 중단된 경우, release plan의 commit이 실패한 경우, commit이 성공한 경우 비용은 각각 어떻게 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">release 전 중단이면 예약을 취소하고 EffectBundle을 실행하지 않는다. release에 도달했어도 precondition 충돌 등으로 plan commit이 실패하면 비용은 최종 확정되지 않으며 예약을 해제하거나 재시도 정책을 따른다. 비용·쿨다운·주 효과 plan의 commit이 성공한 경우에만 비용이 최종 확정되고 이후에는 환불하지 않는다.</p></div></details></li>
-<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="skill.q3"><summary>Fireball이 release marker에 도달한 뒤 Burn까지 적용되는 전체 handoff 순서는 무엇일까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Skill과 Effect가 비용·쿨다운·Damage 주 효과 plan을 준비하고 RuntimeCommitter가 한 번에 commit한다. 그 뒤 DamageCommitted를 ReactionQueue 명령으로 바꿔 ApplyStatusEffect → Status 순서로 Burn을 적용한다. Skill은 피해 계산이나 Burn 수명을 직접 소유하지 않는다.</p></div></details></li>
+<li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="skill.q2"><summary>목표형 reserve_then_commit 정책에서 release 전 중단, release plan 실패, commit 성공 시 비용은 각각 어떻게 처리해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">정책상 release 전 중단이면 예약을 취소하고 EffectBundle을 실행하지 않는다. release에 도달했어도 precondition 충돌 등으로 plan commit이 실패하면 비용은 최종 확정되지 않으며 예약을 해제하거나 재시도 정책을 따른다. 비용·쿨다운·주 효과 plan의 commit이 성공한 경우에만 비용이 최종 확정된다. 현재 fixture는 예약과 timeline 자체는 구현하지 않는다.</p></div></details></li>
+<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="skill.q3"><summary>목표형 Fireball 조율에서 release 뒤 Burn까지의 handoff 순서는 무엇일까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Skill과 Effect가 비용·쿨다운·Damage 주 효과 plan을 준비하고 RuntimeCommitter가 한 번에 commit한다. 그 뒤 DamageCommitted를 ReactionQueue 명령으로 바꿔 ApplyStatusEffect → Status 순서로 Burn을 적용한다. 현재 fixture는 release timeline을 축약하지만 commit 이후 handoff는 검증한다.</p></div></details></li>
 </ol>
 </section>
 <h2 id="설계-점검">
@@ -1392,13 +1394,13 @@ public sealed class SkillResult
        SkillDefinition이 비용, 쿨다운, 타겟팅, 타임라인, EffectBundle을 모두 데이터로 표현한다.
       </li>
 <li>
-       SkillRuntime이 Entity별 쿨다운, 차지, 시전 상태를 보관한다.
+       SkillRuntime이 Entity별 배운 레벨, 쿨다운, 차지 같은 장기 availability를 보관하고, SkillExecution이 cast 한 번의 실행 상태를 보관한다.
       </li>
 <li>
        SkillValidator가 상태 이상, 비용, 사거리, 시야, 장비 조건을 검증한다.
       </li>
 <li>
-       ActionTimeline의 release marker에서만 비용·쿨다운·주 효과 commit plan이 준비된다.
+       목표형 Fireball reserve_then_commit 정책에서는 ActionTimeline의 release marker에서 비용·쿨다운·주 효과 commit plan을 준비한다. 현재 fixture는 timeline·reservation을 구현하지 않으므로 실행 증거와 혼동하지 않는다.
       </li>
 <li>
        중단 시 비용 환불과 실패 쿨다운 정책이 정의되어 있다.
@@ -1413,7 +1415,7 @@ public sealed class SkillResult
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
 <a class="prev" href="../modules/effect-system.html"><span>← 이전</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a>
-<a class="next" href="../modules/combat-resolution-system.html"><span>다음 →</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a>
+<a class="next" href="../modules/combat-resolution-system.html"><span>다음 →</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -1599,7 +1601,7 @@ public sealed class SkillResult
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a aria-current="page" class="is-active" href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a aria-current="page" class="is-active" href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# Status 요청·결과 계약과 JavaScript Burn 실행 참조를 바탕으로 버프, DoT, 중첩, tick, 정화, 면역을 설계하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# compact 계약, JavaScript 실행 fixture, 목표형 Skill·Effect·Combat·Status 조율을 구분한 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gsf.example/contracts/commit-plan.schema.json",
+  "title": "GSF Commit Plan",
+  "description": "검증된 snapshot을 원자적으로 변경하고 outbox fact를 준비하는 canonical plan 계약.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "planId", "commandId", "commitTick", "preconditions", "operations", "eventBlueprints"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "planId": { "$ref": "#/$defs/namespacedId" },
+    "commandId": { "$ref": "#/$defs/namespacedId" },
+    "commitTick": { "type": "integer", "minimum": 0 },
+    "preconditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["entityId", "expectedVersion"],
+        "properties": {
+          "entityId": { "$ref": "#/$defs/namespacedId" },
+          "expectedVersion": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/operation" }
+    },
+    "eventBlueprints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "payload"],
+        "properties": {
+          "type": { "type": "string", "minLength": 1 },
+          "payload": { "$ref": "#/$defs/jsonValue" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "namespacedId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9_-]*)+$" },
+    "jsonValue": {
+      "anyOf": [
+        { "type": "null" }, { "type": "boolean" }, { "type": "number" }, { "type": "string" },
+        { "type": "array", "items": { "$ref": "#/$defs/jsonValue" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/jsonValue" } }
+      ]
+    },
+    "sourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "definitionId"],
+      "properties": {
+        "kind": { "enum": ["skill-execution", "status", "system"] },
+        "definitionId": { "$ref": "#/$defs/namespacedId" },
+        "instanceId": { "$ref": "#/$defs/namespacedId" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "enum": ["skill-execution", "status"] } } },
+          "then": { "required": ["instanceId"] }
+        }
+      ]
+    },
+    "statusInstance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instanceId", "definitionId", "actorId",
+        "applicationSourceId", "applicationSourceRef", "applicationCausationId",
+        "sourceId", "sourceRef", "targetId", "correlationId", "lastTransitionEventId",
+        "dataVersion", "appliedTick", "nextTickAt", "expireTick", "intervalTicks",
+        "rawTickDamage", "maxCatchUpTicks"
+      ],
+      "properties": {
+        "instanceId": { "$ref": "#/$defs/namespacedId" },
+        "definitionId": { "$ref": "#/$defs/namespacedId" },
+        "actorId": { "$ref": "#/$defs/namespacedId" },
+        "applicationSourceId": { "$ref": "#/$defs/namespacedId" },
+        "applicationSourceRef": { "$ref": "#/$defs/sourceRef" },
+        "applicationCausationId": { "$ref": "#/$defs/namespacedId" },
+        "sourceId": { "$ref": "#/$defs/namespacedId" },
+        "sourceRef": { "$ref": "#/$defs/sourceRef" },
+        "targetId": { "$ref": "#/$defs/namespacedId" },
+        "correlationId": { "$ref": "#/$defs/namespacedId" },
+        "lastTransitionEventId": { "$ref": "#/$defs/namespacedId" },
+        "dataVersion": { "type": "string", "minLength": 1 },
+        "appliedTick": { "type": "integer", "minimum": 0 },
+        "nextTickAt": { "type": "integer", "minimum": 0 },
+        "expireTick": { "type": "integer", "minimum": 0 },
+        "intervalTicks": { "type": "integer", "minimum": 1 },
+        "rawTickDamage": { "type": "integer", "minimum": 0 },
+        "maxCatchUpTicks": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "operation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["order", "kind", "entityId", "resource", "delta", "key"],
+          "properties": {
+            "order": { "type": "integer" }, "kind": { "const": "resource.delta" },
+            "entityId": { "$ref": "#/$defs/namespacedId" }, "resource": { "type": "string", "minLength": 1 },
+            "delta": { "type": "integer" }, "key": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["order", "kind", "entityId", "definitionId", "readyTick", "key"],
+          "properties": {
+            "order": { "type": "integer" }, "kind": { "const": "cooldown.set" },
+            "entityId": { "$ref": "#/$defs/namespacedId" }, "definitionId": { "$ref": "#/$defs/namespacedId" },
+            "readyTick": { "type": "integer", "minimum": 0 }, "key": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["order", "kind", "entityId", "status", "key"],
+          "properties": {
+            "order": { "type": "integer" }, "kind": { "const": "status.add" },
+            "entityId": { "$ref": "#/$defs/namespacedId" }, "status": { "$ref": "#/$defs/statusInstance" },
+            "key": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["order", "kind", "entityId", "instanceId", "patch", "key"],
+          "properties": {
+            "order": { "type": "integer" }, "kind": { "const": "status.patch" },
+            "entityId": { "$ref": "#/$defs/namespacedId" }, "instanceId": { "$ref": "#/$defs/namespacedId" },
+            "patch": {
+              "type": "object", "additionalProperties": false,
+              "required": ["nextTickAt", "lastTransitionEventId"],
+              "properties": {
+                "nextTickAt": { "type": "integer", "minimum": 0 },
+                "lastTransitionEventId": { "$ref": "#/$defs/namespacedId" }
+              }
+            },
+            "key": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["order", "kind", "entityId", "instanceId", "key"],
+          "properties": {
+            "order": { "type": "integer" }, "kind": { "const": "status.remove" },
+            "entityId": { "$ref": "#/$defs/namespacedId" }, "instanceId": { "$ref": "#/$defs/namespacedId" },
+            "key": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -5,7 +5,7 @@ digraph G {
   rankdir=LR;
 
   Input [fillcolor="#f3eefc", label="Input\ncommand · snapshot\nroot seed"];
-  Versions [fillcolor="#fff7e6", label="Version Envelope\nruntime · contract · replay\nRNG · numeric · data\ndefinition · formula"];
+  Versions [fillcolor="#fff7e6", label="Version Envelope\nruntime · contract · replay\nRNG algorithm · RNG key schema\nclock domain · numeric · data\ndefinition · formula"];
   Ordering [fillcolor="#eefbf6", label="Stable Semantics\ncanonical JSON · stable IDs\noperation order · tick order"];
   Runtime [shape=component, fillcolor="#eaf0ff", penwidth=2.0, label="Deterministic Runtime\nResolve → Commit → Reaction → Tick"];
   Outputs [fillcolor="#e9fbff", label="Outputs\nfinal state · domain events\ndecisions · trace"];

@@ -292,7 +292,6 @@ for path in html_paths:
 
 # Repeated public C# contracts must stay byte-for-byte equivalent after whitespace normalization.
 contract_pairs = [
-    ('public sealed class DamageRequest', 'modules/effect-system.html', 'modules/combat-resolution-system.html'),
     ('public interface IEffectExecutor', 'modules/effect-system.html', 'modules/integration-map.html'),
     ('public interface IEffectPlanner', 'modules/effect-system.html', 'modules/integration-map.html'),
     ('public interface ISkillRequestValidator', 'modules/skill-action-system.html', 'modules/integration-map.html'),
@@ -357,9 +356,19 @@ for retired_source_shape in ('"kind": "status-instance"', '"sourceId": "status-i
 stat_page_source = soups.get(ROOT/'modules/stat-system.html').select_one('#article-content').get_text('\n')
 if 'decimal GetValue(EntityId ownerId, EntityId statId, StatContext context)' not in stat_page_source:
     error('public IStatQuery must use strong EntityId owner/stat identifiers')
-for token in ('SourceRef Source', 'EntityId StackRuleId', 'EntityId SkillId', 'IReadOnlyCollection<EntityId> TargetStatuses'):
+for token in ('SourceRef Source', 'EntityId StackRuleId', 'EntityId SkillId', 'ReadOnlyCollection<EntityId> TargetStatuses'):
     if token not in stat_page_source:
         error(f'public Stat model missing strong-type token: {token}')
+for token in (
+    'IEnumerable<string>? skillTags = null',
+    'IEnumerable<string>? targetTags = null',
+    'IEnumerable<EntityId>? targetStatuses = null',
+    'decimal distance = 0m', 'string moment = "default"',
+    'distance < 0m', 'string.IsNullOrWhiteSpace(moment)',
+    'CopyTags', 'Stat context tags cannot be empty.',
+):
+    if token not in stat_page_source:
+        error(f'public StatContext snippet missing actual contract token: {token}')
 if any(token not in stat_page_source for token in ('질의 불변식', 'ownerId', 'context.OwnerId')):
     error('public Stat query must state the owner/context invariant')
 status_page_source = soups.get(ROOT/'modules/status-system.html').select_one('#article-content').get_text('\n')
@@ -378,13 +387,23 @@ effect_page_source = soups.get(ROOT/'modules/effect-system.html').select_one('#a
 for token in (
     'public sealed record EffectContext',
     'EntityId CasterId', 'EntityId? InitialTargetId',
-    'SourceRef Source', 'int RandomSeed',
+    'SourceRef Source', 'uint RandomSeed',
     'EffectBundlePlan Prepare',
 ):
     if token not in effect_page_source:
         error(f'public Effect contract missing canonical token: {token}')
-if 'public EntityId FormulaId' not in effect_page_source or 'public string FormulaId' in effect_page_source:
-    error('public Effect DamageRequest.FormulaId must use EntityId')
+for token in ('DamageRequest request = new(', 'SourceRef.SkillExecution', 'formulaId'):
+    if token not in effect_page_source:
+        error(f'public Effect DamageRequest handoff missing canonical token: {token}')
+effect_page_soup = soups.get(ROOT/'modules/effect-system.html')
+if effect_page_soup.select_one(
+    'a[href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Combat.cs"]'
+) is None:
+    error('public Effect DamageRequest handoff must link to the executable Combat.cs contract')
+if effect_page_soup.select_one(
+    'a[href="../modules/combat-resolution-system.html#csharp-combat-contracts"]'
+) is None:
+    error('public Effect DamageRequest handoff must link to the canonical Combat contract section')
 if 'public EntityId FormulaId' not in combat_page_source or 'public string FormulaId' in combat_page_source:
     error('public Combat DamageRequest.FormulaId must use EntityId')
 formula_stage = combat_page_source.find('draft = _formula.Apply')
@@ -579,7 +598,7 @@ diagram_contract_requirements = {
         'pure calculation', 'Outcome', 'Overkill', 'RuntimeCommitter', 'ReactionQueue',
     ),
     'source/diagrams/25_combat_data_model_diagram.dot': (
-        'Outcome: HitOutcome', 'AvailableTargetHp', 'Overkill', 'AppliedDamage', 'same transaction',
+        'Outcome: HitOutcome', 'AvailableTargetHp', 'Overkill', 'CommitReceipt', 'same transaction',
     ),
     'source/diagrams/28_status_apply_sequence_diagram.dot': (
         'StatusCommitPlan', 'RuntimeCommitter', 'state + outbox atomic',
@@ -663,10 +682,22 @@ if re.search(r'outcome\.hit(?!Outcome)', kernel_text):
     error('runtime kernel still exposes a boolean hit result')
 if 'finalHpDamage' not in kernel_text or re.search(r'\bhpDamage\b', kernel_text):
     error('runtime kernel must expose finalHpDamage consistently')
+for token in (
+    'validateCommandEnvelope', 'validateCommitPlan', 'validateInitialState',
+    '#state', '#processedCommands', '#outbox', '#isCommitting',
+    'STORE_CLOCK_ADVANCERS', 'Object.preventExtensions(this)',
+    '#isRecordingTrace', 'REACTION_TRACE_SIDE_EFFECT', 'STATUS_TIME_REGRESSION',
+    'STATUS_PROVENANCE_MISMATCH', 'SOURCE_IDENTITY_MISMATCH',
+    'defineDataProperty', 'integer-bps-half-away-from-zero-v1', 'Object.is(rounded, -0)',
+    'RNG_KEY_SCHEMA_VERSION', 'CLOCK_DOMAIN',
+):
+    if token not in kernel_text:
+        error(f'runtime kernel missing hardened public-boundary token: {token}')
 contracts = sorted((ROOT/'source/contracts').glob('*.schema.json'))
 adrs = sorted((ROOT/'source/adr').glob('ADR-*.md'))
 required_contracts = {
     'command-envelope.schema.json',
+    'commit-plan.schema.json',
     'domain-event-envelope.schema.json',
     'replay-fixture.schema.json',
     'source-ref.schema.json',
@@ -676,6 +707,29 @@ contract_names = {item.name for item in contracts}
 if required_contracts - contract_names:
     error(f'missing contract schemas: {sorted(required_contracts-contract_names)}')
 if len(adrs) != 5: error(f'expected 5 ADRs, got {len(adrs)}')
+for envelope_name in ('command-envelope.schema.json', 'domain-event-envelope.schema.json'):
+    envelope_schema = json.loads((ROOT/'source/contracts'/envelope_name).read_text(encoding='utf-8'))
+    if envelope_schema.get('additionalProperties') is not False:
+        error(f'{envelope_name} must reject unknown top-level fields')
+    if envelope_schema.get('properties', {}).get('schemaVersion', {}).get('const') != 1:
+        error(f'{envelope_name} must accept only schemaVersion 1')
+commit_plan_schema = json.loads((ROOT/'source/contracts/commit-plan.schema.json').read_text(encoding='utf-8'))
+canonical_plan_fields = {'schemaVersion', 'planId', 'commandId', 'commitTick', 'preconditions', 'operations', 'eventBlueprints'}
+if set(commit_plan_schema.get('required', [])) != canonical_plan_fields:
+    error('CommitPlan schema required fields differ from the runtime contract')
+if commit_plan_schema.get('additionalProperties') is not False:
+    error('CommitPlan schema must reject unknown top-level fields')
+if commit_plan_schema.get('properties', {}).get('schemaVersion', {}).get('const') != 1:
+    error('CommitPlan schema must accept only schemaVersion 1')
+operation_variants = commit_plan_schema.get('$defs', {}).get('operation', {}).get('oneOf', [])
+if len(operation_variants) != 5:
+    error('CommitPlan schema must define five canonical operation variants')
+status_add_variants = [
+    item for item in operation_variants
+    if item.get('properties', {}).get('kind', {}).get('const') == 'status.add'
+]
+if not status_add_variants or status_add_variants[0].get('properties', {}).get('status', {}).get('$ref') != '#/$defs/statusInstance':
+    error('CommitPlan status.add must reference the canonical StatusInstance schema')
 source_ref_schema = json.loads((ROOT/'source/contracts/source-ref.schema.json').read_text(encoding='utf-8'))
 if 'instanceId' in source_ref_schema.get('required', []):
     error('SourceRef schema must allow a System source without instanceId')
@@ -708,6 +762,14 @@ if "readonly kind: 'system'" not in runtime_types or 'readonly instanceId?: Name
     error('runtime declarations must allow System SourceRef to omit instanceId')
 if 'finalHpDamage: number' not in runtime_types or re.search(r'\bhpDamage\b', runtime_types):
     error('runtime declarations must expose finalHpDamage consistently')
+for token in (
+    'export interface CommitPlan', 'readonly schemaVersion: typeof CONTRACT_SCHEMA_VERSION',
+    'plan: CommitPlan', 'ReadonlyArray<Readonly<DomainEventEnvelope>>',
+    'readonly pending: ReadonlyArray<Readonly<Required<Reaction>>>',
+    'RNG_KEY_SCHEMA_VERSION', "CLOCK_DOMAIN: 'simulation_tick'",
+):
+    if token not in runtime_types:
+        error(f'runtime declarations missing hardened contract token: {token}')
 
 # Buildable C# reference must mirror the public canonical contracts.
 csharp_root = ROOT/'source/csharp'
@@ -750,12 +812,21 @@ else:
             error(f'C# identifier contract missing {token}')
     if extract_enum_members(stat_source, 'ModifierOperation') != ['Add', 'PercentAdd', 'More', 'Less', 'Override']:
         error('C# reference ModifierOperation differs from the public five-stage contract')
-    for token in ('EntityId statId', 'EntityId ModifierId', 'EntityId StatId', 'SourceRef Source'):
+    for token in (
+        'EntityId statId', 'EntityId ModifierId', 'EntityId StatId', 'SourceRef Source',
+        'IEnumerable<string>? skillTags = null',
+        'IEnumerable<string>? targetTags = null',
+        'IEnumerable<EntityId>? targetStatuses = null',
+        'decimal distance = 0m', 'string moment = "default"',
+        'distance < 0m', 'string.IsNullOrWhiteSpace(moment)',
+        'CopyTags', 'Stat context tags cannot be empty.',
+    ):
         if token not in stat_source:
             error(f'C# Stat contract missing {token}')
     for token in (
         'EntityId CasterId', 'EntityId? InitialTargetId',
-        'SourceRef Source', 'int RandomSeed', 'ReactionBudget',
+        'SourceRef Source', 'uint RandomSeed', 'ReactionBudget',
+        'if (maxBudget <= 0)',
         'public interface IEffectExecutor', 'EffectOperationResult Execute',
         'EffectBundleResult Execute', 'public interface IEffectPlanner',
         'EffectBundlePlan Prepare',
@@ -787,6 +858,7 @@ else:
     for token in (
         'VersionedResourceState', 'StateMutation', 'OutboxEvents',
         'CommittedOutboxEvent', 'GetValue', 'GetOutbox',
+        'if (sequence <= 0)', 'CommitReceipt Committed(', 'CommitReceipt Empty(',
         'public interface IRuntimeCommitter', 'CommitReceipt Commit(CommitPlan plan)',
         'DeterministicBoundedReactionQueue', 'OrderBy(item => item.Priority)',
         'StableOrderKey', 'IdempotencyKey', 'BudgetCost', '_maxBudget',

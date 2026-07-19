@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Stat System · GSF System Atlas</title>
-<meta content="C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조" name="description"/>
+<meta content="C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <link href="../favicon.svg" rel="icon" sizes="any" type="image/svg+xml"/>
 <script>
@@ -214,7 +214,7 @@
        Stat System
       </h1>
 <p class="lead">
-       스탯 시스템은 모든 전투·스킬·장비·상태·성장 시스템의 숫자 기반이다. C# 계산기와 질의 인터페이스는 공통화하고, 게임별 스탯 목록과 공식은 데이터와 정책으로 분리한다.
+       스탯 시스템은 모든 전투·스킬·장비·상태·성장 시스템의 숫자 기반이다. 현재 C# 참조는 Stat·Modifier·질의 계약을 제공하고, 계산기·NumericPolicy·stack evaluator는 이 페이지의 개념 설계로 분리한다.
       </p>
 <div class="badges">
 <span class="badge" data-example-language="csharp">예제 언어 · C#</span>
@@ -237,7 +237,7 @@
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
 <article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>원본 값과 Modifier를 C# 타입으로 분리하고, 계산 순서·조건·리소스 정책이 재현 가능한 Stat 모델을 설계한다.</p></article>
-<article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Core Runtime의 EntityId, SourceRef, GameContext와 기본적인 수치 연산 순서를 먼저 이해한다.</p></article>
+<article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Core Runtime의 EntityId, SourceRef, 개념적 GameContext와 기본적인 수치 연산 순서를 먼저 이해한다.</p></article>
 </div>
 <section class="split">
 <div>
@@ -317,7 +317,7 @@
 </div>
 <img alt="Stat 핵심 클래스 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/01_core_class_diagram.svg"/>
 <figcaption class="cap">
-         StatBlock이 여러 StatInstance를 포함하고, StatInstance는 Modifier 목록을 기반으로 최종값을 계산한다.
+         production에서 확장할 개념적 UML이다. StatBlock이 여러 StatInstance를 포함하고, StatInstance는 Modifier 목록을 기반으로 최종값을 계산한다. 현재 C# 실행 참조에는 이 세 타입의 구현이 없고 StatContext·IStatQuery·StatModifier 계약만 있다.
         </figcaption>
 </figure>
 </div>
@@ -325,6 +325,8 @@
 <h2 id="핵심-객체-읽기">
       핵심 객체 읽기
      </h2>
+<div class="callout warn"><b>증거 범위.</b> <code>StatDefinition</code>·<code>StatInstance</code>·<code>StatBlock</code>은 production 구현을 설명하는 개념적 확장 모델이다. 현재 C# 실행 참조에 실제로 선언된 타입은 아래 <code>StatContext</code>·<code>IStatQuery</code>·<code>StatModifier</code> 계열이며, 캐시와 evaluator 구현은 포함하지 않는다.</div>
+<div class="callout warn"><b>Modifier 원천 범위.</b> 현재 C#과 JavaScript의 실행 <code>SourceKind</code> 계약은 <code>SkillExecution</code>/<code>skill-execution</code>, <code>Status</code>/<code>status</code>, <code>System</code>/<code>system</code> 세 종류만 지원한다. 아래 장비·아이템·패시브 Modifier는 product 확장 예시이며 전용 원천 종류는 실행 참조 범위 밖이다. 이를 독립 <code>SourceKind</code>로 도입할 때는 직렬화 schema와 저장·event·replay migration까지 함께 버전업해야 한다.</div>
 <div class="grid cols2">
 <div class="card">
 <h3 id="statdefinition">
@@ -339,7 +341,7 @@
         StatInstance
        </h3>
 <p>
-        특정 Entity가 가진 스탯 하나의 런타임 값이다. C# 속성으로는 BaseValue, CachedValue, IsDirty, Modifiers를 가진다.
+        특정 Entity가 가진 스탯 하나의 개념적 런타임 값이다. production 확장 시 BaseValue, CachedValue, IsDirty, Modifiers 같은 필드를 둘 수 있지만 현재 C# 실행 참조에 이 타입은 없다.
        </p>
 </div>
 <div class="card">
@@ -347,7 +349,7 @@
         StatBlock
        </h3>
 <p>
-        Entity 하나의 스탯 보관함이다. Player, Monster, Summon, Tower가 모두 StatBlock을 가질 수 있다.
+        Entity 하나의 개념적 스탯 보관함이다. Player, Monster, Summon, Tower가 공유할 수 있는 목표 모델이며 현재 C# 실행 참조에 이 타입은 없다.
        </p>
 </div>
 <div class="card">
@@ -449,7 +451,7 @@ Final: 156</code></pre>
 </div>
 <img alt="Stat 계산 액티비티 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/04_calculation_activity_diagram.svg"/>
 <figcaption class="cap">
-       GetValue 호출은 캐시 확인, Modifier 필터링, 단계별 계산과 Debug Breakdown 반환까지만 수행한다. StatChanged는 Modifier·Resource 변경을 commit할 때 outbox에 기록한다.
+       이 그림은 production용 개념 evaluator의 목표 흐름이다. 공개 C# <code>IStatQuery.GetValue</code>는 <code>decimal</code>만 반환하고 현재 <code>DictionaryStatQuery</code>는 등록 값을 조회할 뿐, 캐시·Modifier evaluator·Debug Breakdown을 구현하지 않는다. Breakdown은 별도 query result나 trace port로 설계하고, StatChanged는 Modifier·Resource 변경을 commit할 때 outbox에 기록한다.
       </figcaption>
 </figure>
 <div class="table-scroll">
@@ -533,21 +535,22 @@ Final: 156</code></pre>
 </tr>
 </table>
 </div>
+<div class="callout"><b>개념적 수치 정책.</b> 다음은 production evaluator에 권장하는 <code>Conceptual extension</code>이며 현재 C# 실행 참조가 계산 결과를 검증하는 코드는 아니다. <code>PercentAdd</code>·<code>More</code>·<code>Less</code>의 <code>Value</code>는 소수 비율이다(<code>0.30 = 30%</code>). 계산은 <code>Base + ΣAdd</code> → <code>× (1 + ΣPercentAdd)</code> → <code>× Π(1 + Moreᵢ)</code> → <code>× Π(1 - Lessᵢ)</code> → Override → Clamp → Round 순서이며 More와 Less는 합산하지 않는다.</div>
 <div class="callout">
 <b>
        동률 규칙.
       </b>
-      같은 operation과 priority를 가진 Modifier는
+       같은 operation과 priority를 가진 Modifier는
       <code>
        (Priority, Source.Kind, Source.DefinitionId, Source.InstanceId, ModifierId)
       </code>
-      같은 안정적인 키로 정렬한다. InstanceId가 없는 SourceRef도 null 정렬 순서를 고정해야 한다. More/Less는 합산이 아니라 항목별 곱으로 정의하고, Override가 여러 개면 승자 규칙을 데이터 계약에 명시한다.
+       같은 안정적인 키로 오름차순 정렬한다. 이 사이트의 권장 예시는 Source.Kind enum 선언 순서, EntityId의 <code>StringComparer.Ordinal</code>, InstanceId <code>null-first</code>를 사용한다. Override는 Priority가 높은 항목이 이기고, Priority까지 같으면 이 안정 정렬에서 마지막 항목이 이긴다. 숫자는 C# <code>decimal</code>로 계산하고 마지막에 소수 둘째 자리 <code>MidpointRounding.AwayFromZero</code>를 적용하는 식으로 mode·precision을 명시해야 한다. 다른 정책도 가능하지만 저장·replay envelope에 버전으로 고정한다.
      </div>
 <div class="callout">
 <strong>
        실험.
       </strong>
-      아래 계산기는 Modifier 적용 순서가 결과에 어떤 영향을 주는지 빠르게 확인하기 위한 간단한 예시다.
+      아래 JavaScript 계산기는 한 개의 More·Less·Override로 단계 순서를 확인하는 근사 실험이다. binary <code>Number</code>와 <code>Math.round</code>를 사용하므로 C# decimal midpoint, 복수 보정자 정렬, Override 동률을 검증하는 replay 기준 구현이 아니다. Override를 비워 두면 앞 단계 계산값을 사용한다.
      </div>
 <div class="card">
 <div class="calc">
@@ -559,42 +562,54 @@ Final: 156</code></pre>
 <p>
       모든 Modifier가 항상 적용되는 것은 아니다. “화상 상태의 적을 공격할 때 치명타 확률 +10%” 같은 효과는 현재 대상, 사용 스킬, 거리, 태그를 알아야 평가할 수 있다.
      </p>
+<p>아래는 <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Stats.cs"><code>Contracts/Stats.cs</code></a>의 실제 생성자 계약을 생략 없이 옮긴 것이다. 태그·상태 목록은 선택 입력이며 복사해서 보관하고, 음수 거리·빈 moment·빈 태그는 거부한다.</p>
 <pre><code class="language-csharp">public sealed class StatContext
 {
-    public EntityId OwnerId { get; }
-    public EntityId? TargetId { get; }
-    public EntityId SkillId { get; }
-    public IReadOnlyCollection&lt;string&gt; SkillTags { get; }
-    public IReadOnlyCollection&lt;string&gt; TargetTags { get; }
-    public IReadOnlyCollection&lt;EntityId&gt; TargetStatuses { get; }
-    public decimal Distance { get; }
-    public string Moment { get; }
-
     public StatContext(
         EntityId ownerId,
         EntityId? targetId,
         EntityId skillId,
-        string[] skillTags,
-        string[] targetTags,
-        EntityId[] targetStatuses,
-        decimal distance,
-        string moment)
+        IEnumerable&lt;string&gt;? skillTags = null,
+        IEnumerable&lt;string&gt;? targetTags = null,
+        IEnumerable&lt;EntityId&gt;? targetStatuses = null,
+        decimal distance = 0m,
+        string moment = "default")
     {
-        if (skillTags == null)
-            throw new ArgumentNullException(nameof(skillTags));
-        if (targetTags == null)
-            throw new ArgumentNullException(nameof(targetTags));
-        if (targetStatuses == null)
-            throw new ArgumentNullException(nameof(targetStatuses));
+        if (distance &lt; 0m)
+            throw new ArgumentOutOfRangeException(nameof(distance));
+        if (string.IsNullOrWhiteSpace(moment))
+            throw new ArgumentException("A stat query moment is required.", nameof(moment));
+
+        var skillTagCopy = CopyTags(skillTags, nameof(skillTags));
+        var targetTagCopy = CopyTags(targetTags, nameof(targetTags));
+        var targetStatusCopy = (targetStatuses ?? Enumerable.Empty&lt;EntityId&gt;()).ToArray();
 
         OwnerId = ownerId;
         TargetId = targetId;
         SkillId = skillId;
-        SkillTags = Array.AsReadOnly((string[])skillTags.Clone());
-        TargetTags = Array.AsReadOnly((string[])targetTags.Clone());
-        TargetStatuses = Array.AsReadOnly((EntityId[])targetStatuses.Clone());
+        SkillTags = Array.AsReadOnly(skillTagCopy);
+        TargetTags = Array.AsReadOnly(targetTagCopy);
+        TargetStatuses = Array.AsReadOnly(targetStatusCopy);
         Distance = distance;
         Moment = moment;
+    }
+
+    public EntityId OwnerId { get; }
+    public EntityId? TargetId { get; }
+    public EntityId SkillId { get; }
+    public ReadOnlyCollection&lt;string&gt; SkillTags { get; }
+    public ReadOnlyCollection&lt;string&gt; TargetTags { get; }
+    public ReadOnlyCollection&lt;EntityId&gt; TargetStatuses { get; }
+    public decimal Distance { get; }
+    public string Moment { get; }
+
+    private static string[] CopyTags(IEnumerable&lt;string&gt;? tags, string parameterName)
+    {
+        var copy = (tags ?? Enumerable.Empty&lt;string&gt;()).ToArray();
+        if (copy.Any(string.IsNullOrWhiteSpace))
+            throw new ArgumentException("Stat context tags cannot be empty.", parameterName);
+
+        return copy;
     }
 }</code></pre>
 <p>
@@ -657,10 +672,10 @@ Final: 156</code></pre>
          KeepCurrent
         </td>
 <td>
-         현재값을 유지하고 최대값만 바꿈
+         <code>newMax ≥ current</code>일 때만 현재값을 유지한다. 최대값 감소로 current가 초과하면 clamp하거나 변경을 거부한다.
         </td>
 <td>
-         마나 최대치 증가
+         증가 전용 마나 최대치 변경
         </td>
 </tr>
 <tr>
@@ -920,7 +935,7 @@ public void RemoveRage(StatusInstance rage)
        Modifier는 SourceRef, Operation, Priority, StackRuleId, Condition을 가진다.
       </li>
 <li>
-       Base/Add/Percent/More/Override/Clamp 계산 순서가 명시되어 있다.
+       Base/Add/PercentAdd/More/Less/Override/Clamp/Round 계산 순서, 비율 단위와 Override 동률 규칙이 명시되어 있다.
       </li>
 <li>
        Resource max 변경 정책이 데이터로 결정된다.
@@ -1106,7 +1121,7 @@ public void RemoveRage(StatusInstance rage)
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a aria-current="page" class="is-active" href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a aria-current="page" class="is-active" href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# Status 요청·결과 계약과 JavaScript Burn 실행 참조를 바탕으로 버프, DoT, 중첩, tick, 정화, 면역을 설계하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# compact 계약, JavaScript 실행 fixture, 목표형 Skill·Effect·Combat·Status 조율을 구분한 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

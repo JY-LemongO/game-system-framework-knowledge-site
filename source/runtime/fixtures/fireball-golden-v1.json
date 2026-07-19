@@ -44,8 +44,8 @@
     "simulateStatusTicks": true
   },
   "expected": {
-    "replayHash": "89decdba32962813",
-    "traceHash": "fde315e1ae5a2cd0",
+    "replayHash": "18ea7715eebe2c03",
+    "traceHash": "f7ba8ff22fec26ba",
     "finalState": {
       "tick": 18246,
       "entities": {

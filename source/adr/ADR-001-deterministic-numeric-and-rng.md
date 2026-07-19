@@ -10,7 +10,7 @@
 ## 결정
 
 1. 전투 수치는 safe integer로 보관한다.
-2. 비율은 10,000 basis points를 사용하고 `integer-bps-half-up-v1`에서 반올림한다.
+2. 비율은 10,000 basis points를 사용하고 `integer-bps-half-away-from-zero-v1`에서 양수·음수 midpoint를 모두 0에서 멀어지는 방향으로 반올림한다.
 3. 확률은 `(rootSeed, correlationId, decisionName, targetId, algorithmVersion)`을 key로 하는 stateless sample로 구한다.
 4. replay header에 RNG와 numeric policy version을 기록한다.
 5. canonical JSON과 FNV-1a 64-bit hash는 reference fixture의 재현성 표식으로만 사용한다.

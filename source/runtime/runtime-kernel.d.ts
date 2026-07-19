@@ -2,6 +2,8 @@ export const RUNTIME_VERSION: '3.3.0-reference';
 export const CONTRACT_SCHEMA_VERSION: 1;
 export const REPLAY_FORMAT_VERSION: 1;
 export const RNG_ALGORITHM_VERSION: string;
+export const RNG_KEY_SCHEMA_VERSION: string;
+export const CLOCK_DOMAIN: 'simulation_tick';
 export const NUMERIC_POLICY_VERSION: string;
 export const BASIS_POINTS: 10000;
 
@@ -30,7 +32,7 @@ export class DomainError extends Error {
 }
 
 export interface CommandEnvelope<T extends JsonValue = JsonValue> {
-  readonly schemaVersion: number;
+  readonly schemaVersion: typeof CONTRACT_SCHEMA_VERSION;
   readonly commandId: NamespacedId;
   readonly actorId: NamespacedId;
   readonly requestedTick: number;
@@ -40,7 +42,7 @@ export interface CommandEnvelope<T extends JsonValue = JsonValue> {
   readonly payload: T;
 }
 export interface DomainEventEnvelope<T extends JsonValue = JsonValue> {
-  readonly schemaVersion: number;
+  readonly schemaVersion: typeof CONTRACT_SCHEMA_VERSION;
   readonly eventId: NamespacedId;
   readonly type: string;
   readonly correlationId: NamespacedId;
@@ -63,11 +65,14 @@ export interface StatusInstance {
   instanceId: NamespacedId;
   definitionId: NamespacedId;
   actorId: NamespacedId;
+  applicationSourceId: NamespacedId;
+  applicationSourceRef: SourceRef;
+  applicationCausationId: NamespacedId;
   sourceId: NamespacedId;
   sourceRef: SourceRef;
   targetId: NamespacedId;
   correlationId: NamespacedId;
-  causationId: NamespacedId;
+  lastTransitionEventId: NamespacedId;
   dataVersion: string;
   appliedTick: number;
   nextTickAt: number;
@@ -75,6 +80,35 @@ export interface StatusInstance {
   intervalTicks: number;
   rawTickDamage: number;
   maxCatchUpTicks: number;
+}
+
+export interface VersionPrecondition {
+  readonly entityId: NamespacedId;
+  readonly expectedVersion: number;
+}
+export type CommitOperation =
+  | { readonly order: number; readonly kind: 'resource.delta'; readonly entityId: NamespacedId; readonly resource: string; readonly delta: number; readonly key: string }
+  | { readonly order: number; readonly kind: 'cooldown.set'; readonly entityId: NamespacedId; readonly definitionId: NamespacedId; readonly readyTick: number; readonly key: string }
+  | { readonly order: number; readonly kind: 'status.add'; readonly entityId: NamespacedId; readonly status: StatusInstance; readonly key: string }
+  | { readonly order: number; readonly kind: 'status.patch'; readonly entityId: NamespacedId; readonly instanceId: NamespacedId; readonly patch: { readonly nextTickAt: number; readonly lastTransitionEventId: NamespacedId }; readonly key: string }
+  | { readonly order: number; readonly kind: 'status.remove'; readonly entityId: NamespacedId; readonly instanceId: NamespacedId; readonly key: string };
+export interface EventBlueprint {
+  readonly type: string;
+  readonly payload: JsonValue;
+}
+export interface CommitPlan {
+  readonly schemaVersion: typeof CONTRACT_SCHEMA_VERSION;
+  readonly planId: NamespacedId;
+  readonly commandId: NamespacedId;
+  readonly commitTick: number;
+  readonly preconditions: ReadonlyArray<VersionPrecondition>;
+  readonly operations: ReadonlyArray<CommitOperation>;
+  readonly eventBlueprints: ReadonlyArray<EventBlueprint>;
+}
+export interface CommitReceipt {
+  readonly planId: NamespacedId;
+  readonly state: RuntimeState;
+  readonly events: ReadonlyArray<DomainEventEnvelope>;
 }
 
 export interface ScenarioInput {
@@ -138,13 +172,13 @@ export class TraceRecorder {
   hash(): string;
 }
 export class StateStore {
-  constructor(initialState: RuntimeState & { processedCommands?: string[]; outbox?: DomainEventEnvelope[] });
+  constructor(initialState: RuntimeState & { processedCommands?: ReadonlyArray<NamespacedId>; outbox?: ReadonlyArray<DomainEventEnvelope> });
   readonly tick: number;
-  readonly outbox: DomainEventEnvelope[];
+  readonly outbox: ReadonlyArray<Readonly<DomainEventEnvelope>>;
   getEntity(entityId: NamespacedId): Readonly<RuntimeEntity>;
   snapshot(entityIds: NamespacedId[]): Readonly<{ tick: number; entities: Record<NamespacedId, RuntimeEntity> }>;
   exportState(): Readonly<RuntimeState>;
-  commit(command: CommandEnvelope, plan: JsonValue, trace?: TraceRecorder | null): Readonly<Record<string, JsonValue>>;
+  commit(command: CommandEnvelope, plan: CommitPlan, trace?: TraceRecorder | null): Readonly<CommitReceipt>;
 }
 
 export interface Reaction {
@@ -157,10 +191,19 @@ export interface Reaction {
   budgetCost?: number;
   payload?: JsonValue;
 }
+export interface ReactionBudget {
+  maxDepth?: number;
+  maxReactions?: number;
+  maxBudget?: number;
+}
 export class ReactionQueue {
-  constructor(options?: { maxDepth?: number; maxReactions?: number; maxBudget?: number });
+  constructor(options?: ReactionBudget);
+  readonly maxDepth: number;
+  readonly maxReactions: number;
+  readonly maxBudget: number;
+  readonly pending: ReadonlyArray<Readonly<Required<Reaction>>>;
   enqueue(reaction: Reaction): boolean;
-  drain(handler: (reaction: Readonly<Required<Reaction>>) => JsonValue, trace?: TraceRecorder | null, tick?: number): Readonly<Record<string, JsonValue>>;
+  drain(handler: (reaction: Readonly<Required<Reaction>>) => JsonValue, trace?: TraceRecorder | null, tick?: number, budget?: ReactionBudget | null): Readonly<Record<string, JsonValue>>;
 }
 
 export class ContextualStatCache {
@@ -190,7 +233,7 @@ export function normalizeScenarioInput(input?: ScenarioInputPatch): Readonly<Sce
 export function createInitialState(input: ScenarioInput): Readonly<RuntimeState>;
 export function createFireballCommand(input: ScenarioInput): Readonly<CommandEnvelope>;
 export function resolveDamageAgainstTarget(args: { actorId: NamespacedId; sourceId: NamespacedId; sourceRef: SourceRef; target: RuntimeEntity; damageType: string; rawDamage: number; hitOutcome?: DamageOutcome['hitOutcome'] }): Readonly<CommittedDamageOutcome>;
-export function resolveFireball(args: { snapshot: JsonValue; command: CommandEnvelope; input: ScenarioInput; rng: KeyedRandom; trace?: TraceRecorder | null }): Readonly<{ decisions: JsonValue; outcome: DamageOutcome; plan: JsonValue }>;
+export function resolveFireball(args: { snapshot: JsonValue; command: CommandEnvelope; input: ScenarioInput; rng: KeyedRandom; trace?: TraceRecorder | null }): Readonly<{ decisions: JsonValue; outcome: DamageOutcome; plan: CommitPlan }>;
 export function enqueueReactions(events: ReadonlyArray<DomainEventEnvelope>, input: ScenarioInput, queue: ReactionQueue, trace?: TraceRecorder | null): void;
 export function applyStatusReaction(store: StateStore, reaction: Readonly<Required<Reaction>>, trace?: TraceRecorder | null): Readonly<Record<string, any>>;
 export function advanceStatuses(store: StateStore, targetTick: number, trace?: TraceRecorder | null): Readonly<{ targetTick: number; commits: ReadonlyArray<Record<string, JsonValue>>; tickCount: number; catchUpLimited: boolean }>;

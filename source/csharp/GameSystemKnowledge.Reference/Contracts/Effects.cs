@@ -10,6 +10,7 @@ public sealed class ReactionCommand
         EntityId handlerId,
         EntityId targetId,
         SourceRef source,
+        EntityId causationId,
         int priority,
         EntityId stableOrderKey,
         int depth,
@@ -30,6 +31,7 @@ public sealed class ReactionCommand
         HandlerId = handlerId;
         TargetId = targetId;
         Source = source;
+        CausationId = causationId;
         Priority = priority;
         StableOrderKey = stableOrderKey;
         Depth = depth;
@@ -45,6 +47,8 @@ public sealed class ReactionCommand
     public EntityId TargetId { get; }
 
     public SourceRef Source { get; }
+
+    public EntityId CausationId { get; }
 
     public int Priority { get; }
 
@@ -72,7 +76,7 @@ public sealed class ReactionBudget
             throw new ArgumentOutOfRangeException(nameof(maxDepth));
         }
 
-        if (maxBudget < 0)
+        if (maxBudget <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(maxBudget));
         }
@@ -161,7 +165,7 @@ public sealed record EffectContext(
     EntityId CasterId,
     EntityId? InitialTargetId,
     SourceRef Source,
-    int RandomSeed);
+    uint RandomSeed);
 
 public abstract record EffectOperation(EntityId OperationId);
 
@@ -263,12 +267,45 @@ public abstract record EffectResult(bool Succeeded);
 public sealed record EffectOperationResult(bool Succeeded, EntityId OperationId)
     : EffectResult(Succeeded);
 
-public sealed record EffectBundleResult(
-    bool Committed,
-    EntityId BundleId,
-    int AppliedEffectCount,
-    int QueuedReactionCount)
-    : EffectResult(Committed);
+public sealed record EffectBundleResult : EffectResult
+{
+    public EffectBundleResult(
+        bool committed,
+        EntityId bundleId,
+        int appliedEffectCount,
+        int queuedReactionCount)
+        : base(committed)
+    {
+        if (appliedEffectCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(appliedEffectCount));
+        }
+
+        if (queuedReactionCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(queuedReactionCount));
+        }
+
+        if (!committed && (appliedEffectCount != 0 || queuedReactionCount != 0))
+        {
+            throw new ArgumentException(
+                "An uncommitted bundle cannot report applied effects or queued reactions.");
+        }
+
+        Committed = committed;
+        BundleId = bundleId;
+        AppliedEffectCount = appliedEffectCount;
+        QueuedReactionCount = queuedReactionCount;
+    }
+
+    public bool Committed { get; }
+
+    public EntityId BundleId { get; }
+
+    public int AppliedEffectCount { get; }
+
+    public int QueuedReactionCount { get; }
+}
 
 public interface IEffectExecutor
 {

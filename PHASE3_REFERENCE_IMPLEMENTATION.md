@@ -1,7 +1,8 @@
 # Phase 3 Runtime Reference 구현 보고서
 
-- 판본: `3.2.0-reference`
-- 작성일: 2026-07-10
+- 판본: `3.3.0-reference`
+- 최초 작성일: 2026-07-10
+- 실행 참조 감사 갱신일: 2026-07-19
 - 구현 성격: 엔진·서버 비종속, 단일 프로세스, in-memory 기준 구현
 - 핵심 목적: 문서에 있던 결정론·commit·reaction·cache·tick·migration 계약을 실제 코드와 회귀 테스트로 고정
 
@@ -96,7 +97,7 @@ resolve는 caster·target·store를 변경하지 않는다. 따라서 prediction
 
 - 모든 runtime 수치는 safe integer다.
 - 비율은 10,000 basis points다.
-- 반올림 정책은 `integer-bps-half-up-v1`이다.
+- 반올림 정책은 `integer-bps-half-away-from-zero-v1`이다. 부호가 있는 정확한 중간값은 0에서 멀어지는 방향으로 반올림한다.
 - 피해 회계 invariant는 다음과 같다.
 
 ```text
@@ -213,12 +214,12 @@ Command received
 | Resolved fire damage | 202 |
 | Shield absorbed | 40 |
 | Impact HP damage | 162 |
-| Burn tick | 19 × 3 |
-| Final target HP | 281 |
-| Event count | 7 |
+| Burn raw / committed tick | 30 / 24 × 3 |
+| Final target HP | 266 |
+| Event count | 10 |
 | Trace stages | 18 |
-| Replay hash | `62b74418205d61ea` |
-| Trace hash | `a41533f05cc6dc53` |
+| Replay hash | `18ea7715eebe2c03` |
+| Trace hash | `f7ba8ff22fec26ba` |
 
 `source/runtime/fixtures/fireball-golden-v1.json`이 expected state, outcome, event type, hash를 보관한다.
 

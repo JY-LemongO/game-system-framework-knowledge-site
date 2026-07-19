@@ -11,6 +11,9 @@ function errorCode(fn) {
   try { fn(); } catch (error) { return error && error.code; }
   return null;
 }
+function defineOwn(target, key, value) {
+  Object.defineProperty(target, key, { value, enumerable: true, configurable: true, writable: true });
+}
 
 const fixturePath = path.join(__dirname, '..', 'fixtures', 'fireball-golden-v1.json');
 const golden = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
@@ -24,6 +27,8 @@ test('동일 입력은 replay/trace/final state가 완전히 일치한다', () =
 
 test('기본 Fireball 결과는 golden fixture와 일치한다', () => {
   const result = G.runFireballScenario(golden.input);
+  assert.equal(result.header.rngKeySchemaVersion, G.RNG_KEY_SCHEMA_VERSION);
+  assert.equal(result.header.clockDomain, G.CLOCK_DOMAIN);
   assert.equal(result.replayHash, golden.expected.replayHash);
   assert.equal(result.traceHash, golden.expected.traceHash);
   assert.deepEqual(result.finalState, golden.expected.finalState);
@@ -43,6 +48,40 @@ test('keyed RNG는 소비 순서와 무관하다', () => {
   assert.equal(b, b2);
 });
 
+test('integer BPS midpoint는 양수와 음수 모두 0에서 멀어지게 반올림한다', () => {
+  assert.equal(G.NUMERIC_POLICY_VERSION, 'integer-bps-half-away-from-zero-v1');
+  assert.equal(G.multiplyBps(1, 5_000), 1);
+  assert.equal(G.multiplyBps(-1, 5_000), -1);
+  assert.equal(G.multiplyBps(1, 4_999), 0);
+  assert.equal(G.multiplyBps(-1, 4_999), 0);
+});
+
+test('public damage resolver keeps every non-Hit outcome distinct while zeroing all damage', () => {
+  const input = G.normalizeScenarioInput();
+  const target = new G.StateStore(G.createInitialState(input)).getEntity(input.target.id);
+  const sourceRef = { kind: 'skill-execution', definitionId: input.skill.definitionId, instanceId: 'command.test.non-hit.0001' };
+  for (const hitOutcome of ['Miss', 'Blocked', 'Immune', 'Rejected']) {
+    const outcome = G.resolveDamageAgainstTarget({ actorId: input.caster.id, sourceId: sourceRef.instanceId, sourceRef, target, damageType: 'fire', rawDamage: 100, hitOutcome });
+    assert.equal(outcome.hitOutcome, hitOutcome);
+    assert.deepEqual(
+      [outcome.rawDamage, outcome.resolvedDamage, outcome.shieldAbsorbed, outcome.finalHpDamage, outcome.overkill],
+      [0, 0, 0, 0, 0],
+    );
+    assert.equal(outcome.targetHpAfter, target.resources.hp);
+  }
+});
+
+test('public damage resolver requires flat sourceId to match the structured SourceRef', () => {
+  const input = G.normalizeScenarioInput();
+  const target = new G.StateStore(G.createInitialState(input)).getEntity(input.target.id);
+  const skillSource = { kind: 'skill-execution', definitionId: input.skill.definitionId, instanceId: 'command.test.source-match.0001' };
+  assert.throws(() => G.resolveDamageAgainstTarget({ actorId: input.caster.id, sourceId: 'command.other.cast.0001', sourceRef: skillSource, target, damageType: 'fire', rawDamage: 10 }), error => error.code === 'SOURCE_IDENTITY_MISMATCH');
+  assert.doesNotThrow(() => G.resolveDamageAgainstTarget({ actorId: input.caster.id, sourceId: skillSource.instanceId, sourceRef: skillSource, target, damageType: 'fire', rawDamage: 10 }));
+  const systemSource = { kind: 'system', definitionId: 'system.weather' };
+  assert.doesNotThrow(() => G.resolveDamageAgainstTarget({ actorId: input.caster.id, sourceId: systemSource.definitionId, sourceRef: systemSource, target, damageType: 'fire', rawDamage: 10 }));
+  assert.throws(() => G.resolveDamageAgainstTarget({ actorId: input.caster.id, sourceId: 'system.other', sourceRef: systemSource, target, damageType: 'fire', rawDamage: 10 }), error => error.code === 'SOURCE_IDENTITY_MISMATCH');
+});
+
 test('resolve 단계는 snapshot과 input을 변경하지 않는다', () => {
   const input = G.normalizeScenarioInput();
   const store = new G.StateStore(G.createInitialState(input));
@@ -53,6 +92,19 @@ test('resolve 단계는 snapshot과 input을 변경하지 않는다', () => {
   G.resolveFireball({ snapshot, command, input, rng: new G.KeyedRandom(input.rootSeed) });
   assert.equal(G.canonicalStringify(snapshot), beforeSnapshot);
   assert.equal(G.canonicalStringify(input), beforeInput);
+});
+
+test('Trace observers receive immutable payload snapshots and cannot alter resolution decisions', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  let mutationError = null;
+  const impact = G.executeImpact(input, {
+    record(stage, tick, payload) {
+      if (stage !== 'random_decisions') return;
+      try { payload.hitKey[0] = 'correlation.tampered'; } catch (error) { mutationError = error; }
+    },
+  });
+  assert.ok(mutationError instanceof TypeError);
+  assert.equal(impact.resolution.decisions.hitKey[0], 'correlation.fireball.cast.0001');
 });
 
 test('같은 command의 두 번째 commit은 거부되고 state는 유지된다', () => {
@@ -76,6 +128,394 @@ test('commit 중 뒤쪽 operation이 실패하면 앞쪽 변경도 rollback된�
   assert.equal(probe.error.code, 'RESOURCE_OVERFLOW');
 });
 
+test('mutation entity의 version precondition이 없으면 commit 전에 거부한다', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const store = new G.StateStore(G.createInitialState(input));
+  const command = G.createCommandEnvelope({ commandId: 'command.test.precondition-coverage.0001', actorId: input.caster.id, requestedTick: input.tick, correlationId: 'correlation.test.precondition-coverage.0001', dataVersion: input.dataVersion, payload: {} });
+  const before = G.canonicalStringify(store.exportState());
+  const plan = { schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: 'plan.test.precondition-coverage.0001', commandId: command.commandId, commitTick: input.tick, preconditions: [], operations: [{ order: 10, kind: 'resource.delta', entityId: input.target.id, resource: 'hp', delta: -1, key: 'hp' }], eventBlueprints: [] };
+  assert.throws(() => store.commit(command, plan), error => error.code === 'MISSING_VERSION_PRECONDITION');
+  assert.equal(G.canonicalStringify(store.exportState()), before);
+  assert.equal(store.outbox.length, 0);
+
+  const target = store.getEntity(input.target.id);
+  const committed = store.commit(command, { ...plan, preconditions: [{ entityId: target.id, expectedVersion: target.version }] });
+  assert.equal(committed.state.entities[target.id].resources.hp, target.resources.hp - 1);
+});
+
+test('같은 entity의 version precondition이 중복되면 mutation 전에 거부한다', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const store = new G.StateStore(G.createInitialState(input));
+  const target = store.getEntity(input.target.id);
+  const command = G.createCommandEnvelope({ commandId: 'command.test.duplicate-precondition.0001', actorId: input.caster.id, requestedTick: input.tick, correlationId: 'correlation.test.duplicate-precondition.0001', dataVersion: input.dataVersion, payload: {} });
+  const before = G.canonicalStringify(store.exportState());
+  const duplicate = { entityId: target.id, expectedVersion: target.version };
+  const plan = { schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: 'plan.test.duplicate-precondition.0001', commandId: command.commandId, commitTick: input.tick, preconditions: [duplicate, { ...duplicate }], operations: [{ order: 10, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -1, key: 'hp' }], eventBlueprints: [] };
+  assert.throws(() => store.commit(command, plan), error => error.code === 'DUPLICATE_VERSION_PRECONDITION');
+  assert.equal(G.canonicalStringify(store.exportState()), before);
+  assert.equal(store.outbox.length, 0);
+});
+
+test('read-only snapshot entity의 추가 precondition은 허용한다', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const store = new G.StateStore(G.createInitialState(input));
+  const caster = store.getEntity(input.caster.id);
+  const target = store.getEntity(input.target.id);
+  const command = G.createCommandEnvelope({ commandId: 'command.test.read-only-precondition.0001', actorId: caster.id, requestedTick: input.tick, correlationId: 'correlation.test.read-only-precondition.0001', dataVersion: input.dataVersion, payload: {} });
+  const plan = { schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: 'plan.test.read-only-precondition.0001', commandId: command.commandId, commitTick: input.tick, preconditions: [{ entityId: caster.id, expectedVersion: caster.version }, { entityId: target.id, expectedVersion: target.version }], operations: [{ order: 10, kind: 'resource.delta', entityId: caster.id, resource: 'mana', delta: -1, key: 'mana' }], eventBlueprints: [] };
+  store.commit(command, plan);
+  assert.equal(store.getEntity(caster.id).version, caster.version + 1);
+  assert.equal(store.getEntity(target.id).version, target.version);
+});
+
+test('StateStore는 null plan 배열을 commit 전에 거부하고 command를 미처리 상태로 둔다', () => {
+  for (const field of ['preconditions', 'operations', 'eventBlueprints']) {
+    const suffix = field.toLowerCase();
+    const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+    const store = new G.StateStore(G.createInitialState(input));
+    const target = store.getEntity(input.target.id);
+    const command = G.createCommandEnvelope({ commandId: `command.test.null-${suffix}.0001`, actorId: input.caster.id, requestedTick: input.tick, correlationId: `correlation.test.null-${suffix}.0001`, dataVersion: input.dataVersion, payload: {} });
+    const validPlan = { schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: `plan.test.null-${suffix}.0001`, commandId: command.commandId, commitTick: input.tick, preconditions: [{ entityId: target.id, expectedVersion: target.version }], operations: [{ order: 10, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -1, key: 'hp' }], eventBlueprints: [] };
+    const before = G.canonicalStringify(store.exportState());
+    assert.throws(() => store.commit(command, { ...validPlan, [field]: null }), error => error.code === 'INVALID_COMMIT_PLAN');
+    assert.equal(G.canonicalStringify(store.exportState()), before);
+    assert.equal(store.outbox.length, 0);
+    store.commit(command, validPlan);
+    assert.equal(store.getEntity(target.id).resources.hp, target.resources.hp - 1);
+  }
+});
+
+test('StateStore는 유효하지 않은 commitTick을 mutation 전에 거부한다', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const store = new G.StateStore(G.createInitialState(input));
+  const target = store.getEntity(input.target.id);
+  const command = G.createCommandEnvelope({ commandId: 'command.test.invalid-commit-tick.0001', actorId: input.caster.id, requestedTick: input.tick, correlationId: 'correlation.test.invalid-commit-tick.0001', dataVersion: input.dataVersion, payload: {} });
+  const validPlan = { schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: 'plan.test.invalid-commit-tick.0001', commandId: command.commandId, commitTick: input.tick, preconditions: [{ entityId: target.id, expectedVersion: target.version }], operations: [{ order: 10, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -1, key: 'hp' }], eventBlueprints: [] };
+  const before = G.canonicalStringify(store.exportState());
+  const tickBefore = store.tick;
+  assert.throws(() => store.commit(command, { ...validPlan, commitTick: undefined }), error => error.code === 'UNSERIALIZABLE_VALUE');
+  assert.equal(G.canonicalStringify(store.exportState()), before);
+  assert.equal(store.tick, tickBefore);
+  assert.equal(store.outbox.length, 0);
+  store.commit(command, validPlan);
+  assert.equal(store.getEntity(target.id).resources.hp, target.resources.hp - 1);
+});
+
+test('StateStore는 과거 commitTick을 거부하고 trace observer 실패와 무관하게 commit한다', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const store = new G.StateStore(G.createInitialState(input));
+  const target = store.getEntity(input.target.id);
+  const command = G.createCommandEnvelope({ commandId: 'command.test.tick-regression.0001', actorId: input.caster.id, requestedTick: input.tick - 1, correlationId: 'correlation.test.tick-regression.0001', dataVersion: input.dataVersion, payload: {} });
+  const plan = { schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: 'plan.test.tick-regression.0001', commandId: command.commandId, commitTick: input.tick - 1, preconditions: [{ entityId: target.id, expectedVersion: target.version }], operations: [{ order: 10, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -1, key: 'hp' }], eventBlueprints: [] };
+  const before = G.canonicalStringify(store.exportState());
+  assert.throws(() => store.commit(command, plan), error => error.code === 'COMMIT_TICK_REGRESSION');
+  assert.equal(G.canonicalStringify(store.exportState()), before);
+
+  const committed = store.commit(command, { ...plan, commitTick: input.tick }, { record: () => { throw new Error('trace sink unavailable'); } });
+  assert.equal(committed.state.entities[target.id].resources.hp, target.resources.hp - 1);
+  assert.throws(() => store.commit(command, { ...plan, commitTick: input.tick }), error => error.code === 'DUPLICATE_COMMAND');
+});
+
+test('StateStore commit은 canonical command와 plan 전체 schema를 mutation 전에 강제한다', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const probe = (mutateCommand, mutatePlan, expectedCode) => {
+    const store = new G.StateStore(G.createInitialState(input));
+    const target = store.getEntity(input.target.id);
+    const command = G.createCommandEnvelope({
+      commandId: 'command.test.canonical-boundary.0001',
+      actorId: input.caster.id,
+      requestedTick: input.tick,
+      correlationId: 'correlation.test.canonical-boundary.0001',
+      dataVersion: input.dataVersion,
+      payload: { targetId: target.id },
+    });
+    const plan = {
+      schemaVersion: G.CONTRACT_SCHEMA_VERSION,
+      planId: 'plan.test.canonical-boundary.0001',
+      commandId: command.commandId,
+      commitTick: input.tick,
+      preconditions: [{ entityId: target.id, expectedVersion: target.version }],
+      operations: [{ order: 10, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -1, key: 'hp' }],
+      eventBlueprints: [{ type: 'BoundaryCommitted', payload: { targetId: target.id } }],
+    };
+    const invalidCommand = mutateCommand ? mutateCommand({ ...command }) : command;
+    const invalidPlan = mutatePlan ? mutatePlan({ ...plan }) : plan;
+    const before = G.canonicalStringify(store.exportState());
+    const tickBefore = store.tick;
+    assert.throws(() => store.commit(invalidCommand, invalidPlan), error => error.code === expectedCode);
+    assert.equal(G.canonicalStringify(store.exportState()), before);
+    assert.equal(store.tick, tickBefore);
+    assert.equal(store.outbox.length, 0);
+    const committed = store.commit(command, plan);
+    assert.equal(committed.state.entities[target.id].resources.hp, target.resources.hp - 1);
+    assert.equal(store.outbox.length, 1);
+  };
+
+  for (const field of ['schemaVersion', 'commandId', 'actorId', 'requestedTick', 'correlationId', 'causationId', 'dataVersion', 'payload']) {
+    probe(command => { delete command[field]; return command; }, null, 'INVALID_COMMAND');
+  }
+  for (const field of ['schemaVersion', 'planId', 'commandId', 'commitTick', 'preconditions', 'operations', 'eventBlueprints']) {
+    probe(null, plan => { delete plan[field]; return plan; }, 'INVALID_COMMIT_PLAN');
+  }
+  probe(command => ({ ...command, schemaVersion: G.CONTRACT_SCHEMA_VERSION + 1 }), null, 'SCHEMA_VERSION_UNSUPPORTED');
+  probe(null, plan => ({ ...plan, schemaVersion: G.CONTRACT_SCHEMA_VERSION + 1 }), 'SCHEMA_VERSION_UNSUPPORTED');
+  probe(command => ({ ...command, actorId: 'invalid' }), null, 'INVALID_ID');
+  probe(command => ({ ...command, causationId: 'invalid' }), null, 'INVALID_ID');
+  probe(command => ({ ...command, dataVersion: '' }), null, 'INVALID_STRING');
+  probe(command => ({ ...command, payload: { value: Infinity } }), null, 'NON_FINITE_NUMBER');
+  probe(command => ({ ...command, unsupported: true }), null, 'INVALID_COMMAND');
+  probe(null, plan => ({ ...plan, unsupported: true }), 'INVALID_COMMIT_PLAN');
+  probe(null, plan => ({ ...plan, preconditions: [{ ...plan.preconditions[0], unsupported: true }] }), 'INVALID_COMMIT_PLAN');
+  probe(null, plan => ({ ...plan, operations: [{ ...plan.operations[0], unsupported: true }] }), 'INVALID_COMMIT_PLAN');
+  probe(null, plan => ({ ...plan, eventBlueprints: [{ ...plan.eventBlueprints[0], unsupported: true }] }), 'INVALID_COMMIT_PLAN');
+  probe(null, plan => ({ ...plan, eventBlueprints: [{ type: 'BoundaryCommitted', payload: { value: Infinity } }] }), 'NON_FINITE_NUMBER');
+
+  const cyclic = {};
+  cyclic.self = cyclic;
+  probe(command => ({ ...command, payload: cyclic }), null, 'CYCLIC_VALUE');
+  assert.throws(() => G.createCommandEnvelope({
+    schemaVersion: G.CONTRACT_SCHEMA_VERSION + 1,
+    commandId: 'command.test.future.0001', actorId: input.caster.id,
+    requestedTick: input.tick, correlationId: 'correlation.test.future.0001',
+    causationId: null, dataVersion: input.dataVersion, payload: {},
+  }), error => error.code === 'SCHEMA_VERSION_UNSUPPORTED');
+});
+
+test('StateStore 생성자는 malformed state와 outbox를 거부한다', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const base = () => JSON.parse(JSON.stringify(G.createInitialState(input)));
+  const invalidStates = [];
+  const badTick = base(); badTick.tick = '18240'; invalidStates.push(badTick);
+  const badKey = base(); badKey.entities[input.target.id].id = 'entity.other'; invalidStates.push(badKey);
+  const badVersion = base(); badVersion.entities[input.target.id].version = -1; invalidStates.push(badVersion);
+  const badHp = base(); badHp.entities[input.target.id].resources.hp = -1; invalidStates.push(badHp);
+  const badProcessed = base(); badProcessed.processedCommands = ['command.test.duplicate.0001', 'command.test.duplicate.0001']; invalidStates.push(badProcessed);
+  const badOutbox = base(); badOutbox.outbox = [{ bogus: true }]; invalidStates.push(badOutbox);
+  for (const state of invalidStates) assert.throws(() => new G.StateStore(state), error => error instanceof G.DomainError);
+
+  const accessorState = base();
+  const originalEntities = accessorState.entities;
+  let entityReads = 0;
+  Object.defineProperty(accessorState, 'entities', { enumerable: true, get() { entityReads += 1; return originalEntities; } });
+  assert.throws(() => new G.StateStore(accessorState), error => error.code === 'UNSERIALIZABLE_VALUE');
+  assert.equal(entityReads, 0);
+});
+
+test('StateStore의 tick, state, idempotency와 outbox는 외부에서 변조할 수 없다', () => {
+  const impact = G.executeImpact(G.normalizeScenarioInput({ simulateStatusTicks: false }));
+  const before = G.canonicalStringify(impact.store.exportState());
+  assert.equal('state' in impact.store, false);
+  assert.equal('processedCommands' in impact.store, false);
+  assert.throws(() => { impact.store.tick = -1; }, TypeError);
+  assert.throws(() => { impact.store.outbox.push({}); }, TypeError);
+  assert.throws(() => { impact.store.outbox[0].payload.targetId = 'entity.other'; }, TypeError);
+  assert.equal(G.canonicalStringify(impact.store.exportState()), before);
+  assert.throws(() => impact.store.commit(impact.command, impact.resolution.plan), error => error.code === 'DUPLICATE_COMMAND');
+});
+
+test('StateStore rejects trace-driven reentrant commits before they can bypass optimistic versions', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const store = new G.StateStore(G.createInitialState(input));
+  const target = store.getEntity(input.target.id);
+  const makeCommand = suffix => G.createCommandEnvelope({
+    commandId: `command.test.reentrant-${suffix}.0001`, actorId: input.caster.id,
+    requestedTick: input.tick, correlationId: `correlation.test.reentrant-${suffix}.0001`,
+    dataVersion: input.dataVersion, payload: {},
+  });
+  const makePlan = (command, delta) => ({
+    schemaVersion: G.CONTRACT_SCHEMA_VERSION,
+    planId: `plan.test.reentrant-${delta === -1 ? 'outer' : 'inner'}.0001`,
+    commandId: command.commandId,
+    commitTick: input.tick,
+    preconditions: [{ entityId: target.id, expectedVersion: target.version }],
+    operations: [{ order: 10, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta, key: 'hp' }],
+    eventBlueprints: [],
+  });
+  const outer = makeCommand('outer');
+  const inner = makeCommand('inner');
+  const crossStore = new G.StateStore(G.createInitialState(input));
+  const cross = makeCommand('cross-store');
+  let nestedCommitCode = null;
+  let nestedClockCode = null;
+  let crossStoreCode = null;
+  const receipt = store.commit(outer, makePlan(outer, -1), {
+    record(stage) {
+      if (stage !== 'commit_preconditions_checked') return;
+      try { store.commit(inner, makePlan(inner, -10)); } catch (error) { nestedCommitCode = error.code; }
+      try { G.advanceStatuses(store, input.tick + 50); } catch (error) { nestedClockCode = error.code; }
+      try { crossStore.commit(cross, makePlan(cross, -5)); } catch (error) { crossStoreCode = error.code; }
+    },
+  });
+  assert.equal(nestedCommitCode, 'REENTRANT_COMMIT');
+  assert.equal(nestedClockCode, 'REENTRANT_COMMIT');
+  assert.equal(crossStoreCode, 'TRACE_OBSERVER_SIDE_EFFECT');
+  assert.equal(store.getEntity(target.id).resources.hp, target.resources.hp - 1);
+  assert.equal(store.getEntity(target.id).version, target.version + 1);
+  assert.equal(store.tick, input.tick);
+  assert.equal(crossStore.getEntity(target.id).resources.hp, target.resources.hp);
+  assert.equal(receipt.state.entities[target.id].resources.hp, target.resources.hp - 1);
+  const afterOuter = store.getEntity(target.id);
+  const postCommand = makeCommand('post-guard');
+  const postPlan = { ...makePlan(postCommand, -1), planId: 'plan.test.reentrant-post.0001', preconditions: [{ entityId: target.id, expectedVersion: afterOuter.version }] };
+  assert.equal(store.commit(postCommand, postPlan).state.entities[target.id].resources.hp, target.resources.hp - 2);
+});
+
+test('StateStore canonicalizes a plan once and rejects accessor-based TOCTOU inputs', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const store = new G.StateStore(G.createInitialState(input));
+  const target = store.getEntity(input.target.id);
+  const command = G.createCommandEnvelope({ commandId: 'command.test.plan-toctou.0001', actorId: input.caster.id, requestedTick: input.tick, correlationId: 'correlation.test.plan-toctou.0001', dataVersion: input.dataVersion, payload: {} });
+  const validPlan = { schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: 'plan.test.plan-toctou.0001', commandId: command.commandId, commitTick: input.tick, preconditions: [{ entityId: target.id, expectedVersion: target.version }], operations: [{ order: 10, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -1, key: 'hp' }], eventBlueprints: [] };
+  const accessorPlan = { ...validPlan };
+  let reads = 0;
+  Object.defineProperty(accessorPlan, 'operations', { enumerable: true, get() { reads += 1; return validPlan.operations; } });
+  const before = G.canonicalStringify(store.exportState());
+  assert.throws(() => store.commit(command, accessorPlan), error => error.code === 'UNSERIALIZABLE_VALUE');
+  assert.equal(reads, 0);
+  assert.equal(G.canonicalStringify(store.exportState()), before);
+  assert.doesNotThrow(() => store.commit(command, validPlan));
+});
+
+test('StateStore keeps its clock capability private and prevents shadow properties', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const store = new G.StateStore(G.createInitialState(input));
+  const prototypeSymbols = Reflect.ownKeys(Object.getPrototypeOf(store)).filter(key => typeof key === 'symbol');
+  assert.deepEqual(prototypeSymbols, []);
+  assert.equal(Object.isExtensible(store), false);
+  assert.throws(() => { store.untrustedTick = -1; }, TypeError);
+  assert.throws(() => Object.defineProperty(store, 'tick', { value: -1 }), TypeError);
+  assert.equal(store.snapshot([input.target.id]).tick, store.exportState().tick);
+});
+
+test('Status time is monotonic across restore, add, and patch boundaries', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false, skill: { hitChanceBps: 10_000, critChanceBps: 0 } });
+  const active = G.runFireballScenario(input);
+  const activeState = JSON.parse(JSON.stringify(active.finalState));
+  const targetId = input.target.id;
+  const status = Object.values(activeState.entities[targetId].statuses)[0];
+  assert.ok(status);
+
+  const futureState = JSON.parse(JSON.stringify(activeState));
+  futureState.entities[targetId].statuses[status.instanceId].appliedTick = futureState.tick + 1;
+  assert.throws(() => new G.StateStore(futureState), error => error.code === 'STATUS_TIME_REGRESSION');
+
+  const freshStore = new G.StateStore(G.createInitialState(input));
+  const freshTarget = freshStore.getEntity(targetId);
+  const addCommand = G.createCommandEnvelope({ commandId: 'command.test.future-status-add.0001', actorId: input.caster.id, requestedTick: input.tick, correlationId: status.correlationId, causationId: status.applicationCausationId, dataVersion: input.dataVersion, payload: {} });
+  const makeAddPlan = candidate => ({ schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: 'plan.test.future-status-add.0001', commandId: addCommand.commandId, commitTick: input.tick, preconditions: [{ entityId: targetId, expectedVersion: freshTarget.version }], operations: [{ order: 10, kind: 'status.add', entityId: targetId, status: candidate, key: status.instanceId }], eventBlueprints: [] });
+  const beforeAdd = G.canonicalStringify(freshStore.exportState());
+  const futureStatus = JSON.parse(JSON.stringify(status));
+  futureStatus.appliedTick = input.tick + 1;
+  futureStatus.nextTickAt = input.tick + 2;
+  assert.throws(() => freshStore.commit(addCommand, makeAddPlan(futureStatus)), error => error.code === 'STATUS_TIME_REGRESSION');
+  const pastStatus = JSON.parse(JSON.stringify(status));
+  pastStatus.appliedTick = input.tick - 1;
+  assert.throws(() => freshStore.commit(addCommand, makeAddPlan(pastStatus)), error => error.code === 'STATUS_TIME_REGRESSION');
+  const immediateStatus = JSON.parse(JSON.stringify(status));
+  immediateStatus.nextTickAt = input.tick;
+  assert.throws(() => freshStore.commit(addCommand, makeAddPlan(immediateStatus)), error => error.code === 'STATUS_TIME_REGRESSION');
+  assert.equal(G.canonicalStringify(freshStore.exportState()), beforeAdd);
+  assert.equal(freshStore.tick, input.tick);
+  assert.equal(freshStore.outbox.length, 0);
+  assert.doesNotThrow(() => freshStore.commit(addCommand, makeAddPlan(status)));
+
+  const activeStore = new G.StateStore(activeState);
+  const activeTarget = activeStore.getEntity(targetId);
+  const patchCommand = G.createCommandEnvelope({ commandId: 'command.test.status-rewind.0001', actorId: input.caster.id, requestedTick: input.tick, correlationId: 'correlation.test.status-rewind.0001', dataVersion: input.dataVersion, payload: {} });
+  const patchPlan = { schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: 'plan.test.status-rewind.0001', commandId: patchCommand.commandId, commitTick: input.tick, preconditions: [{ entityId: targetId, expectedVersion: activeTarget.version }], operations: [{ order: 10, kind: 'status.patch', entityId: targetId, instanceId: status.instanceId, patch: { nextTickAt: status.nextTickAt - 1, lastTransitionEventId: status.lastTransitionEventId }, key: 'rewind' }], eventBlueprints: [] };
+  const beforePatch = G.canonicalStringify(activeStore.exportState());
+  assert.throws(() => activeStore.commit(patchCommand, patchPlan), error => error.code === 'STATUS_TIME_REGRESSION');
+  assert.equal(G.canonicalStringify(activeStore.exportState()), beforePatch);
+});
+
+test('StateStore rejects unsafe resource arithmetic before cancellation can hide precision loss', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const store = new G.StateStore(G.createInitialState(input));
+  const target = store.getEntity(input.target.id);
+  const command = G.createCommandEnvelope({ commandId: 'command.test.resource-precision.0001', actorId: input.caster.id, requestedTick: input.tick, correlationId: 'correlation.test.resource-precision.0001', dataVersion: input.dataVersion, payload: {} });
+  const plan = { schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: 'plan.test.resource-precision.0001', commandId: command.commandId, commitTick: input.tick, preconditions: [{ entityId: target.id, expectedVersion: target.version }], operations: [
+    { order: 10, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: Number.MAX_SAFE_INTEGER, key: 'overflow' },
+    { order: 20, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -Number.MAX_SAFE_INTEGER, key: 'cancel' },
+    { order: 30, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -1, key: 'damage' },
+  ], eventBlueprints: [] };
+  const before = G.canonicalStringify(store.exportState());
+  assert.throws(() => store.commit(command, plan), error => error.code === 'NUMERIC_OVERFLOW');
+  assert.equal(G.canonicalStringify(store.exportState()), before);
+  assert.equal(store.outbox.length, 0);
+  const valid = { ...plan, operations: [{ order: 10, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -1, key: 'damage' }] };
+  assert.equal(store.commit(command, valid).state.entities[target.id].resources.hp, target.resources.hp - 1);
+});
+
+test('Status add and remove require explicit instance existence transitions', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false, skill: { hitChanceBps: 10_000, critChanceBps: 0 } });
+  const activeState = JSON.parse(JSON.stringify(G.runFireballScenario(input).finalState));
+  const targetId = input.target.id;
+  const status = Object.values(activeState.entities[targetId].statuses)[0];
+  const duplicateStore = new G.StateStore(activeState);
+  const duplicateTarget = duplicateStore.getEntity(targetId);
+  const addCommand = G.createCommandEnvelope({ commandId: 'command.test.status-duplicate.0001', actorId: input.caster.id, requestedTick: input.tick, correlationId: status.correlationId, causationId: status.applicationCausationId, dataVersion: input.dataVersion, payload: {} });
+  const addPlan = { schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: 'plan.test.status-duplicate.0001', commandId: addCommand.commandId, commitTick: input.tick, preconditions: [{ entityId: targetId, expectedVersion: duplicateTarget.version }], operations: [{ order: 10, kind: 'status.add', entityId: targetId, status, key: status.instanceId }], eventBlueprints: [] };
+  const beforeDuplicate = G.canonicalStringify(duplicateStore.exportState());
+  assert.throws(() => duplicateStore.commit(addCommand, addPlan), error => error.code === 'STATUS_ALREADY_EXISTS');
+  assert.equal(G.canonicalStringify(duplicateStore.exportState()), beforeDuplicate);
+
+  const emptyStore = new G.StateStore(G.createInitialState(input));
+  const emptyTarget = emptyStore.getEntity(targetId);
+  const removeCommand = G.createCommandEnvelope({ commandId: 'command.test.status-missing.0001', actorId: input.caster.id, requestedTick: input.tick, correlationId: 'correlation.test.status-missing.0001', dataVersion: input.dataVersion, payload: {} });
+  const removePlan = { schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: 'plan.test.status-missing.0001', commandId: removeCommand.commandId, commitTick: input.tick, preconditions: [{ entityId: targetId, expectedVersion: emptyTarget.version }], operations: [{ order: 10, kind: 'status.remove', entityId: targetId, instanceId: status.instanceId, key: 'missing' }], eventBlueprints: [] };
+  const beforeMissing = G.canonicalStringify(emptyStore.exportState());
+  assert.throws(() => emptyStore.commit(removeCommand, removePlan), error => error.code === 'STATUS_NOT_FOUND');
+  assert.equal(G.canonicalStringify(emptyStore.exportState()), beforeMissing);
+});
+
+test('Status applicationSourceId must match its structured SourceRef in restore and add paths', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false, skill: { hitChanceBps: 10_000, critChanceBps: 0 } });
+  const activeState = JSON.parse(JSON.stringify(G.runFireballScenario(input).finalState));
+  const targetId = input.target.id;
+  const status = Object.values(activeState.entities[targetId].statuses)[0];
+
+  const mismatchedState = JSON.parse(JSON.stringify(activeState));
+  mismatchedState.entities[targetId].statuses[status.instanceId].applicationSourceId = 'command.other.cast.0001';
+  assert.throws(() => new G.StateStore(mismatchedState), error => error.code === 'INVALID_STATUS_INSTANCE');
+
+  const systemState = JSON.parse(JSON.stringify(activeState));
+  const systemStatus = systemState.entities[targetId].statuses[status.instanceId];
+  systemStatus.applicationSourceRef = { kind: 'system', definitionId: 'system.weather' };
+  systemStatus.applicationSourceId = 'system.weather';
+  assert.doesNotThrow(() => new G.StateStore(systemState));
+  systemStatus.applicationSourceId = 'system.other';
+  assert.throws(() => new G.StateStore(systemState), error => error.code === 'INVALID_STATUS_INSTANCE');
+
+  const store = new G.StateStore(G.createInitialState(input));
+  const target = store.getEntity(targetId);
+  const command = G.createCommandEnvelope({ commandId: 'command.test.status-source.0001', actorId: input.caster.id, requestedTick: input.tick, correlationId: status.correlationId, causationId: status.applicationCausationId, dataVersion: input.dataVersion, payload: {} });
+  const makePlan = candidate => ({ schemaVersion: G.CONTRACT_SCHEMA_VERSION, planId: 'plan.test.status-source.0001', commandId: command.commandId, commitTick: input.tick, preconditions: [{ entityId: targetId, expectedVersion: target.version }], operations: [{ order: 10, kind: 'status.add', entityId: targetId, status: candidate, key: status.instanceId }], eventBlueprints: [] });
+  const mismatchedStatus = JSON.parse(JSON.stringify(status));
+  mismatchedStatus.applicationSourceId = 'command.other.cast.0001';
+  const before = G.canonicalStringify(store.exportState());
+  assert.throws(() => store.commit(command, makePlan(mismatchedStatus)), error => error.code === 'INVALID_STATUS_INSTANCE');
+  assert.equal(G.canonicalStringify(store.exportState()), before);
+  assert.equal(store.outbox.length, 0);
+  assert.doesNotThrow(() => store.commit(command, makePlan(status)));
+});
+
+test('Canonical JSON preserves __proto__ as data and rejects non-JSON container shapes', () => {
+  const withProtoKey = Object.create(null);
+  defineOwn(withProtoKey, '__proto__', { marker: 'kept' });
+  defineOwn(withProtoKey, 'safe', 1);
+  const withoutProtoKey = Object.create(null);
+  defineOwn(withoutProtoKey, 'safe', 1);
+  assert.equal(G.canonicalStringify(withProtoKey), '{"__proto__":{"marker":"kept"},"safe":1}');
+  assert.notEqual(G.hashHex(withProtoKey), G.hashHex(withoutProtoKey));
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const envelope = G.createCommandEnvelope({ commandId: 'command.test.proto-key.0001', actorId: input.caster.id, requestedTick: input.tick, correlationId: 'correlation.test.proto-key.0001', dataVersion: input.dataVersion, payload: withProtoKey });
+  assert.equal(Object.prototype.hasOwnProperty.call(envelope.payload, '__proto__'), true);
+  assert.deepEqual(envelope.payload.__proto__, { marker: 'kept' });
+  assert.equal(({}).marker, undefined);
+  const sparse = new Array(1);
+  assert.throws(() => G.canonicalStringify(sparse), error => error.code === 'UNSERIALIZABLE_VALUE');
+});
+
 test('ReactionQueue는 priority, stableOrderKey, reactionId 순으로 실행한다', () => {
   const queue = new G.ReactionQueue();
   queue.enqueue({ reactionId: 'reaction.z', kind: 'probe', priority: 20, stableOrderKey: 'b' });
@@ -85,15 +525,183 @@ test('ReactionQueue는 priority, stableOrderKey, reactionId 순으로 실행한�
   assert.deepEqual(result.executed.map(item => item.reaction.reactionId), ['reaction.a', 'reaction.b', 'reaction.z']);
 });
 
-test('ReactionQueue는 budget을 초과한 반응을 실행하지 않는다', () => {
-  const queue = new G.ReactionQueue({ maxBudget: 2, maxReactions: 10 });
-  queue.enqueue({ reactionId: 'reaction.first', kind: 'probe', priority: 1, budgetCost: 2 });
-  queue.enqueue({ reactionId: 'reaction.second', kind: 'probe', priority: 2, budgetCost: 1 });
-  const result = queue.drain(item => item.reactionId);
+test('ReactionQueue는 생성자 상한을 enqueue에서, 더 작은 drain 상한을 dispatch 전에 강제한다', () => {
+  const depthQueue = new G.ReactionQueue({ maxDepth: 0 });
+  assert.throws(
+    () => depthQueue.enqueue({ reactionId: 'reaction.enqueue.depth', kind: 'probe', depth: 1 }),
+    error => error.code === 'REACTION_WAVE_LIMIT_EXCEEDED' && error.details.reason === 'MAX_DEPTH',
+  );
+  assert.equal(depthQueue.pending.length, 0);
+
+  const capacityQueue = new G.ReactionQueue({ maxReactions: 1 });
+  const capacityA = { reactionId: 'reaction.enqueue.count-a', kind: 'probe' };
+  const capacityB = { reactionId: 'reaction.enqueue.count-b', kind: 'probe' };
+  capacityQueue.enqueue(capacityA);
+  assert.throws(
+    () => capacityQueue.enqueue(capacityB),
+    error => error.code === 'REACTION_WAVE_LIMIT_EXCEEDED' && error.details.reason === 'MAX_REACTIONS',
+  );
+  capacityQueue.drain(() => null);
+  assert.equal(capacityQueue.enqueue(capacityB), true);
+
+  const budgetQueue = new G.ReactionQueue({ maxBudget: 1 });
+  assert.throws(
+    () => budgetQueue.enqueue({ reactionId: 'reaction.enqueue.budget', kind: 'probe', budgetCost: 2 }),
+    error => error.code === 'REACTION_WAVE_LIMIT_EXCEEDED' && error.details.reason === 'BUDGET_EXCEEDED',
+  );
+  assert.equal(budgetQueue.pending.length, 0);
+
+  const cases = [
+    { options: { maxDepth: 2 }, budget: { maxDepth: 1 }, reason: 'MAX_DEPTH', reactions: [{ reactionId: 'reaction.start.depth', kind: 'probe', depth: 2 }] },
+    { options: { maxReactions: 2 }, budget: { maxReactions: 1 }, reason: 'MAX_REACTIONS', reactions: [{ reactionId: 'reaction.start.count-a', kind: 'probe' }, { reactionId: 'reaction.start.count-b', kind: 'probe' }] },
+    { options: { maxBudget: 2 }, budget: { maxBudget: 1 }, reason: 'BUDGET_EXCEEDED', reactions: [{ reactionId: 'reaction.start.budget', kind: 'probe', budgetCost: 2 }] },
+  ];
+  for (const item of cases) {
+    const queue = new G.ReactionQueue(item.options);
+    for (const reaction of item.reactions) queue.enqueue(reaction);
+    const dispatched = [];
+    const records = [];
+    const trace = { record: (stage, tick, payload) => records.push({ stage, tick, payload }) };
+    assert.throws(
+      () => queue.drain(reaction => dispatched.push(reaction.reactionId), trace, 0, item.budget),
+      error => error.code === 'REACTION_WAVE_LIMIT_EXCEEDED' && error.details.reason === item.reason,
+    );
+    assert.deepEqual(dispatched, []);
+    assert.equal(records.at(-1)?.stage, 'reaction_wave_failed');
+    assert.equal(records.at(-1)?.payload.reason, item.reason);
+    assert.equal(queue.drain(() => { throw new Error('discarded work leaked'); }).executed.length, 0);
+    for (const reaction of item.reactions) assert.equal(queue.enqueue(reaction), false);
+  }
+});
+
+test('ReactionQueue는 handler 예외 뒤 잔여 reaction을 폐기하고 idempotency를 유지한다', () => {
+  const queue = new G.ReactionQueue();
+  const throwing = { reactionId: 'reaction.handler.throwing', kind: 'probe', priority: 1 };
+  const skipped = { reactionId: 'reaction.handler.skipped', kind: 'probe', priority: 2 };
+  queue.enqueue(skipped);
+  queue.enqueue(throwing);
+  const records = [];
+  assert.throws(
+    () => queue.drain(reaction => {
+      if (reaction.reactionId === throwing.reactionId) throw new Error('handler failure');
+    }, { record: (stage, tick, payload) => records.push({ stage, tick, payload }) }),
+    /handler failure/,
+  );
+  assert.equal(records.at(-1)?.stage, 'reaction_wave_failed');
+  assert.equal(records.at(-1)?.payload.reason, 'HANDLER_ERROR');
+  assert.equal(records.at(-1)?.payload.reactionId, throwing.reactionId);
+  assert.equal(queue.drain(() => { throw new Error('discarded work leaked'); }).executed.length, 0);
+  assert.equal(queue.enqueue(skipped), false);
+});
+
+test('ReactionQueue는 성공 trace observer 예외가 dispatch 결과를 바꾸지 않게 격리한다', () => {
+  const queue = new G.ReactionQueue();
+  queue.enqueue({ reactionId: 'reaction.trace.a', kind: 'probe', priority: 1 });
+  queue.enqueue({ reactionId: 'reaction.trace.b', kind: 'probe', priority: 2 });
+  const dispatched = [];
+  const result = queue.drain(reaction => dispatched.push(reaction.reactionId), { record: () => { throw new Error('trace sink unavailable'); } });
+  assert.deepEqual(dispatched, ['reaction.trace.a', 'reaction.trace.b']);
+  assert.equal(result.executed.length, 2);
+  assert.equal(queue.pending.length, 0);
+});
+
+test('ReactionQueue trace observers cannot enqueue or mutate pending domain work', () => {
+  const queue = new G.ReactionQueue();
+  const root = { reactionId: 'reaction.trace-purity.root', kind: 'probe', priority: 1 };
+  const child = { reactionId: 'reaction.trace-purity.child', kind: 'probe', priority: 2 };
+  queue.enqueue(root);
+  const dispatched = [];
+  let observerCode = null;
+  let mutationError = null;
+  const result = queue.drain(reaction => dispatched.push(reaction.reactionId), {
+    record(stage) {
+      if (stage !== 'reaction_executed') return;
+      try { queue.enqueue(child); } catch (error) { observerCode = error.code; }
+      try { queue.pending.push(child); } catch (error) { mutationError = error; }
+    },
+  });
+  assert.equal(observerCode, 'REACTION_TRACE_SIDE_EFFECT');
+  assert.ok(mutationError instanceof TypeError);
+  assert.deepEqual(dispatched, [root.reactionId]);
   assert.equal(result.executed.length, 1);
-  assert.equal(result.executed[0].reaction.reactionId, 'reaction.first');
-  assert.equal(result.rejected[0].reason, 'BUDGET_EXCEEDED');
-  assert.equal(result.exhausted, true);
+  assert.equal(queue.pending.length, 0);
+  assert.equal(queue.enqueue(child), true);
+});
+
+test('ReactionQueue rejects trace getters and reaction accessors before they can enqueue work', () => {
+  const queue = new G.ReactionQueue();
+  const root = { reactionId: 'reaction.getter.root', kind: 'probe', priority: 1 };
+  const injected = { reactionId: 'reaction.getter.injected', kind: 'probe', priority: 2 };
+  queue.enqueue(root);
+  let traceGetterCode = null;
+  const trace = {};
+  Object.defineProperty(trace, 'record', {
+    get() {
+      try { queue.enqueue(injected); } catch (error) { traceGetterCode = error.code; }
+      return () => {};
+    },
+  });
+  const dispatched = [];
+  queue.drain(reaction => dispatched.push(reaction.reactionId), trace);
+  assert.equal(traceGetterCode, 'REACTION_TRACE_SIDE_EFFECT');
+  assert.deepEqual(dispatched, [root.reactionId]);
+  assert.equal(queue.pending.length, 0);
+
+  const accessorQueue = new G.ReactionQueue();
+  const accessorReaction = { kind: 'probe' };
+  let reactionReads = 0;
+  Object.defineProperty(accessorReaction, 'reactionId', {
+    enumerable: true,
+    get() {
+      reactionReads += 1;
+      accessorQueue.enqueue({ reactionId: 'reaction.accessor.injected', kind: 'probe' });
+      return 'reaction.accessor.root';
+    },
+  });
+  assert.throws(() => accessorQueue.enqueue(accessorReaction), error => error.code === 'UNSERIALIZABLE_VALUE');
+  assert.equal(reactionReads, 0);
+  assert.equal(accessorQueue.pending.length, 0);
+});
+
+test('Global trace callbacks cannot inject cross-component ReactionQueue work', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false, skill: { hitChanceBps: 10_000, critChanceBps: 0 } });
+  const impact = G.executeImpact(input);
+  const queue = new G.ReactionQueue();
+  let observerCode = null;
+  G.enqueueReactions(impact.commit.events, input, queue, {
+    record(stage) {
+      if (stage !== 'reaction_enqueued') return;
+      try { queue.enqueue({ reactionId: 'reaction.global-trace.injected', kind: 'probe' }); } catch (error) { observerCode = error.code; }
+    },
+  });
+  assert.equal(observerCode, 'REACTION_TRACE_SIDE_EFFECT');
+  assert.equal(queue.pending.length, 1);
+  const dispatched = queue.drain(reaction => reaction.reactionId);
+  assert.equal(dispatched.executed.length, 1);
+  assert.notEqual(dispatched.executed[0].reaction.reactionId, 'reaction.global-trace.injected');
+});
+
+test('ReactionQueue는 dispatch 중 enqueue 한도 초과를 handler가 삼켜도 wave를 실패시킨다', () => {
+  const queue = new G.ReactionQueue({ maxReactions: 1, maxDepth: 2, maxBudget: 2 });
+  const root = { reactionId: 'reaction.nested.root', kind: 'probe', priority: 1, depth: 0 };
+  const child = { reactionId: 'reaction.nested.child', kind: 'probe', priority: 2, depth: 1 };
+  const dispatched = [];
+  let enqueueError = null;
+  const records = [];
+  queue.enqueue(root);
+  assert.throws(
+    () => queue.drain(reaction => {
+      dispatched.push(reaction.reactionId);
+      try { queue.enqueue(child); } catch (error) { enqueueError = error; }
+    }, { record: (stage, tick, payload) => records.push({ stage, tick, payload }) }),
+    error => error.code === 'REACTION_WAVE_LIMIT_EXCEEDED' && error.details.reason === 'MAX_REACTIONS',
+  );
+  assert.equal(enqueueError?.code, 'REACTION_WAVE_LIMIT_EXCEEDED');
+  assert.deepEqual(dispatched, [root.reactionId]);
+  assert.equal(records.at(-1)?.stage, 'reaction_wave_failed');
+  assert.equal(records.at(-1)?.payload.reason, 'MAX_REACTIONS');
+  assert.equal(queue.drain(() => { throw new Error('discarded work leaked'); }).executed.length, 0);
+  assert.equal(queue.enqueue(root), false);
 });
 
 test('128개 seed sweep에서 damage conservation과 비음수 자원이 유지된다', () => {
@@ -248,6 +856,26 @@ test('Burn applies on a surviving hit even when impact damage is fully absorbed 
   assert.equal(Object.keys(result.finalState.entities[result.input.target.id].statuses).length, 1);
 });
 
+test('positive Burn ratios clamp a rounded-zero tick to one while zero ratio disables application', () => {
+  const scenario = {
+    caster: { spellPower: 0 },
+    target: { hp: 10, maxHp: 10, shield: 0 },
+    skill: { baseDamage: 1, coefficientBps: 0, hitChanceBps: 10_000, critChanceBps: 0 },
+    burn: { ratioBps: 1 },
+    simulateStatusTicks: false,
+  };
+  const positive = G.runFireballScenario(scenario);
+  assert.equal(positive.resolution.outcome.rawDamage, 1);
+  assert.equal(positive.resolution.outcome.burn.rawTickDamage, 1);
+  assert.equal(positive.resolution.outcome.burn.applyWhenTargetAlive, true);
+  assert.ok(positive.outbox.some(event => event.type === 'StatusApplied'));
+
+  const disabled = G.runFireballScenario({ ...scenario, burn: { ratioBps: 0 } });
+  assert.equal(disabled.resolution.outcome.burn.rawTickDamage, 0);
+  assert.equal(disabled.resolution.outcome.burn.applyWhenTargetAlive, false);
+  assert.equal(disabled.outbox.some(event => event.type === 'StatusApplied'), false);
+});
+
 test('Burn tick resolves resistance and shield before committing DamageCommitted then StatusTicked', () => {
   const result = G.runFireballScenario({
     target: { shield: 150, maxShield: 200 },
@@ -274,7 +902,7 @@ test('Burn tick resolves resistance and shield before committing DamageCommitted
   }
 });
 
-test('actor identity stays separate from the skill execution source across outcome and status', () => {
+test('application source and periodic status source stay distinct across the full outcome', () => {
   const result = G.runFireballScenario({ skill: { hitChanceBps: 10_000, critChanceBps: 0 } });
   const expectedRef = {
     kind: 'skill-execution',
@@ -286,12 +914,30 @@ test('actor identity stays separate from the skill execution source across outco
   assert.deepEqual(result.resolution.outcome.sourceRef, expectedRef);
   const applied = result.outbox.find(event => event.type === 'StatusApplied');
   assert.equal(applied.payload.status.actorId, result.input.caster.id);
-  assert.equal(applied.payload.status.sourceId, result.command.commandId);
-  assert.deepEqual(applied.payload.status.sourceRef, expectedRef);
+  assert.equal(applied.payload.status.applicationSourceId, result.command.commandId);
+  assert.deepEqual(applied.payload.status.applicationSourceRef, expectedRef);
+  const impact = result.outbox.find(event => event.type === 'DamageCommitted' && !event.payload.periodic);
+  assert.equal(applied.payload.status.applicationCausationId, impact.eventId);
+  assert.equal(applied.payload.status.lastTransitionEventId, applied.eventId);
+  assert.equal(Object.hasOwn(applied.payload.status, 'causationId'), false);
+  const expectedStatusRef = {
+    kind: 'status',
+    definitionId: result.input.burn.definitionId,
+    instanceId: applied.payload.status.instanceId,
+  };
+  assert.equal(applied.payload.status.sourceId, applied.payload.status.instanceId);
+  assert.deepEqual(applied.payload.status.sourceRef, expectedStatusRef);
   const periodic = result.outbox.find(event => event.type === 'DamageCommitted' && event.payload.periodic);
   assert.equal(periodic.payload.actorId, result.input.caster.id);
-  assert.equal(periodic.payload.sourceId, result.command.commandId);
-  assert.deepEqual(periodic.payload.sourceRef, expectedRef);
+  assert.equal(periodic.payload.sourceId, applied.payload.status.instanceId);
+  assert.deepEqual(periodic.payload.sourceRef, expectedStatusRef);
+  const ticked = result.outbox.find(event => event.type === 'StatusTicked');
+  assert.equal(ticked.payload.applicationSourceId, result.command.commandId);
+  assert.deepEqual(ticked.payload.applicationSourceRef, expectedRef);
+  assert.deepEqual(ticked.payload.sourceRef, expectedStatusRef);
+  const transitions = result.outbox.filter(event => event.type === 'StatusTicked');
+  assert.equal(transitions[0].payload.triggerEventId, applied.eventId);
+  assert.equal(transitions[1].payload.triggerEventId, transitions[0].eventId);
 });
 
 test('lethal impact emits one EntityDefeated event and does not apply Burn', () => {
@@ -328,11 +974,14 @@ test('per-instance catch-up limits do not starve other due status instances', ()
     instanceId,
     definitionId: 'status.burn',
     actorId: input.caster.id,
-    sourceId: sourceRef.instanceId,
-    sourceRef,
+    applicationSourceId: sourceRef.instanceId,
+    applicationSourceRef: sourceRef,
+    applicationCausationId: 'event.test.damage.0001',
+    sourceId: instanceId,
+    sourceRef: { kind: 'status', definitionId: 'status.burn', instanceId },
     targetId: input.target.id,
     correlationId: 'correlation.test.cast.0001',
-    causationId: 'event.test.damage.0001',
+    lastTransitionEventId: 'event.test.damage.0001',
     dataVersion: input.dataVersion,
     appliedTick: input.tick,
     nextTickAt: input.tick + 1,
@@ -442,11 +1091,14 @@ test('mixed status ticks and no-tick expiries stay chronological and determinist
     instanceId,
     definitionId: 'status.burn',
     actorId: input.caster.id,
-    sourceId: sourceRef.instanceId,
-    sourceRef,
+    applicationSourceId: sourceRef.instanceId,
+    applicationSourceRef: sourceRef,
+    applicationCausationId: 'event.test.damage.0002',
+    sourceId: instanceId,
+    sourceRef: { kind: 'status', definitionId: 'status.burn', instanceId },
     targetId: input.target.id,
     correlationId: 'correlation.test.cast.0002',
-    causationId: 'event.test.damage.0002',
+    lastTransitionEventId: 'event.test.damage.0002',
     dataVersion: input.dataVersion,
     appliedTick: input.tick,
     nextTickAt,
@@ -483,11 +1135,14 @@ test('a lethal periodic status expires other statuses without extra damage or ti
     instanceId,
     definitionId: 'status.burn',
     actorId: input.caster.id,
-    sourceId: sourceRef.instanceId,
-    sourceRef,
+    applicationSourceId: sourceRef.instanceId,
+    applicationSourceRef: sourceRef,
+    applicationCausationId: 'event.test.damage.0003',
+    sourceId: instanceId,
+    sourceRef: { kind: 'status', definitionId: 'status.burn', instanceId },
     targetId: input.target.id,
     correlationId: 'correlation.test.cast.0003',
-    causationId: 'event.test.damage.0003',
+    lastTransitionEventId: 'event.test.damage.0003',
     dataVersion: input.dataVersion,
     appliedTick: input.tick,
     nextTickAt: input.tick + 1,
@@ -504,6 +1159,9 @@ test('a lethal periodic status expires other statuses without extra damage or ti
   G.advanceStatuses(store, input.tick + 6);
   assert.equal(store.outbox.filter(event => event.type === 'DamageCommitted').length, 1);
   assert.equal(store.outbox.filter(event => event.type === 'StatusTicked').length, 1);
+  const defeated = store.outbox.find(event => event.type === 'EntityDefeated');
+  const dependentExpiry = store.outbox.find(event => event.type === 'StatusExpired' && event.payload.statusInstanceId === 'status-instance.b-pending');
+  assert.equal(dependentExpiry.payload.triggerEventId, defeated.eventId);
   assert.equal(store.outbox.filter(event => event.type === 'EntityDefeated').length, 1);
   const expirations = store.outbox.filter(event => event.type === 'StatusExpired');
   assert.equal(expirations.length, 2);

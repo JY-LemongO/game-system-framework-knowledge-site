@@ -819,6 +819,7 @@ pre, .codewrap { margin: 24px 0 30px; }
 /* Callouts, lists, flow */
 .callout {
   position: relative;
+  min-width: 0;
   margin: 24px 0 30px;
   padding: 18px 20px 18px 48px;
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
@@ -826,6 +827,7 @@ pre, .codewrap { margin: 24px 0 30px; }
   background: color-mix(in srgb, var(--accent-soft) 56%, var(--surface-solid));
   color: var(--ink-2);
   line-height: 1.72;
+  overflow-wrap: anywhere;
 }
 .callout::before { content: "i"; position: absolute; left: 17px; top: 18px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 7px; background: var(--accent); color: var(--bg); font-family: Georgia, serif; font-weight: 800; }
 .callout.good { --accent: var(--mint); --accent-soft: var(--mint-soft); }
@@ -833,8 +835,9 @@ pre, .codewrap { margin: 24px 0 30px; }
 .callout.warn { --accent: var(--amber); --accent-soft: var(--amber-soft); }
 .callout.warn::before { content: "!"; font-family: var(--font-sans); }
 .callout p:last-child { margin-bottom: 0; }
+.callout > .callout-title { margin: 0 0 10px; color: var(--ink); font-size: 1rem; line-height: 1.45; }
 ul.check, ul.cross, .doc-article .checklist { list-style: none; padding: 0; display: grid; gap: 9px; }
-ul.check li, ul.cross li, .doc-article .checklist > * { position: relative; margin: 0; padding: 14px 16px 14px 45px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+ul.check li, ul.cross li, .doc-article .checklist > * { position: relative; min-width: 0; margin: 0; padding: 14px 16px 14px 45px; overflow-wrap: anywhere; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 ul.check li::before, ul.cross li::before, .doc-article .checklist > *::before { position: absolute; left: 16px; top: 15px; width: 19px; height: 19px; display: grid; place-items: center; border-radius: 7px; font-size: 10px; font-weight: 850; }
 ul.check li::before, .doc-article .checklist > *::before { content: "✓"; background: var(--mint-soft); color: var(--mint); }
 ul.cross li::before { content: "×"; background: var(--rose-soft); color: var(--rose); }
