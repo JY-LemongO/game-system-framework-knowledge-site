@@ -674,6 +674,31 @@ if gallery:
 kernel_source = ROOT/'source/runtime/runtime-kernel.js'
 kernel_browser = ROOT/'assets/js/runtime-kernel.js'
 if kernel_source.read_bytes() != kernel_browser.read_bytes(): error('browser/source runtime kernels are not byte-identical')
+capstone_source = ROOT/'source/runtime/capstone-assessor.js'
+capstone_browser = ROOT/'assets/js/capstone-assessor.js'
+if not capstone_source.is_file() or not capstone_browser.is_file():
+    error('capstone assessor source/browser artifacts are missing')
+elif capstone_source.read_bytes() != capstone_browser.read_bytes():
+    error('browser/source capstone assessors are not byte-identical')
+else:
+    capstone_text = capstone_source.read_text(encoding='utf-8')
+    for token in (
+        "CHALLENGE_ID = 'chain-lightning-shock.v1'", 'PASS_SCORE = 80',
+        'assessCombatCapstone', 'runDesignProbes', 'DIMENSION_MINIMUMS',
+        'resolve-mutation', 'unbounded-target-selection', 'missing-version-preconditions', 'duplicate-command-policy',
+        'order-dependent-rng', 'reaction-rolls-back-primary', 'indirect-causation',
+        'broken-status-provenance', 'ambiguous-status-time',
+        'deterministic-reaction-order', 'retainedReactionIdempotencyKeys',
+        'REACTION_WAVE_LIMIT_EXCEEDED', 'BUDGET_EXCEEDED',
+        'contractSchemaVersion', 'replayFormatVersion', 'dataVersion',
+        'targetOrderPolicyVersion',
+    ):
+        if token not in capstone_text:
+            error(f'capstone assessor missing contract token: {token}')
+    if re.search(r'\beval\s*\(|new\s+Function\b', capstone_text):
+        error('capstone assessor must not execute learner-authored code')
+    if 'createReferenceSubmission' in capstone_text:
+        error('capstone assessor must not expose or embed a completed-answer generator')
 kernel_text = kernel_source.read_text(encoding='utf-8')
 for token in ('SOURCE_KINDS', 'HIT_OUTCOMES', "hitOutcome = 'Hit'", "? 'Hit' : 'Miss'"):
     if token not in kernel_text:
@@ -702,10 +727,32 @@ required_contracts = {
     'replay-fixture.schema.json',
     'source-ref.schema.json',
     'versioned-document.schema.json',
+    'combat-capstone-submission.schema.json',
 }
 contract_names = {item.name for item in contracts}
 if required_contracts - contract_names:
     error(f'missing contract schemas: {sorted(required_contracts-contract_names)}')
+capstone_contract_path = ROOT/'source/contracts/combat-capstone-submission.schema.json'
+if capstone_contract_path.is_file():
+    capstone_contract = json.loads(capstone_contract_path.read_text(encoding='utf-8'))
+    capstone_root_fields = {'schemaVersion', 'challengeId', 'ownership', 'resolve', 'commit', 'reaction', 'status', 'replay', 'scenarios'}
+    if capstone_contract.get('additionalProperties') is not False:
+        error('capstone submission schema must reject unknown top-level fields')
+    if set(capstone_contract.get('required', [])) != capstone_root_fields:
+        error('capstone submission schema required fields differ from the assessor contract')
+    capstone_contract_text = json.dumps(capstone_contract, ensure_ascii=False)
+    tick_offsets_contract = capstone_contract.get('properties', {}).get('status', {}).get('properties', {}).get('tickOffsets', {})
+    if tick_offsets_contract.get('maxItems') != 8 or tick_offsets_contract.get('uniqueItems') is not True:
+        error('capstone tickOffsets schema must match the assessor maximum and uniqueness rules')
+    for token in (
+        'reject-request', 'keyed-per-target', 'state-and-outbox-atomic',
+        'keep-primary-and-dispatched-discard-undispatched-diagnostic-trace',
+        'new-command-and-idempotency-keys-or-explicit-operator-policy',
+        'last-transition-event', 'damage-tick-expire-status-remove-atomic',
+        'targetOrderPolicyVersion', 'rollback-primary', 'sequential-consumption',
+    ):
+        if token not in capstone_contract_text:
+            error(f'capstone submission schema missing discoverable candidate token: {token}')
 if len(adrs) != 5: error(f'expected 5 ADRs, got {len(adrs)}')
 for envelope_name in ('command-envelope.schema.json', 'domain-event-envelope.schema.json'):
     envelope_schema = json.loads((ROOT/'source/contracts'/envelope_name).read_text(encoding='utf-8'))
@@ -898,7 +945,15 @@ else:
 
 runtime_page = next((page for page in pages if page['file'] == 'modules/runtime-reference.html'), None)
 runtime = soups.get(ROOT/runtime_page['file']) if runtime_page else None
-required = ['[data-runtime-lab]','[data-runtime-form]','[data-runtime-check="duplicate"]','[data-runtime-check="conflict"]','[data-runtime-check="rollback"]','[data-runtime-cache-probe]','[data-runtime-migration-probe]']
+required = [
+    '[data-runtime-lab]', '[data-runtime-form]', '[data-runtime-check="duplicate"]',
+    '[data-runtime-check="conflict"]', '[data-runtime-check="rollback"]',
+    '[data-runtime-cache-probe]', '[data-runtime-migration-probe]',
+    '#middle-capstone', '[data-capstone-rubric]', '[data-capstone-lab]',
+    '[data-capstone-editor]', '[data-capstone-assess]', '[data-capstone-reset]',
+    '[data-capstone-gate="normal"]', '[data-capstone-gate="edge"]',
+    '[data-capstone-gate="failure"]', '[data-capstone-evidence]', '[data-capstone-feedback]',
+]
 if runtime:
     if not runtime.select_one('[data-simulator-language="javascript"]'):
         error('runtime page does not identify the JavaScript simulator')
@@ -933,8 +988,34 @@ if runtime:
     migration_callout = migration_heading.find_previous_sibling() if migration_heading else None
     if not migration_callout or '선택 학습 · Advanced' not in migration_callout.get_text(' ', strip=True):
         error('runtime migration lab must be framed as optional Advanced learning')
+    for token in (
+        'Executable assessor, conceptual gameplay', 'production multi-target runtime',
+        '정상·경계·실패 gate 모두 PASS', 'Critical 0개', '각 차원 최소 80%',
+        'Junior → Middle', 'target:*', 'wildcard ID', '비영속 diagnostic',
+        'contractSchemaVersion', 'replayFormatVersion', 'dataVersion', 'targetOrderPolicyVersion',
+    ):
+        if token not in runtime_text:
+            error(f'runtime capstone missing evidence or pass-boundary token: {token}')
+    rubric_points = []
+    for row in runtime.select('[data-capstone-rubric] tbody tr'):
+        cells = row.select('th, td')
+        if len(cells) >= 2:
+            match = re.search(r'\d+', cells[1].get_text(' ', strip=True))
+            if match: rubric_points.append(int(match.group(0)))
+    if rubric_points != [15, 20, 20, 20, 15, 10] or sum(rubric_points) != 100:
+        error(f'runtime capstone rubric must expose canonical 100-point weights, got {rubric_points}')
+    if '기준안 불러오기' in runtime_text or '정답 불러오기' in runtime_text:
+        error('runtime capstone must not expose a one-click completed answer')
+    schema_links = runtime.select('a[href="../source/contracts/combat-capstone-submission.schema.json"]')
+    if len(schema_links) < 2:
+        error('runtime capstone must link the candidate-token schema from its guide and editor help')
     scripts=[tag.get('src') for tag in runtime.select('script[src]')]
     if '../assets/js/runtime-kernel.js' not in scripts: error('runtime page does not load browser kernel')
+    if '../assets/js/capstone-assessor.js' not in scripts: error('runtime page does not load capstone assessor')
+    expected_runtime_scripts = ['../assets/js/runtime-kernel.js', '../assets/js/capstone-assessor.js', '../assets/js/app.js']
+    runtime_script_positions = [scripts.index(item) for item in expected_runtime_scripts if item in scripts]
+    if len(runtime_script_positions) == 3 and runtime_script_positions != sorted(runtime_script_positions):
+        error('runtime page must load kernel, capstone assessor, then app')
 
 glossary = soups.get(ROOT/'modules/glossary.html')
 runtime_glossary_ids = {
@@ -955,7 +1036,7 @@ if glossary:
         error('glossary must explain optional System SourceRef instanceId')
 
 app_source = (ROOT/'assets/js/app.js').read_text(encoding='utf-8')
-for token in ("'읽기 완료'", '학습 포인트:', 'data-horizontal-scroll-hint'):
+for token in ("'읽기 완료'", '학습 포인트:', 'data-horizontal-scroll-hint', 'initialiseCapstoneAssessor', 'JSON PARSE FAIL'):
     if token not in app_source:
         error(f'app.js missing learning UX token: {token}')
 if not re.search(r'Number\.isInteger\(\w+\.learningOrder\)', app_source):

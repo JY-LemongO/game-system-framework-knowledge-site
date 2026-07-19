@@ -1,8 +1,8 @@
 # Phase 3 Runtime Reference 구현 보고서
 
-- 판본: `3.3.0-reference`
+- 판본: `3.4.0-reference`
 - 최초 작성일: 2026-07-10
-- 실행 참조 감사 갱신일: 2026-07-19
+- 실행 참조 감사 갱신일: 2026-07-20
 - 구현 성격: 엔진·서버 비종속, 단일 프로세스, in-memory 기준 구현
 - 핵심 목적: 문서에 있던 결정론·commit·reaction·cache·tick·migration 계약을 실제 코드와 회귀 테스트로 고정
 
@@ -63,11 +63,15 @@ replay header에는 다음 버전을 기록한다.
 - `contractSchemaVersion`
 - `replayFormatVersion`
 - `rngAlgorithmVersion`
+- `rngKeySchemaVersion`
+- `clockDomain`
 - `numericPolicyVersion`
 - `dataVersion`
 - `definitionVersion`
 - `formulaVersion`
 - `rootSeed`
+
+다중 대상처럼 실행 순서 의미가 추가되는 replay는 `targetOrderPolicyVersion`도 함께 기록한다.
 
 같은 seed는 동일 replay의 필요조건일 뿐 충분조건이 아니다. 입력 snapshot, 정의, 공식, 산술, RNG 의미가 함께 고정되어야 한다.
 
@@ -77,6 +81,7 @@ replay header에는 다음 버전을 기록한다.
 - `source/contracts/domain-event-envelope.schema.json`
 - `source/contracts/replay-fixture.schema.json`
 - `source/contracts/versioned-document.schema.json`
+- `source/contracts/combat-capstone-submission.schema.json`
 - `source/runtime/runtime-kernel.d.ts`
 
 ---
@@ -235,6 +240,8 @@ Command received
 - duplicate/version conflict/rollback failure probe
 - Contextual Stat Cache Lab
 - save v1→v2→v3 Migration Lab
+- learner-authored Chain Lightning + Shock contract capstone
+- fixture 기반 normal·edge·failure 계산 probe와 차원별 최소점 feedback
 - source/schema/ADR direct link
 - desktop/mobile responsive layout
 - 키보드 검색, native dialog, reduced motion, offline-first 유지
@@ -246,6 +253,18 @@ Command received
 3. `41_deterministic_replay_envelope`
 
 전체 갤러리는 34종으로 확장됐다.
+
+### 7.1 캡스톤 증거 경계
+
+캡스톤 assessor는 제출 JSON을 production gameplay code로 실행하지 않는다. 제출한 정책을 고정 fixture 모델에 적용해 다음 결과를 계산한다.
+
+- 전체 정렬 뒤 최대 3개 선택, 동률 EntityId 순서, target-keyed RNG와 permutation hash
+- 중복 target 요청 거부와 full-shield Hit의 Shock 적용
+- caster·모든 target version 중 하나가 stale일 때 state/outbox hash 불변
+- reaction budget 실패 전 primary·dispatch 완료 commit 보존, 미실행 항목 폐기, enqueue 완료 key 유지, 비영속 diagnostic과 새 commandId·reaction idempotencyKey 재시도 정책
+- `DamageCommitted → apply-status command/StatusInstance.applicationCausationId`, `StatusApplied event → apply command`, 이후 tick command가 직전 transition event를 따르는 causation과 마지막 피해·tick·expire·remove의 단일 commit
+
+합격은 총점 80점 이상만으로 결정하지 않는다. 여섯 차원 각각 80% 이상, normal·edge·failure probe 전부 PASS, critical 위반 0개가 동시에 필요하다. 공개 브라우저 API에는 완성 제출물 생성 함수를 두지 않으며, JSON Schema는 정답과 오답 후보 token을 함께 공개한다.
 
 ---
 

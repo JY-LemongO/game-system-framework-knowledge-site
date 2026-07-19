@@ -1,10 +1,10 @@
 {
   "name": "game-system-knowledge",
-  "version": "3.3.0-reference",
+  "version": "3.4.0-reference",
   "private": true,
   "description": "Offline learning site and executable lab for game system architecture",
   "scripts": {
-    "test": "node source/runtime/tests/runtime-kernel.test.cjs",
+    "test": "node source/runtime/tests/runtime-kernel.test.cjs && node source/runtime/tests/capstone-assessor.test.cjs",
     "csharp:verify": "dotnet run --project source/csharp/GameSystemKnowledge.Reference.Verification/GameSystemKnowledge.Reference.Verification.csproj --configuration Release",
     "demo": "node source/runtime/run-demo.cjs",
     "migration-demo": "node source/runtime/run-migration-demo.cjs",

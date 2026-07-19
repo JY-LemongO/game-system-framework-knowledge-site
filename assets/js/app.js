@@ -1584,6 +1584,218 @@
     runMigrationProbe();
   }
 
+  function initialiseCapstoneAssessor() {
+    const root = $('[data-capstone-lab]');
+    const C = window.GSFCapstone;
+    if (!root || !C) return;
+
+    const editor = $('[data-capstone-editor]', root);
+    const assessButton = $('[data-capstone-assess]', root);
+    const resetButton = $('[data-capstone-reset]', root);
+    const score = $('[data-capstone-score]', root);
+    const meter = $('[data-capstone-meter]', root);
+    const status = $('[data-capstone-status]', root);
+    const criticalCount = $('[data-capstone-critical-count]', root);
+    const draftStatus = $('[data-capstone-draft-status]', root);
+    const feedback = $('[data-capstone-feedback]', root);
+    const evidence = $('[data-capstone-evidence]', root);
+    const storageKey = `gsf-capstone-draft-${C.CHALLENGE_ID}`;
+    const starter = JSON.stringify(C.createStarterSubmission(), null, 2);
+    const storageAvailable = safeStorage.available();
+    const storedDraft = safeStorage.get(storageKey);
+    let loadableDraft = null;
+    let discardedInvalidDraft = false;
+    if (storedDraft !== null) {
+      try {
+        const parsedDraft = JSON.parse(storedDraft);
+        if (storedDraft.length <= C.MAX_SUBMISSION_CHARS && C.assessCombatCapstone(parsedDraft).schemaValid) {
+          loadableDraft = storedDraft;
+        } else {
+          discardedInvalidDraft = true;
+          safeStorage.remove(storageKey);
+        }
+      } catch {
+        discardedInvalidDraft = true;
+        safeStorage.remove(storageKey);
+      }
+    }
+    let saveTimer = 0;
+
+    function setGate(name, passed, pending = false) {
+      const node = $(`[data-capstone-gate="${name}"]`, root);
+      if (!node) return;
+      node.textContent = pending ? '대기' : passed ? 'PASS' : 'FAIL';
+      if (pending) delete node.dataset.state;
+      else node.dataset.state = passed ? 'pass' : 'fail';
+    }
+
+    function resetAssessment(message = '아직 채점하지 않았습니다.') {
+      if (score) score.textContent = '—';
+      if (meter) {
+        meter.value = 0;
+        meter.textContent = '0 / 100';
+      }
+      if (status) {
+        status.textContent = message;
+        delete status.dataset.state;
+      }
+      if (criticalCount) {
+        criticalCount.textContent = '—';
+        delete criticalCount.dataset.state;
+      }
+      for (const name of ['normal', 'edge', 'failure']) setGate(name, false, true);
+      if (evidence) evidence.textContent = '{}';
+      if (feedback) {
+        const item = document.createElement('li');
+        item.textContent = '설계를 채점하면 배점과 빠진 계약이 여기에 표시됩니다.';
+        feedback.replaceChildren(item);
+      }
+    }
+
+    function renderSchemaError(message, details = []) {
+      if (score) score.textContent = '0';
+      if (meter) {
+        meter.value = 0;
+        meter.textContent = '0 / 100';
+      }
+      if (status) {
+        status.textContent = message;
+        status.dataset.state = 'fail';
+      }
+      if (criticalCount) {
+        criticalCount.textContent = '1';
+        criticalCount.dataset.state = 'fail';
+      }
+      for (const name of ['normal', 'edge', 'failure']) setGate(name, false);
+      if (evidence) evidence.textContent = JSON.stringify({ schemaValid: false, errors: details.slice(0, 3) }, null, 2);
+      if (!feedback) return;
+      const item = document.createElement('li');
+      const title = document.createElement('strong');
+      const copy = document.createElement('small');
+      title.textContent = '제출 형식 확인';
+      copy.textContent = details.length ? details.slice(0, 3).join(' ') : message;
+      item.dataset.state = 'fail';
+      item.append(title, copy);
+      feedback.replaceChildren(item);
+    }
+
+    function renderAssessment(result) {
+      if (!result.schemaValid) {
+        renderSchemaError('SCHEMA FAIL · 고정 JSON 계약을 확인하세요.', result.schemaErrors);
+        return;
+      }
+      const passedGates = Object.values(result.gates).filter(Boolean).length;
+      const passedDimensions = result.criteria.filter(criterion => criterion.pass).length;
+      if (score) score.textContent = String(result.score);
+      if (meter) {
+        meter.value = result.score;
+        meter.textContent = `${result.score} / 100`;
+      }
+      if (status) {
+        status.textContent = result.passed
+          ? `PASS · ${result.score}/100 · dimension 6/6 · gate 3/3 · critical 0`
+          : `NOT YET · ${result.score}/100 · dimension ${passedDimensions}/6 · gate ${passedGates}/3 · critical ${result.criticalViolations.length}`;
+        status.dataset.state = result.passed ? 'pass' : 'fail';
+      }
+      if (criticalCount) {
+        criticalCount.textContent = String(result.criticalViolations.length);
+        criticalCount.dataset.state = result.criticalViolations.length === 0 ? 'pass' : 'fail';
+      }
+      for (const name of ['normal', 'edge', 'failure']) setGate(name, result.gates[name]);
+      if (evidence) {
+        const visibleEvidence = Object.fromEntries(Object.entries(result.probes).map(([name, probe]) => [name, {
+          passed: probe.passed,
+          failedChecks: probe.checks.filter(check => !check.pass).map(check => check.id),
+          evidence: probe.evidence
+        }]));
+        evidence.textContent = JSON.stringify(visibleEvidence, null, 2);
+      }
+      if (!feedback) return;
+
+      // 사용자 문자열은 HTML로 해석하지 않고 항목별 안전한 text node로만 그린다.
+      const items = result.criteria.map(criterion => {
+        const item = document.createElement('li');
+        const head = document.createElement('div');
+        const title = document.createElement('strong');
+        const points = document.createElement('b');
+        const detail = document.createElement('small');
+        const failures = criterion.checks.filter(check => !check.pass);
+        title.textContent = criterion.label;
+        points.textContent = `${criterion.score} / ${criterion.maxScore} · min ${criterion.minimumScore}`;
+        detail.textContent = failures.length === 0
+          ? '모든 rubric check를 충족했습니다.'
+          : `${criterion.pass ? '차원 최소점 충족 · 추가 보완' : '차원 최소점 미달 · 보완'}: ${failures.map(check => check.label).join(' · ')}`;
+        item.dataset.state = failures.length === 0 ? 'pass' : 'fail';
+        head.append(title, points);
+        item.append(head, detail);
+        return item;
+      });
+      if (result.criticalViolations.length) {
+        const item = document.createElement('li');
+        const head = document.createElement('div');
+        const title = document.createElement('strong');
+        const points = document.createElement('b');
+        const detail = document.createElement('small');
+        title.textContent = 'Critical gate';
+        points.textContent = `${result.criticalViolations.length} violation`;
+        detail.textContent = result.criticalViolations.map(item => item.label).join(' · ');
+        item.dataset.state = 'fail';
+        head.append(title, points);
+        item.append(head, detail);
+        items.unshift(item);
+      }
+      feedback.replaceChildren(...items);
+    }
+
+    function saveDraft() {
+      if (!storageAvailable) {
+        if (draftStatus) draftStatus.textContent = '이 환경에서는 draft를 저장할 수 없지만 채점은 계속할 수 있습니다.';
+        return false;
+      }
+      const saved = safeStorage.set(storageKey, editor.value);
+      if (draftStatus) draftStatus.textContent = saved ? '이 브라우저에 draft를 저장했습니다.' : 'draft를 저장하지 못했습니다.';
+      return saved;
+    }
+
+    editor.value = loadableDraft ?? starter;
+    if (draftStatus) {
+      draftStatus.textContent = discardedInvalidDraft
+        ? '이전 계약과 맞지 않는 draft를 지우고 최신 Starter를 불러왔습니다.'
+        : loadableDraft !== null
+        ? '이 브라우저에 저장된 draft를 불러왔습니다.'
+        : storageAvailable ? 'Starter를 불러왔습니다. 변경 내용은 이 브라우저에만 저장됩니다.' : 'Starter를 불러왔습니다. 이 환경에서는 draft를 저장할 수 없습니다.';
+    }
+
+    // 입력 중 저장 횟수를 줄이되 마지막 draft는 짧은 지연 뒤 반영한다.
+    editor.addEventListener('input', () => {
+      window.clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(saveDraft, 180);
+    });
+    assessButton?.addEventListener('click', () => {
+      window.clearTimeout(saveTimer);
+      saveDraft();
+      if (editor.value.length > C.MAX_SUBMISSION_CHARS) {
+        renderSchemaError(`SIZE FAIL · ${C.MAX_SUBMISSION_CHARS.toLocaleString('ko-KR')}자 이하로 줄이세요.`);
+        return;
+      }
+      try {
+        renderAssessment(C.assessCombatCapstone(JSON.parse(editor.value)));
+      } catch (error) {
+        renderSchemaError('JSON PARSE FAIL · 문법을 확인하세요.', [String(error.message || error)]);
+      }
+    });
+    resetButton?.addEventListener('click', () => {
+      window.clearTimeout(saveTimer);
+      editor.value = starter;
+      safeStorage.remove(storageKey);
+      if (draftStatus) draftStatus.textContent = '저장된 draft를 지우고 Starter로 초기화했습니다.';
+      resetAssessment('Starter로 초기화했습니다. 아직 채점하지 않았습니다.');
+      editor.focus();
+    });
+
+    resetAssessment();
+  }
+
   initialiseDialogs();
   initialiseTheme();
   initialiseFocusMode();
@@ -1604,4 +1816,5 @@
   initialiseCurrentNavigation();
   initialiseLearningProgress();
   initialiseRuntimeReference();
+  initialiseCapstoneAssessor();
 })();

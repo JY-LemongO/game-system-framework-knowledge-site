@@ -190,12 +190,12 @@
 <article class="content-area doc-article runtime-reference" id="article-content">
 <section class="hero runtime-hero" data-accent="violet">
 <span class="eyebrow">Executable Learning Lab</span><h1>Runtime Contract<br/>Lab</h1>
-<p class="lead">C# 계약이 보장해야 할 실행 의미를 브라우저 시뮬레이터로 확인한다. Fireball replay와 실패 probe를 조작하며 필수 흐름인 resolve·commit·reaction·status tick과 context cache를 비교하고, schema migration은 선택 학습으로 다룬다.</p>
+<p class="lead">C# 계약이 보장해야 할 실행 의미를 브라우저 시뮬레이터로 확인한다. Fireball replay와 실패 probe를 조작한 뒤, 낯선 Chain Lightning 요구를 계약 설계로 작성해 중급 진입 기준으로 채점한다. schema migration은 선택 학습으로 다룬다.</p>
 <div class="badges"><span class="badge" data-example-language="csharp">기준 언어 · C#</span><span class="badge" data-simulator-language="javascript">시뮬레이터 · JavaScript</span><span class="badge">Deterministic replay</span><span class="badge">Atomic commit</span><span class="badge">Bounded reaction</span><span class="badge">Advanced · Schema migration</span></div>
-<div class="hero-actions"><a class="button primary" href="#fireball-workbench">Workbench 실행</a><a class="button secondary" href="../modules/fireball-case-study.html">사례 먼저 읽기</a></div>
+<div class="hero-actions"><a class="button primary" href="#fireball-workbench">Workbench 실행</a><a class="button secondary" href="#middle-capstone">Capstone 도전</a><a class="button secondary" href="../modules/fireball-case-study.html">사례 먼저 읽기</a></div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>C# 핵심 계약과 JavaScript 확장 Lab이 각각 검증하는 replay, 원자적 commit, 제한된 reaction, context cache 결과를 증거 범위에 맞춰 관찰한다. 저장 문서의 단계별 migration은 필수 흐름을 익힌 뒤 선택해서 확인한다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>C# 핵심 계약과 JavaScript 확장 Lab이 각각 검증하는 replay, 원자적 commit, 제한된 reaction, context cache 결과를 증거 범위에 맞춰 관찰한다. 마지막에는 미공개 다중 대상 변형의 설계 산출물을 직접 작성하고 정상·경계·실패 gate로 평가한다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Fireball 사례를 먼저 읽고 다음 경계를 설명할 수 있어야 한다.</p><ul><li>C#의 불변 요청·결과, 인터페이스, 읽기 전용 snapshot</li><li>순수 resolve와 원자적 commit, rollback, resource invariant</li><li>commandId 멱등성, optimistic version 사전 조건, state와 outbox의 동시 확정</li><li>결정론적 RNG, stableOrderKey, correlation·causation, version envelope</li></ul><p>낯선 용어는 <a href="../modules/glossary.html#idempotency">용어집의 Runtime 계약 항목</a>을 먼저 확인한다.</p></article>
 </div>
 <div aria-labelledby="runtime-reference-scope" class="callout" role="note">
@@ -320,14 +320,67 @@ public interface IReactionQueue
 </div>
 <div class="table-scroll"><table class="data-table"><thead><tr><th>Envelope field</th><th>고정하는 의미</th><th>변경 시 처리</th></tr></thead><tbody>
 <tr><td><code>runtimeVersion</code></td><td>커널 구현의 semantics</td><td>golden fixture 재승인</td></tr>
+<tr><td><code>contractSchemaVersion</code></td><td>command·plan·event 공개 계약의 구조</td><td>호환 lane 분리 또는 계약 migration</td></tr>
+<tr><td><code>replayFormatVersion</code></td><td>replay 문서 자체의 직렬화 형식</td><td>reader 호환 범위와 migration 명시</td></tr>
 <tr><td><code>rngAlgorithmVersion</code></td><td>key hash와 sample 생성 방식</td><td>별도 replay lane 또는 migration</td></tr>
 <tr><td><code>rngKeySchemaVersion</code></td><td><code>[correlationId, branch, targetId]</code> key 조립 규칙</td><td>키 의미가 달라지면 독립 버전 승격</td></tr>
 <tr><td><code>clockDomain</code></td><td>현재 tick이 속한 시간축(<code>simulation_tick</code>)</td><td>시간축 변환 없이 혼합 금지</td></tr>
 <tr><td><code>numericPolicyVersion</code></td><td>BPS 단위와 반올림 위치</td><td>formula version과 함께 승격</td></tr>
+<tr><td><code>dataVersion</code></td><td>실행에 사용한 전체 데이터 snapshot</td><td>live data 대신 동일 snapshot 복원</td></tr>
 <tr><td><code>definitionVersion</code></td><td>Fireball·Burn 정적 데이터</td><td>과거 definition snapshot 보관</td></tr>
 <tr><td><code>formulaVersion</code></td><td>피해 단계와 계산식</td><td>live balance와 replay 분리</td></tr>
 <tr><td><code>rootSeed</code></td><td>keyed decision sample의 root</td><td>같은 실행 안에서 불변</td></tr>
+<tr><td><code>targetOrderPolicyVersion</code></td><td>다중 대상 실행의 정렬·동률·상한 적용 의미</td><td>다중 대상일 때 필수, 규칙 변경 시 독립 버전 승격</td></tr>
 </tbody></table></div>
+<div class="callout" role="note"><b>조건부 envelope 필드.</b><p>현재 단일 대상 Fireball replay header에는 대상 집합 정렬이 없으므로 <code>targetOrderPolicyVersion</code>을 넣지 않는다. 아래 다중 대상 캡스톤처럼 선택 순서가 결과를 바꿀 수 있는 실행에서는 이 필드를 추가해 정책 의미를 고정한다.</p></div>
+<div class="callout warn" role="note"><b>증거 경계 · Executable assessor, conceptual gameplay.</b><p>아래 assessor는 학습자가 제출한 JSON 설계 산출물의 계약 정합성과 rubric을 실제 코드로 검증한다. Chain Lightning의 다중 대상 피해를 현재 C# 또는 JavaScript gameplay kernel에서 실행하는 것은 아니다. 따라서 합격 결과는 중급 진입용 설계 연습의 증거이며, production multi-target runtime·Unity adapter·네트워크 동기화의 구현 완료를 뜻하지 않는다.</p></div>
+<h2 id="middle-capstone">Middle Step-up Capstone</h2>
+<p>Fireball의 이름과 수치만 바꾸지 말고, 입력 순서가 섞인 대상을 처리하는 <strong>Chain Lightning + Shock</strong>의 책임·결정성·실패 의미를 하나의 제출 계약으로 작성한다. starter의 <code>null</code>과 빈 배열을 채운 뒤 assessor가 실제로 계산한 normal·edge·failure probe와 항목별 feedback을 근거로 수정한다.</p>
+<section aria-labelledby="capstone-brief-title" class="capstone-brief">
+<header><div><span class="section-kicker">Unseen variant · learner-authored</span><h3 id="capstone-brief-title">설계 요구</h3></div><span class="capstone-level">Junior → Middle</span></header>
+<div class="capstone-requirements">
+<article><span>01 · Resolve</span><h4>순서와 RNG를 입력 순회에서 분리</h4><p>중복 target 요청은 전체를 거부한다. 전체 후보를 <code>distanceBucket asc</code>, 동률이면 <code>EntityId ordinal asc</code>로 먼저 정렬한 뒤 최대 3개를 고른다. 각 Hit 판정은 <code>correlationId + decisionKind + targetId</code> keyed RNG를 사용한다.</p></article>
+<article><span>02 · Commit</span><h4>주 효과는 하나의 원자적 plan</h4><p>Mana 비용·쿨다운·모든 주 피해와 outbox를 함께 확정한다. caster와 모든 target version 중 하나라도 stale이면 아무 mutation과 event도 남기지 않는다.</p></article>
+<article><span>03 · Reaction</span><h4>직접 피해 event에서 Shock 생성</h4><p>각 <code>DamageCommitted</code>가 자기 Shock reaction의 직접 원인이다. budget 실패 전 이미 확정된 primary와 reaction commit은 유지하고 아직 dispatch하지 않은 항목만 폐기한다. 실패 trace는 비영속 diagnostic이다. enqueue에 성공한 A/B/C의 idempotency key는 pending 폐기 뒤에도 모두 유지한다. 재시도는 새 commandId와 새 reaction idempotencyKey를 만들거나, 기존 key를 대체하는 명시적 운영 정책으로 시작한다.</p></article>
+<article><span>04 · Status</span><h4>제품 규칙과 시간·출처를 명시</h4><p>보호막이 전부 흡수해도 <code>Hit</code>이고 대상이 생존했다면 Shock을 적용한다. 적용 command와 <code>StatusInstance.applicationCausationId</code>는 직접 <code>DamageCommitted</code>를 가리키고, <code>StatusApplied</code> event는 그 적용 command를 가리킨다. 첫 tick command는 <code>StatusApplied</code>, 다음 tick command는 직전 <code>StatusTicked</code>를 원인으로 삼는다. <code>simulation_tick</code> +4에는 피해 resource delta·<code>StatusTicked</code>·<code>StatusExpired</code>·status remove를 한 status-tick plan에서 원자적으로 확정한다.</p></article>
+</div>
+</section>
+<div class="callout" role="note"><b>제출 토큰을 찾는 방법</b><p><a href="../source/contracts/combat-capstone-submission.schema.json">제출 JSON Schema</a>에 각 필드에서 사용할 수 있는 정확한 후보 token과 scenario slug가 있다. 후보에는 오답도 포함되므로 위 요구와 기존 계약을 근거로 선택한다. <a href="../source/runtime/capstone-assessor.js">assessor source</a>는 판정과 probe가 어떻게 계산되는지 검토할 수 있지만 완성 제출물을 생성하는 공개 API는 제공하지 않는다.</p><p>판단 근거는 <a href="../source/adr/ADR-001-deterministic-numeric-and-rng.md">ADR-001 · 결정론</a>, <a href="../source/adr/ADR-002-pure-resolve-atomic-commit.md">ADR-002 · resolve/commit</a>, <a href="../source/adr/ADR-003-bounded-reaction-queue.md">ADR-003 · reaction</a>에서 확인한다.</p><p><code>target:*</code>는 “선택된 모든 대상마다 명시적 version precondition이 있어야 한다”는 assessor 표기다. 실제 <code>CommitPlan</code>에 wildcard ID를 넣으라는 뜻이 아니며, production plan에서는 선택된 각 <code>EntityId</code>를 열거한다.</p></div>
+<h3 id="capstone-rubric">100점 Rubric</h3>
+<div class="table-scroll"><table class="data-table capstone-rubric" data-capstone-rubric=""><thead><tr><th scope="col">평가 차원</th><th scope="col">배점</th><th scope="col">검증 초점</th></tr></thead><tbody>
+<tr><td>책임 소유권</td><td><strong>15</strong></td><td>Skill·Effect·Combat·Status·RuntimeCommitter의 경계</td></tr>
+<tr><td>순수 resolve·정렬·RNG</td><td><strong>20</strong></td><td>mutation/event 없음, 안정 정렬, target-keyed RNG</td></tr>
+<tr><td>원자적 commit·version·rollback</td><td><strong>20</strong></td><td>단일 primary plan, 모든 mutation 대상 version, state+outbox</td></tr>
+<tr><td>event·reaction 인과·상한</td><td><strong>20</strong></td><td>직접 causation, 정렬 tuple, 멱등성, wave 실패 정책</td></tr>
+<tr><td>Status 시간·출처</td><td><strong>15</strong></td><td>적용/주기 provenance, +2/+4, tick 후 expire</td></tr>
+<tr><td>Replay envelope·증거</td><td><strong>10</strong></td><td>정렬 정책 version과 정상·경계·실패 증거</td></tr>
+</tbody><tfoot><tr><th scope="row">합격</th><td><strong>80+</strong></td><td>각 차원 최소 80%(12·16·16·16·12·8점), 실행 probe 기반 정상·경계·실패 gate 모두 PASS, Critical 0개가 추가로 필요</td></tr></tfoot></table></div>
+<section aria-label="Chain Lightning 설계 채점기" class="capstone-lab" data-capstone-lab="">
+<header class="capstone-lab-head"><div><span class="section-kicker">Executable contract assessor</span><h3>Chain Lightning Submission</h3></div><span class="capstone-live">JSON ONLY</span></header>
+<div class="capstone-workspace">
+<div class="capstone-editor-panel">
+<label for="capstone-submission">설계 제출 JSON</label>
+<textarea aria-describedby="capstone-editor-help capstone-draft-status" autocapitalize="off" autocomplete="off" data-capstone-editor="" id="capstone-submission" spellcheck="false"></textarea>
+<p id="capstone-editor-help">필드 이름은 고정 계약이다. <a href="../source/contracts/combat-capstone-submission.schema.json">후보 token·slug 계약</a>을 참고해 값을 채우되 JavaScript나 주석은 넣지 않는다. assessor는 제출 코드를 실행하지 않고 JSON만 해석한다.</p>
+<div class="capstone-actions"><button class="button primary" data-capstone-assess="" type="button">설계 채점</button><button class="button secondary" data-capstone-reset="" type="button">Starter로 초기화</button></div>
+<p aria-live="polite" data-capstone-draft-status="" id="capstone-draft-status">Starter를 준비하는 중입니다.</p>
+</div>
+<aside class="capstone-score-panel" aria-label="채점 요약">
+<span>Current assessment</span>
+<div class="capstone-score"><strong data-capstone-score="">—</strong><small>/ 100</small></div>
+<meter aria-label="캡스톤 점수" data-capstone-meter="" max="100" min="0" value="0">0 / 100</meter>
+<output aria-live="polite" data-capstone-status="" role="status">아직 채점하지 않았습니다.</output>
+<div class="capstone-critical"><span>Critical violations</span><strong data-capstone-critical-count="">—</strong></div>
+</aside>
+</div>
+<div aria-label="필수 시나리오 gate" class="capstone-gates">
+<article><span>Golden path</span><strong data-capstone-gate="normal">대기</strong><small>소유권·3 target order·keyed RNG·단일 commit·직접 reaction</small></article>
+<article><span>Boundary</span><strong data-capstone-gate="edge">대기</strong><small>permutation·tie·sort-before-limit·duplicate·shield·원자적 expire</small></article>
+<article><span>Failure</span><strong data-capstone-gate="failure">대기</strong><small>stale state/outbox 불변·dispatch 경계·비영속 trace·멱등 재시도</small></article>
+</div>
+<div class="capstone-evidence"><header><div><span class="section-kicker">Computed evidence</span><h3>Probe 결과</h3></div><small>제출 token을 fixture 모델에 적용한 계산값</small></header><output aria-live="polite" data-capstone-evidence="">{}</output></div>
+<div class="capstone-feedback"><header><div><span class="section-kicker">Dimension feedback</span><h3>항목별 결과</h3></div><small>합격선 80 · 각 차원 80% · gate 3/3 · critical 0</small></header><ol data-capstone-feedback=""><li>설계를 채점하면 배점과 빠진 계약이 여기에 표시됩니다.</li></ol></div>
+</section>
 <section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
 <span class="section-kicker">Comprehension check</span>
 <h2 id="이해도-확인">이해도 확인</h2>
@@ -345,7 +398,7 @@ public interface IReactionQueue
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
-<section class="context-card toc-card"><div class="context-title"><span>On this page</span><button data-print-page="" type="button">Print</button></div><nav class="page-toc"><a href="#학습-목표">학습 목표</a><a href="#실행-아키텍처">실행 아키텍처</a><a href="#csharp-reference-source">C# 참조 코드</a><a href="#fireball-workbench">Fireball Workbench</a><a href="#failure-probes">Hardening Probes</a><a href="#context-cache-lab">Context Cache</a><a href="#migration-lab">선택 학습 · Migration</a><a href="#deterministic-envelope">결정론 envelope</a><a href="#이해도-확인">이해도 확인</a></nav></section>
+<section class="context-card toc-card"><div class="context-title"><span>On this page</span><button data-print-page="" type="button">Print</button></div><nav class="page-toc"><a href="#학습-목표">학습 목표</a><a href="#실행-아키텍처">실행 아키텍처</a><a href="#csharp-reference-source">C# 참조 코드</a><a href="#fireball-workbench">Fireball Workbench</a><a href="#failure-probes">Hardening Probes</a><a href="#context-cache-lab">Context Cache</a><a href="#migration-lab">선택 학습 · Migration</a><a href="#deterministic-envelope">결정론 envelope</a><a href="#middle-capstone">Middle Capstone</a><a href="#이해도-확인">이해도 확인</a></nav></section>
 
 <section class="context-card"><div class="context-title"><span>Related paths</span></div><div class="related-links"><a href="../modules/fireball-case-study.html"><span>Case</span><b>Fireball 예제</b></a><a href="../modules/integration-map.html"><span>Map</span><b>통합 구조</b></a><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b></a></div></section>
 <a class="readiness-card runtime-side-cta" href="#fireball-workbench"><span>Hands-on lab</span><b>Replay를 직접 실행</b><small>입력과 결과를 비교</small><i>↓</i></a>
@@ -481,7 +534,7 @@ public interface IReactionQueue
 </svg>
 </button>
 </header>
-<nav><a href="#학습-목표">학습 목표</a><a href="#실행-아키텍처">실행 아키텍처</a><a href="#csharp-reference-source">C# 참조 코드</a><a href="#fireball-workbench">Fireball Workbench</a><a href="#failure-probes">Hardening Probes</a><a href="#context-cache-lab">Context Cache</a><a href="#migration-lab">선택 학습 · Migration</a><a href="#deterministic-envelope">결정론 envelope</a><a href="#이해도-확인">이해도 확인</a></nav>
+<nav><a href="#학습-목표">학습 목표</a><a href="#실행-아키텍처">실행 아키텍처</a><a href="#csharp-reference-source">C# 참조 코드</a><a href="#fireball-workbench">Fireball Workbench</a><a href="#failure-probes">Hardening Probes</a><a href="#context-cache-lab">Context Cache</a><a href="#migration-lab">선택 학습 · Migration</a><a href="#deterministic-envelope">결정론 envelope</a><a href="#middle-capstone">Middle Capstone</a><a href="#이해도-확인">이해도 확인</a></nav>
 </div>
 </dialog>
 <dialog aria-labelledby="diagram-modal-title" class="diagram-modal" data-diagram-modal="">
@@ -523,7 +576,7 @@ public interface IReactionQueue
 </dialog>
 <script src="../assets/js/search-index.js">
 </script>
-<script src="../assets/js/runtime-kernel.js"></script><script src="../assets/js/app.js">
+<script src="../assets/js/runtime-kernel.js"></script><script src="../assets/js/capstone-assessor.js"></script><script src="../assets/js/app.js">
 </script>
 </body>
 </html>

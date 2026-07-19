@@ -1,5 +1,33 @@
 # Changelog · Phase 3 Runtime Reference
 
+## 3.4.0-reference · 2026-07-20
+
+### Added
+
+- learner-authored `Chain Lightning + Shock` JSON contract capstone
+- exact candidate token·scenario schema with correct and distractor values
+- 100-point rubric, per-dimension 80% floors, normal·edge·failure gates, critical violations
+- deterministic fixture probes for target ordering, per-target RNG, stale rollback, reaction budget, Status causation, and atomic final tick
+- desktop and 390px mobile interaction smoke coverage for assess, evidence, malformed JSON, and reset
+
+### Changed
+
+- replay teaching envelope now names contract schema, replay format, RNG key schema, clock domain, data, and target-order policy versions explicitly
+- reaction failure teaching now distinguishes committed, dispatched, undispatched, non-durable diagnostic, idempotency, and retry semantics
+- Status teaching now connects application and periodic source provenance to the direct transition-event causation chain
+
+### Fixed
+
+- removed the browser API that returned a complete 100-point submission
+- replaced scenario-slug self-report gates with computed probe results plus exact evidence declarations
+- made mutation version subjects order-independent as a set contract
+- prevented high aggregate scores from hiding a weak rubric dimension or incorrect ownership boundary
+- rejected sparse arrays, index accessors, symbol/extra properties, and other non-JSON array shapes before assessor values are read
+
+### Evidence boundary
+
+- the capstone validates a learner-authored design artifact against a fixture model; it does not claim a production multi-target runtime, Unity adapter, or network implementation
+
 ## 3.2.0-reference · 2026-07-10
 
 ### Added

@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://game-system-knowledge.local/contracts/combat-capstone-submission.schema.json",
+  "title": "Chain Lightning + Shock learning submission",
+  "description": "Learner-authored design artifact for the executable conceptual assessor. Candidate enums include plausible distractors; they are not an answer key.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "challengeId",
+    "ownership",
+    "resolve",
+    "commit",
+    "reaction",
+    "status",
+    "replay",
+    "scenarios"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "challengeId": { "const": "chain-lightning-shock.v1" },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["orchestrationOwner", "targetSelectionOwner", "damageResolutionOwner", "statusLifecycleOwner", "commitOwner"],
+      "properties": {
+        "orchestrationOwner": { "enum": [null, "Skill", "Effect", "Combat"] },
+        "targetSelectionOwner": { "enum": [null, "Skill", "Effect", "Combat"] },
+        "damageResolutionOwner": { "enum": [null, "Skill", "Effect", "Combat"] },
+        "statusLifecycleOwner": { "enum": [null, "Combat", "Status", "RuntimeCommitter"] },
+        "commitOwner": { "enum": [null, "Combat", "Status", "RuntimeCommitter"] }
+      }
+    },
+    "resolve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mutatesState", "emitsEvents", "maxTargets", "duplicateTargetPolicy", "limitAfterSort", "targetOrder", "rngMode", "rngKeyParts"],
+      "properties": {
+        "mutatesState": { "type": ["boolean", "null"] },
+        "emitsEvents": { "type": ["boolean", "null"] },
+        "maxTargets": { "type": ["integer", "null"], "minimum": 0, "maximum": 32 },
+        "duplicateTargetPolicy": { "enum": [null, "allow-duplicates", "deduplicate-first", "reject-request"] },
+        "limitAfterSort": { "type": ["boolean", "null"] },
+        "targetOrder": {
+          "type": "array",
+          "maxItems": 24,
+          "uniqueItems": true,
+          "items": { "enum": ["input-order", "distanceBucket:asc", "entityId:ordinal:asc", "entityId:ordinal:desc"] }
+        },
+        "rngMode": { "enum": [null, "sequential-consumption", "shared-per-command", "keyed-per-target"] },
+        "rngKeyParts": {
+          "type": "array",
+          "maxItems": 24,
+          "uniqueItems": true,
+          "items": { "enum": ["correlationId", "decisionKind", "targetId", "collectionIndex", "wallClock"] }
+        }
+      }
+    },
+    "commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "expectedVersionSubjects", "publish", "duplicatePolicy", "versionConflict"],
+      "properties": {
+        "scope": { "enum": [null, "damage-per-target", "cost-then-damage", "cost-cooldown-all-primary-damage"] },
+        "expectedVersionSubjects": {
+          "type": "array",
+          "maxItems": 24,
+          "uniqueItems": true,
+          "items": { "enum": ["caster", "target:*", "initial-target-only"] }
+        },
+        "publish": { "enum": [null, "state-first-outbox-later", "outbox-first-state-later", "state-and-outbox-atomic"] },
+        "duplicatePolicy": { "enum": [null, "allow-repeat", "reject-after-mutation", "reject-before-mutation"] },
+        "versionConflict": { "enum": [null, "skip-stale-target", "commit-valid-subset", "reject-entire-plan"] }
+      }
+    },
+    "reaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["triggerEvent", "causationId", "sortOrder", "limits", "budgetFailure", "commandIdPolicy", "retryPolicy"],
+      "properties": {
+        "triggerEvent": { "enum": [null, "DamageResolved", "DamageCommitted", "SkillExecuted"] },
+        "causationId": { "enum": [null, "origin-command", "correlation-root", "direct-trigger-event"] },
+        "sortOrder": {
+          "type": "array",
+          "maxItems": 24,
+          "uniqueItems": true,
+          "items": { "enum": ["insertion-order", "priority:asc", "stableOrderKey:ordinal:asc", "reactionId:ordinal:asc", "reactionId:ordinal:desc"] }
+        },
+        "limits": {
+          "type": "array",
+          "maxItems": 24,
+          "uniqueItems": true,
+          "items": { "enum": ["maxDepth", "maxReactions", "maxBudget", "idempotency", "wallClockTimeout"] }
+        },
+        "budgetFailure": {
+          "enum": [
+            null,
+            "rollback-primary",
+            "keep-primary-discard-all-reactions",
+            "keep-primary-and-dispatched-discard-undispatched-durable-error-event",
+            "keep-primary-and-dispatched-discard-undispatched-diagnostic-trace"
+          ]
+        },
+        "commandIdPolicy": { "enum": [null, "random-guid", "reuse-root-command", "derive-from-trigger-event-and-reaction-kind"] },
+        "retryPolicy": { "enum": [null, "implicit-retry-same-command", "reuse-consumed-idempotency-key", "new-command-id-or-explicit-operator-policy", "new-command-and-idempotency-keys-or-explicit-operator-policy"] }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["applyRule", "applicationSource", "periodicSource", "periodicCausation", "instanceIdPolicy", "clockDomain", "tickOffsets", "expiresAtOffset", "sameTickOrder", "finalTickCommit"],
+      "properties": {
+        "applyRule": { "enum": [null, "positive-hp-damage-only", "any-resolved-attempt", "committed-hit-and-target-alive"] },
+        "applicationSource": { "enum": [null, "damage-event", "origin-skill-execution", "shock-status-instance"] },
+        "periodicSource": { "enum": [null, "origin-skill-execution", "shock-status-instance", "system-clock"] },
+        "periodicCausation": { "enum": [null, "root-command", "status-applied-event-only", "last-transition-event"] },
+        "instanceIdPolicy": { "enum": [null, "random-guid", "derive-from-target-only", "derive-from-reaction-target-applied-tick"] },
+        "clockDomain": { "enum": [null, "wall_clock", "render_frame", "simulation_tick"] },
+        "tickOffsets": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 0, "maximum": 32 }
+        },
+        "expiresAtOffset": { "type": ["integer", "null"], "minimum": 0, "maximum": 32 },
+        "sameTickOrder": { "enum": [null, "StatusExpired-DamageCommitted-StatusTicked", "StatusTicked-DamageCommitted-StatusExpired", "DamageCommitted-StatusTicked-StatusExpired"] },
+        "finalTickCommit": { "enum": [null, "damage-only-then-expire-later", "expire-before-damage", "damage-tick-expire-status-remove-atomic"] }
+      }
+    },
+    "replay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetPermutationInvariant", "envelopeFields", "evidence"],
+      "properties": {
+        "targetPermutationInvariant": { "type": ["boolean", "null"] },
+        "envelopeFields": {
+          "type": "array",
+          "maxItems": 24,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "runtimeVersion",
+              "contractSchemaVersion",
+              "replayFormatVersion",
+              "rngAlgorithmVersion",
+              "rngKeySchemaVersion",
+              "clockDomain",
+              "numericPolicyVersion",
+              "dataVersion",
+              "definitionVersion",
+              "formulaVersion",
+              "rootSeed",
+              "targetOrderPolicyVersion",
+              "wallClock",
+              "machineName"
+            ]
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "maxItems": 24,
+          "uniqueItems": true,
+          "items": { "enum": ["normal", "edge", "failure", "happy-path-only"] }
+        }
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["normal", "edge", "failure"],
+      "properties": {
+        "normal": {
+          "type": "array",
+          "maxItems": 24,
+          "uniqueItems": true,
+          "items": { "enum": ["stable-target-order", "target-keyed-rng", "single-primary-plan", "damage-event-per-target", "direct-shock-reaction", "input-order", "shared-rng"] }
+        },
+        "edge": {
+          "type": "array",
+          "maxItems": 24,
+          "uniqueItems": true,
+          "items": { "enum": ["permuted-input-same-hash", "distance-tie-entity-id", "sort-before-limit-max-3", "duplicate-target-rejected", "full-shield-hit-applies-shock", "final-tick-expire-atomic", "positive-damage-only", "expire-before-tick"] }
+        },
+        "failure": {
+          "type": "array",
+          "maxItems": 24,
+          "uniqueItems": true,
+          "items": { "enum": ["stale-target-zero-mutation", "stale-target-zero-outbox", "reaction-budget-keeps-primary", "reaction-dispatched-commit-kept", "reaction-wave-discards-undispatched", "reaction-idempotency-consumed", "partial-target-commit", "rollback-primary"] }
+        }
+      }
+    }
+  }
+}
