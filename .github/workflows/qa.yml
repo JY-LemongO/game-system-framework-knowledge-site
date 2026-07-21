@@ -76,6 +76,7 @@ jobs:
           else:
               raise SystemExit('Unknown browser harness shape; refusing a compatibility rewrite')
           PY
+          python source/tools/build_manifest.py
 
       - name: Run canonical QA
         shell: bash
@@ -88,7 +89,7 @@ jobs:
 
       - name: Restore exact target revision after compatibility check
         if: always() && inputs.target == 'production'
-        run: git restore --source=HEAD --worktree -- source/tools/browser_smoke.py
+        run: git restore --source=HEAD --worktree -- source/tools/browser_smoke.py MANIFEST.sha256
 
       - name: Upload commit-keyed QA evidence
         if: always()
