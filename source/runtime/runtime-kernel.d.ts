@@ -1,4 +1,4 @@
-export const RUNTIME_VERSION: '3.3.0-reference';
+export const RUNTIME_VERSION: '3.4.0-reference';
 export const CONTRACT_SCHEMA_VERSION: 1;
 export const REPLAY_FORMAT_VERSION: 1;
 export const RNG_ALGORITHM_VERSION: string;
@@ -49,6 +49,25 @@ export interface DomainEventEnvelope<T extends JsonValue = JsonValue> {
   readonly causationId: NamespacedId;
   readonly occurredTick: number;
   readonly payload: T;
+}
+export interface CommandEnvelopeInput<T extends JsonValue = JsonValue> {
+  readonly schemaVersion?: typeof CONTRACT_SCHEMA_VERSION;
+  readonly commandId: NamespacedId;
+  readonly actorId: NamespacedId;
+  readonly requestedTick: number;
+  readonly correlationId: NamespacedId;
+  readonly causationId?: NamespacedId | null;
+  readonly dataVersion?: string;
+  readonly payload?: T;
+}
+export interface DomainEventEnvelopeInput<T extends JsonValue = JsonValue> {
+  readonly schemaVersion?: typeof CONTRACT_SCHEMA_VERSION;
+  readonly eventId: NamespacedId;
+  readonly type: string;
+  readonly correlationId: NamespacedId;
+  readonly causationId: NamespacedId;
+  readonly occurredTick: number;
+  readonly payload?: T;
 }
 
 export interface ResourceSet { hp: number; maxHp: number; mana: number; maxMana: number; shield: number; maxShield: number }
@@ -141,6 +160,7 @@ export interface DamageOutcome {
   finalHpDamage: number;
   overkill: number;
   targetHpAfter: number;
+  targetShieldAfter: number;
   burn: { definitionId: NamespacedId; rawTickDamage: number; durationTicks: number; intervalTicks: number; applyWhenTargetAlive: boolean };
 }
 
@@ -158,6 +178,7 @@ export interface CommittedDamageOutcome {
   finalHpDamage: number;
   overkill: number;
   targetHpAfter: number;
+  targetShieldAfter: number;
 }
 
 export class KeyedRandom {
@@ -226,8 +247,14 @@ export function hash32(...parts: JsonValue[]): number;
 export function multiplyBps(value: number, basisPoints: number): number;
 export function createSourceRef(value: SourceRef): Readonly<SourceRef>;
 export function createContextFingerprint(context?: Record<string, JsonValue>, dependencies?: string[]): Readonly<Record<string, JsonValue>>;
-export function createCommandEnvelope<T extends JsonValue>(value: Omit<CommandEnvelope<T>, 'schemaVersion'> & { schemaVersion?: number }): Readonly<CommandEnvelope<T>>;
-export function createDomainEventEnvelope<T extends JsonValue>(value: Omit<DomainEventEnvelope<T>, 'schemaVersion'> & { schemaVersion?: number }): Readonly<DomainEventEnvelope<T>>;
+export function createCommandEnvelope<T extends JsonValue>(value: CommandEnvelopeInput<T> & { readonly payload: T }): Readonly<CommandEnvelope<T>>;
+export function createCommandEnvelope(value: CommandEnvelopeInput<JsonValue> & { readonly payload?: undefined }): Readonly<CommandEnvelope<Record<string, never>>>;
+export function createCommandEnvelope(value: CommandEnvelopeInput<JsonValue>): Readonly<CommandEnvelope<JsonValue>>;
+export function createDomainEventEnvelope<T extends JsonValue>(value: DomainEventEnvelopeInput<T> & { readonly payload: T }): Readonly<DomainEventEnvelope<T>>;
+export function createDomainEventEnvelope(value: DomainEventEnvelopeInput<JsonValue> & { readonly payload?: undefined }): Readonly<DomainEventEnvelope<Record<string, never>>>;
+export function createDomainEventEnvelope(value: DomainEventEnvelopeInput<JsonValue>): Readonly<DomainEventEnvelope<JsonValue>>;
+export function parseCommandEnvelope(value: unknown): Readonly<CommandEnvelope<JsonValue>>;
+export function parseDomainEventEnvelope(value: unknown): Readonly<DomainEventEnvelope<JsonValue>>;
 export function defaultScenarioInput(): ScenarioInput;
 export function normalizeScenarioInput(input?: ScenarioInputPatch): Readonly<ScenarioInput>;
 export function createInitialState(input: ScenarioInput): Readonly<RuntimeState>;

@@ -15,6 +15,11 @@ public sealed class DamageRequest
         IEnumerable<string> tags,
         uint seed)
     {
+        EntityId.ThrowIfInvalid(attackerId, nameof(attackerId));
+        EntityId.ThrowIfInvalid(defenderId, nameof(defenderId));
+        SourceRef.ThrowIfInvalid(source, nameof(source));
+        EntityId.ThrowIfInvalid(formulaId, nameof(formulaId));
+
         if (string.IsNullOrWhiteSpace(damageType))
         {
             throw new ArgumentException("DamageType cannot be empty.", nameof(damageType));

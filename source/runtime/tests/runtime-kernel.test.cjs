@@ -15,8 +15,52 @@ function defineOwn(target, key, value) {
   Object.defineProperty(target, key, { value, enumerable: true, configurable: true, writable: true });
 }
 
+// 공용 fixture는 builder 출력이 공개 wire schema의 정확한 shape을 만족하는지 고정한다.
+function matchesFixtureSchema(value, schema, rootSchema = schema) {
+  if (schema.$ref) {
+    const pathParts = schema.$ref.replace(/^#\//, '').split('/');
+    const target = pathParts.reduce((current, key) => current?.[key], rootSchema);
+    return Boolean(target) && matchesFixtureSchema(value, target, rootSchema);
+  }
+  if (schema.anyOf) return schema.anyOf.some(item => matchesFixtureSchema(value, item, rootSchema));
+  if (schema.oneOf) return schema.oneOf.filter(item => matchesFixtureSchema(value, item, rootSchema)).length === 1;
+  if (Object.hasOwn(schema, 'const') && value !== schema.const) return false;
+  if (schema.type === 'null') return value === null;
+  if (schema.type === 'boolean') return typeof value === 'boolean';
+  if (schema.type === 'number') return typeof value === 'number' && Number.isFinite(value);
+  if (schema.type === 'integer') {
+    return Number.isInteger(value)
+      && (schema.minimum === undefined || value >= schema.minimum)
+      && (schema.maximum === undefined || value <= schema.maximum);
+  }
+  if (schema.type === 'string') {
+    return typeof value === 'string'
+      && (schema.minLength === undefined || value.length >= schema.minLength)
+      && (schema.pattern === undefined || new RegExp(schema.pattern).test(value));
+  }
+  if (schema.type === 'array') {
+    return Array.isArray(value) && value.every(item => matchesFixtureSchema(item, schema.items, rootSchema));
+  }
+  if (schema.type === 'object') {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const properties = schema.properties ?? {};
+    if ((schema.required ?? []).some(key => !Object.hasOwn(value, key))) return false;
+    if (schema.additionalProperties === false && Object.keys(value).some(key => !Object.hasOwn(properties, key))) return false;
+    return Object.entries(value).every(([key, item]) => {
+      const itemSchema = properties[key] ?? schema.additionalProperties;
+      return itemSchema === undefined || itemSchema === true || matchesFixtureSchema(item, itemSchema, rootSchema);
+    });
+  }
+  return true;
+}
+
 const fixturePath = path.join(__dirname, '..', 'fixtures', 'fireball-golden-v1.json');
 const golden = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+const envelopeFixturePath = path.join(__dirname, 'fixtures', 'envelope-builder-conformance-v1.json');
+const envelopeFixture = JSON.parse(fs.readFileSync(envelopeFixturePath, 'utf8'));
+const commandEnvelopeSchema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'contracts', 'command-envelope.schema.json'), 'utf8'));
+const domainEventEnvelopeSchema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'contracts', 'domain-event-envelope.schema.json'), 'utf8'));
+const commitPlanSchema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'contracts', 'commit-plan.schema.json'), 'utf8'));
 
 test('동일 입력은 replay/trace/final state가 완전히 일치한다', () => {
   const replay = G.verifyReplay();
@@ -27,6 +71,7 @@ test('동일 입력은 replay/trace/final state가 완전히 일치한다', () =
 
 test('기본 Fireball 결과는 golden fixture와 일치한다', () => {
   const result = G.runFireballScenario(golden.input);
+  assert.equal(golden.runtimeVersion, G.RUNTIME_VERSION);
   assert.equal(result.header.rngKeySchemaVersion, G.RNG_KEY_SCHEMA_VERSION);
   assert.equal(result.header.clockDomain, G.CLOCK_DOMAIN);
   assert.equal(result.replayHash, golden.expected.replayHash);
@@ -279,6 +324,266 @@ test('StateStore commit은 canonical command와 plan 전체 schema를 mutation �
     requestedTick: input.tick, correlationId: 'correlation.test.future.0001',
     causationId: null, dataVersion: input.dataVersion, payload: {},
   }), error => error.code === 'SCHEMA_VERSION_UNSUPPORTED');
+});
+
+test('envelope builder defaults and strict wire parsers match the public schemas', () => {
+  const command = G.createCommandEnvelope(envelopeFixture.commandInput);
+  const event = G.createDomainEventEnvelope(envelopeFixture.eventInput);
+  assert.deepEqual(command, envelopeFixture.expectedCommand);
+  assert.deepEqual(event, envelopeFixture.expectedEvent);
+  assert.equal(matchesFixtureSchema(command, commandEnvelopeSchema), true);
+  assert.equal(matchesFixtureSchema(event, domainEventEnvelopeSchema), true);
+  assert.deepEqual(G.parseCommandEnvelope(command), command);
+  assert.deepEqual(G.parseDomainEventEnvelope(event), event);
+
+  const commandWithNullPayload = G.createCommandEnvelope({ ...envelopeFixture.commandInput, payload: null });
+  const eventWithNullPayload = G.createDomainEventEnvelope({ ...envelopeFixture.eventInput, payload: null });
+  assert.equal(commandWithNullPayload.payload, null);
+  assert.equal(eventWithNullPayload.payload, null);
+  assert.equal(matchesFixtureSchema(commandWithNullPayload, commandEnvelopeSchema), true);
+  assert.equal(matchesFixtureSchema(eventWithNullPayload, domainEventEnvelopeSchema), true);
+  assert.deepEqual(G.parseCommandEnvelope(commandWithNullPayload), commandWithNullPayload);
+  assert.deepEqual(G.parseDomainEventEnvelope(eventWithNullPayload), eventWithNullPayload);
+
+  assert.throws(() => G.parseCommandEnvelope(envelopeFixture.commandInput), error => error.code === 'INVALID_COMMAND');
+  assert.throws(() => G.parseDomainEventEnvelope(envelopeFixture.eventInput), error => error.code === 'INVALID_DOMAIN_EVENT');
+  assert.throws(() => G.parseCommandEnvelope({ ...command, unsupported: true }), error => error.code === 'INVALID_COMMAND');
+  assert.throws(() => G.parseDomainEventEnvelope({ ...event, unsupported: true }), error => error.code === 'INVALID_DOMAIN_EVENT');
+  assert.throws(() => G.parseCommandEnvelope({ ...command, schemaVersion: null }), error => error.code === 'INVALID_INTEGER');
+  assert.throws(() => G.parseCommandEnvelope({ ...command, dataVersion: null }), error => error.code === 'INVALID_STRING');
+  assert.throws(() => G.parseDomainEventEnvelope({ ...event, schemaVersion: null }), error => error.code === 'INVALID_INTEGER');
+  assert.throws(() => G.createCommandEnvelope({ ...envelopeFixture.commandInput, schemaVersion: null }), error => error.code === 'INVALID_INTEGER');
+  assert.throws(() => G.createCommandEnvelope({ ...envelopeFixture.commandInput, dataVersion: null }), error => error.code === 'INVALID_STRING');
+  assert.throws(() => G.createDomainEventEnvelope({ ...envelopeFixture.eventInput, schemaVersion: null }), error => error.code === 'INVALID_INTEGER');
+
+  const unsafeTick = Number.MAX_SAFE_INTEGER + 1;
+  assert.equal(matchesFixtureSchema({ ...command, requestedTick: unsafeTick }, commandEnvelopeSchema), false);
+  assert.equal(matchesFixtureSchema({ ...event, occurredTick: unsafeTick }, domainEventEnvelopeSchema), false);
+  assert.throws(() => G.createCommandEnvelope({ ...envelopeFixture.commandInput, requestedTick: unsafeTick }), error => error.code === 'INVALID_INTEGER');
+  assert.throws(() => G.createDomainEventEnvelope({ ...envelopeFixture.eventInput, occurredTick: unsafeTick }), error => error.code === 'INVALID_INTEGER');
+});
+
+test('commit plan schema and runtime share JavaScript safe-integer boundaries', () => {
+  const maximum = Number.MAX_SAFE_INTEGER;
+  const unsafe = maximum + 1;
+  assert.equal(matchesFixtureSchema(maximum, commitPlanSchema.$defs.safeInteger, commitPlanSchema), true);
+  assert.equal(matchesFixtureSchema(-maximum, commitPlanSchema.$defs.safeInteger, commitPlanSchema), true);
+  assert.equal(matchesFixtureSchema(unsafe, commitPlanSchema.$defs.safeInteger, commitPlanSchema), false);
+  assert.equal(matchesFixtureSchema(unsafe, commitPlanSchema.$defs.nonNegativeSafeInteger, commitPlanSchema), false);
+  assert.equal(commitPlanSchema.properties.commitTick.$ref, '#/$defs/nonNegativeSafeInteger');
+
+  const resourceDeltaSchema = commitPlanSchema.$defs.operation.oneOf.find(item => item.properties.kind.const === 'resource.delta');
+  assert.equal(resourceDeltaSchema.properties.order.$ref, '#/$defs/safeInteger');
+  assert.equal(resourceDeltaSchema.properties.delta.$ref, '#/$defs/safeInteger');
+  for (const field of ['appliedTick', 'nextTickAt', 'expireTick']) {
+    assert.equal(commitPlanSchema.$defs.statusInstance.properties[field].$ref, '#/$defs/nonNegativeSafeInteger');
+  }
+
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const makeCommand = (suffix, requestedTick = input.tick) => G.createCommandEnvelope({
+    commandId: `command.test.safe-integer.${suffix}`,
+    actorId: input.caster.id,
+    requestedTick,
+    correlationId: `correlation.test.safe-integer.${suffix}`,
+    dataVersion: input.dataVersion,
+  });
+  const makePlan = (store, command, suffix, commitTick = input.tick) => ({
+    schemaVersion: G.CONTRACT_SCHEMA_VERSION,
+    planId: `plan.test.safe-integer.${suffix}`,
+    commandId: command.commandId,
+    commitTick,
+    preconditions: [{ entityId: input.target.id, expectedVersion: store.getEntity(input.target.id).version }],
+    operations: [{ order: 10, kind: 'resource.delta', entityId: input.target.id, resource: 'hp', delta: 0, key: 'boundary' }],
+    eventBlueprints: [],
+  });
+
+  const maximumStore = new G.StateStore(G.createInitialState(input));
+  const maximumCommand = makeCommand('maximum', maximum);
+  const maximumPlan = makePlan(maximumStore, maximumCommand, 'maximum', maximum);
+  maximumPlan.operations[0].order = maximum;
+  assert.equal(matchesFixtureSchema(maximumPlan, commitPlanSchema), true);
+  assert.equal(maximumStore.commit(maximumCommand, maximumPlan).state.tick, maximum);
+
+  for (const [suffix, mutate] of [
+    ['commit-tick', plan => { plan.commitTick = unsafe; }],
+    ['operation-order', plan => { plan.operations[0].order = unsafe; }],
+    ['resource-delta', plan => { plan.operations[0].delta = unsafe; }],
+  ]) {
+    const store = new G.StateStore(G.createInitialState(input));
+    const command = makeCommand(suffix);
+    const validPlan = makePlan(store, command, suffix);
+    const invalidPlan = JSON.parse(JSON.stringify(validPlan));
+    mutate(invalidPlan);
+    assert.equal(matchesFixtureSchema(invalidPlan, commitPlanSchema), false);
+    const beforeState = G.canonicalStringify(store.exportState());
+    const beforeOutbox = G.canonicalStringify(store.outbox);
+    const beforeTick = store.tick;
+    assert.throws(() => store.commit(command, invalidPlan), error => error.code === 'INVALID_INTEGER');
+    assert.equal(G.canonicalStringify(store.exportState()), beforeState);
+    assert.equal(G.canonicalStringify(store.outbox), beforeOutbox);
+    assert.equal(store.tick, beforeTick);
+    assert.equal(store.commit(command, validPlan).planId, validPlan.planId);
+  }
+});
+
+test('CommitPlan rejects function callbacks without publishing or consuming idempotency', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false });
+  const store = new G.StateStore(G.createInitialState(input));
+  const command = G.createCommandEnvelope({
+    commandId: 'command.test.no-plan-callback.0001',
+    actorId: input.caster.id,
+    requestedTick: input.tick,
+    correlationId: 'correlation.test.no-plan-callback.0001',
+    dataVersion: input.dataVersion,
+  });
+  const validPlan = {
+    schemaVersion: G.CONTRACT_SCHEMA_VERSION,
+    planId: 'plan.test.no-plan-callback.0001',
+    commandId: command.commandId,
+    commitTick: input.tick,
+    preconditions: [],
+    operations: [],
+    eventBlueprints: [],
+  };
+  let callbackInvoked = false;
+  const callbackPlan = {
+    ...validPlan,
+    eventBlueprints: [{
+      type: 'CallbackAttempted',
+      payload: { projector: () => { callbackInvoked = true; } },
+    }],
+  };
+  const beforeState = G.canonicalStringify(store.exportState());
+  const beforeOutbox = G.canonicalStringify(store.outbox);
+  const beforeTick = store.tick;
+  assert.throws(() => store.commit(command, callbackPlan), error => error.code === 'UNSERIALIZABLE_VALUE');
+  assert.equal(callbackInvoked, false);
+  assert.equal(G.canonicalStringify(store.exportState()), beforeState);
+  assert.equal(G.canonicalStringify(store.outbox), beforeOutbox);
+  assert.equal(store.tick, beforeTick);
+  assert.equal(store.commit(command, validPlan).planId, validPlan.planId);
+});
+
+test('DamageCommitted rejects false HP or shield facts without publishing or consuming the command', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false, skill: { hitChanceBps: 10_000, critChanceBps: 0 } });
+  for (const field of ['targetHpAfter', 'targetShieldAfter']) {
+    const store = new G.StateStore(G.createInitialState(input));
+    const command = G.createFireballCommand(input);
+    const snapshot = store.snapshot([input.caster.id, input.target.id]);
+    const resolution = G.resolveFireball({ snapshot, command, input, rng: new G.KeyedRandom(input.rootSeed) });
+    const falsePlan = JSON.parse(JSON.stringify(resolution.plan));
+    const damageEvent = falsePlan.eventBlueprints.find(event => event.type === 'DamageCommitted');
+    damageEvent.payload[field] += 1;
+    const beforeState = G.canonicalStringify(store.exportState());
+    const beforeOutbox = G.canonicalStringify(store.outbox);
+    const beforeTick = store.tick;
+
+    assert.throws(() => store.commit(command, falsePlan), error => error.code === 'OUTBOX_FACT_MISMATCH');
+    assert.equal(G.canonicalStringify(store.exportState()), beforeState);
+    assert.equal(G.canonicalStringify(store.outbox), beforeOutbox);
+    assert.equal(store.tick, beforeTick);
+
+    const receipt = store.commit(command, resolution.plan);
+    assert.equal(receipt.events.find(event => event.type === 'DamageCommitted').payload[field], receipt.state.entities[input.target.id].resources[field === 'targetHpAfter' ? 'hp' : 'shield']);
+  }
+});
+
+test('status and defeat facts are checked against post-state before publication', () => {
+  const input = G.normalizeScenarioInput({ simulateStatusTicks: false, skill: { hitChanceBps: 10_000, critChanceBps: 0 } });
+  const reference = G.runFireballScenario(input);
+  const targetId = input.target.id;
+  const status = Object.values(reference.finalState.entities[targetId].statuses)[0];
+  const appliedEvent = reference.outbox.find(event => event.type === 'StatusApplied');
+
+  // 거짓 event는 working copy 검증에서 멈추고 같은 command의 올바른 재시도를 허용해야 한다.
+  const assertRejectedUnchanged = (store, command, plan) => {
+    const beforeState = G.canonicalStringify(store.exportState());
+    const beforeOutbox = G.canonicalStringify(store.outbox);
+    const beforeTick = store.tick;
+    assert.throws(() => store.commit(command, plan), error => error.code === 'OUTBOX_FACT_MISMATCH');
+    assert.equal(G.canonicalStringify(store.exportState()), beforeState);
+    assert.equal(G.canonicalStringify(store.outbox), beforeOutbox);
+    assert.equal(store.tick, beforeTick);
+  };
+
+  const statusStore = new G.StateStore(G.createInitialState(input));
+  const initialTarget = statusStore.getEntity(targetId);
+  const applyCommand = G.createCommandEnvelope({
+    commandId: appliedEvent.causationId,
+    actorId: status.actorId,
+    requestedTick: status.appliedTick,
+    correlationId: status.correlationId,
+    causationId: status.applicationCausationId,
+    dataVersion: status.dataVersion,
+    payload: {},
+  });
+  const applyPlan = {
+    schemaVersion: G.CONTRACT_SCHEMA_VERSION,
+    planId: 'plan.test.truth-status-applied.0001',
+    commandId: applyCommand.commandId,
+    commitTick: status.appliedTick,
+    preconditions: [{ entityId: targetId, expectedVersion: initialTarget.version }],
+    operations: [],
+    eventBlueprints: [{ type: 'StatusApplied', payload: { targetId, status } }],
+  };
+  assertRejectedUnchanged(statusStore, applyCommand, applyPlan);
+  const applied = statusStore.commit(applyCommand, {
+    ...applyPlan,
+    operations: [{ order: 10, kind: 'status.add', entityId: targetId, status, key: status.instanceId }],
+  });
+  assert.ok(applied.state.entities[targetId].statuses[status.instanceId]);
+
+  const activeTarget = statusStore.getEntity(targetId);
+  const expireCommand = G.createCommandEnvelope({
+    commandId: 'command.test.truth-status-expired.0001',
+    actorId: status.actorId,
+    requestedTick: statusStore.tick,
+    correlationId: status.correlationId,
+    causationId: status.lastTransitionEventId,
+    dataVersion: status.dataVersion,
+    payload: {},
+  });
+  const expirePlan = {
+    schemaVersion: G.CONTRACT_SCHEMA_VERSION,
+    planId: 'plan.test.truth-status-expired.0001',
+    commandId: expireCommand.commandId,
+    commitTick: statusStore.tick,
+    preconditions: [{ entityId: targetId, expectedVersion: activeTarget.version }],
+    operations: [],
+    eventBlueprints: [{ type: 'StatusExpired', payload: { targetId, statusInstanceId: status.instanceId } }],
+  };
+  assertRejectedUnchanged(statusStore, expireCommand, expirePlan);
+  const expired = statusStore.commit(expireCommand, {
+    ...expirePlan,
+    operations: [{ order: 10, kind: 'status.remove', entityId: targetId, instanceId: status.instanceId, key: 'expire' }],
+  });
+  assert.equal(Object.hasOwn(expired.state.entities[targetId].statuses, status.instanceId), false);
+
+  const defeatStore = new G.StateStore(G.createInitialState(input));
+  const defeatTarget = defeatStore.getEntity(targetId);
+  const defeatCommand = G.createCommandEnvelope({
+    commandId: 'command.test.truth-entity-defeated.0001',
+    actorId: input.caster.id,
+    requestedTick: input.tick,
+    correlationId: 'correlation.test.truth-entity-defeated.0001',
+    dataVersion: input.dataVersion,
+    payload: {},
+  });
+  const defeatPlan = {
+    schemaVersion: G.CONTRACT_SCHEMA_VERSION,
+    planId: 'plan.test.truth-entity-defeated.0001',
+    commandId: defeatCommand.commandId,
+    commitTick: input.tick,
+    preconditions: [{ entityId: targetId, expectedVersion: defeatTarget.version }],
+    operations: [{ order: 10, kind: 'resource.delta', entityId: targetId, resource: 'hp', delta: -1, key: 'hp' }],
+    eventBlueprints: [{ type: 'EntityDefeated', payload: { entityId: targetId, targetId } }],
+  };
+  assertRejectedUnchanged(defeatStore, defeatCommand, defeatPlan);
+  const defeated = defeatStore.commit(defeatCommand, {
+    ...defeatPlan,
+    operations: [{ ...defeatPlan.operations[0], delta: -defeatTarget.resources.hp }],
+  });
+  assert.equal(defeated.state.entities[targetId].resources.hp, 0);
 });
 
 test('StateStore 생성자는 malformed state와 outbox를 거부한다', () => {

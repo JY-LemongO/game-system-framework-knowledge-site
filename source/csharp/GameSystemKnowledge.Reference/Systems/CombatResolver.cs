@@ -29,10 +29,10 @@ public sealed class CombatResolver : ICombatResolver
         // RawDamage is the value entering mitigation. Critical amplification
         // is therefore part of raw damage, not a hidden stage after it.
         var rawDamage = context.Critical
-            ? RoundDamage(formulaDamage * context.CriticalMultiplierBps / 10_000m)
+            ? RoundDamage((decimal)formulaDamage * context.CriticalMultiplierBps / 10_000m)
             : formulaDamage;
         var resolvedDamage = RoundDamage(
-            rawDamage * (10_000 - context.ResistanceBps) / 10_000m);
+            (decimal)rawDamage * (10_000 - context.ResistanceBps) / 10_000m);
         var shieldAbsorbed = Math.Min(context.AvailableShield, resolvedDamage);
         var postShieldDamage = resolvedDamage - shieldAbsorbed;
         var finalHpDamage = Math.Min(context.AvailableTargetHp, postShieldDamage);

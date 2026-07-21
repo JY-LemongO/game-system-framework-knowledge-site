@@ -1,0 +1,34 @@
+{
+  "commandInput": {
+    "commandId": "command.fixture.builder.0001",
+    "actorId": "entity.fixture-actor",
+    "requestedTick": 42,
+    "correlationId": "correlation.fixture.builder.0001"
+  },
+  "expectedCommand": {
+    "schemaVersion": 1,
+    "commandId": "command.fixture.builder.0001",
+    "actorId": "entity.fixture-actor",
+    "requestedTick": 42,
+    "correlationId": "correlation.fixture.builder.0001",
+    "causationId": null,
+    "dataVersion": "data.reference",
+    "payload": {}
+  },
+  "eventInput": {
+    "eventId": "event.fixture.builder.0001",
+    "type": "FixtureCommitted",
+    "correlationId": "correlation.fixture.builder.0001",
+    "causationId": "command.fixture.builder.0001",
+    "occurredTick": 42
+  },
+  "expectedEvent": {
+    "schemaVersion": 1,
+    "eventId": "event.fixture.builder.0001",
+    "type": "FixtureCommitted",
+    "correlationId": "correlation.fixture.builder.0001",
+    "causationId": "command.fixture.builder.0001",
+    "occurredTick": 42,
+    "payload": {}
+  }
+}

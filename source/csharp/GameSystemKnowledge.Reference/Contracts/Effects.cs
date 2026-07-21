@@ -16,6 +16,14 @@ public sealed class ReactionCommand
         int depth,
         int budgetCost)
     {
+        EntityId.ThrowIfInvalid(reactionId, nameof(reactionId));
+        EntityId.ThrowIfInvalid(idempotencyKey, nameof(idempotencyKey));
+        EntityId.ThrowIfInvalid(handlerId, nameof(handlerId));
+        EntityId.ThrowIfInvalid(targetId, nameof(targetId));
+        SourceRef.ThrowIfInvalid(source, nameof(source));
+        EntityId.ThrowIfInvalid(causationId, nameof(causationId));
+        EntityId.ThrowIfInvalid(stableOrderKey, nameof(stableOrderKey));
+
         if (depth < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(depth));
@@ -115,6 +123,13 @@ public sealed class ReactionRule
         bool requiresHit,
         bool requiresTargetAlive)
     {
+        EntityId.ThrowIfInvalid(ruleId, nameof(ruleId));
+        EntityId.ThrowIfInvalid(triggerEventTypeId, nameof(triggerEventTypeId));
+        EntityId.ThrowIfInvalid(reactionId, nameof(reactionId));
+        EntityId.ThrowIfInvalid(idempotencyKey, nameof(idempotencyKey));
+        EntityId.ThrowIfInvalid(handlerId, nameof(handlerId));
+        EntityId.ThrowIfInvalid(stableOrderKey, nameof(stableOrderKey));
+
         if (depth < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(depth));
@@ -196,6 +211,8 @@ public sealed class EffectBundle
         IEnumerable<ReactionRule>? reactions = null,
         EffectExecutionPolicy policy = EffectExecutionPolicy.CommitThenReact)
     {
+        EntityId.ThrowIfInvalid(bundleId, nameof(bundleId));
+
         var effectCopy = effects?.ToArray() ??
             throw new ArgumentNullException(nameof(effects));
         if (effectCopy.Length == 0)
@@ -205,7 +222,19 @@ public sealed class EffectBundle
                 nameof(effects));
         }
 
+        foreach (var effect in effectCopy)
+        {
+            ArgumentNullException.ThrowIfNull(effect, nameof(effects));
+            EntityId.ThrowIfInvalid(effect.OperationId, nameof(effects));
+        }
+
         var reactionCopy = (reactions ?? Enumerable.Empty<ReactionRule>()).ToArray();
+        if (reactionCopy.Any(reaction => reaction is null))
+        {
+            throw new ArgumentException(
+                "Effect bundle reactions cannot contain null values.",
+                nameof(reactions));
+        }
 
         BundleId = bundleId;
         Effects = Array.AsReadOnly(effectCopy);
@@ -233,6 +262,8 @@ public sealed class EffectBundlePlan
         IEnumerable<EffectOperation> primaryOperations,
         IEnumerable<ReactionRule>? reactions = null)
     {
+        EntityId.ThrowIfInvalid(bundleId, nameof(bundleId));
+
         var operationCopy = primaryOperations?.ToArray() ??
             throw new ArgumentNullException(nameof(primaryOperations));
         if (operationCopy.Length == 0)
@@ -242,10 +273,23 @@ public sealed class EffectBundlePlan
                 nameof(primaryOperations));
         }
 
+        foreach (var operation in operationCopy)
+        {
+            ArgumentNullException.ThrowIfNull(operation, nameof(primaryOperations));
+            EntityId.ThrowIfInvalid(operation.OperationId, nameof(primaryOperations));
+        }
+
+        var reactionCopy = (reactions ?? Enumerable.Empty<ReactionRule>()).ToArray();
+        if (reactionCopy.Any(reaction => reaction is null))
+        {
+            throw new ArgumentException(
+                "Effect plan reactions cannot contain null values.",
+                nameof(reactions));
+        }
+
         BundleId = bundleId;
         PrimaryOperations = Array.AsReadOnly(operationCopy);
-        Reactions = Array.AsReadOnly(
-            (reactions ?? Enumerable.Empty<ReactionRule>()).ToArray());
+        Reactions = Array.AsReadOnly(reactionCopy);
     }
 
     public EntityId BundleId { get; }

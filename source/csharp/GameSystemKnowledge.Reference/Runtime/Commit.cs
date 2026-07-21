@@ -19,6 +19,8 @@ public sealed class StateMutation
         long newValue,
         string description)
     {
+        EntityId.ThrowIfInvalid(resourceId, nameof(resourceId));
+
         if (newValue < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(newValue));
@@ -46,7 +48,13 @@ public sealed class StateMutation
 public abstract record DomainEvent(
     EntityId EventId,
     EntityId CommandId,
-    SourceRef Source);
+    SourceRef Source)
+{
+    internal virtual void ValidatePostState(
+        IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
+    {
+    }
+}
 
 public sealed record SkillCommitted(
     EntityId EventId,
@@ -64,8 +72,40 @@ public sealed record DamageCommitted(
     EntityId DefenderId,
     SourceRef Source,
     DamageResult Result,
-    long TargetHpAfter)
-    : DomainEvent(EventId, CommandId, Source);
+    EntityId TargetHpResourceId,
+    long TargetHpAfter,
+    EntityId TargetShieldResourceId,
+    long TargetShieldAfter)
+    : DomainEvent(EventId, CommandId, Source)
+{
+    internal override void ValidatePostState(
+        IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
+    {
+        ArgumentNullException.ThrowIfNull(postState);
+        EntityId.ThrowIfInvalid(TargetHpResourceId, nameof(TargetHpResourceId));
+        EntityId.ThrowIfInvalid(TargetShieldResourceId, nameof(TargetShieldResourceId));
+
+        if (TargetHpAfter < 0 || TargetShieldAfter < 0)
+        {
+            throw new InvalidOperationException(
+                "A committed damage event cannot report negative target resources.");
+        }
+
+        if (!postState.TryGetValue(TargetHpResourceId, out var targetHp) ||
+            targetHp.Value != TargetHpAfter)
+        {
+            throw new InvalidOperationException(
+                "DamageCommitted.TargetHpAfter must match the committed target HP resource.");
+        }
+
+        if (!postState.TryGetValue(TargetShieldResourceId, out var targetShield) ||
+            targetShield.Value != TargetShieldAfter)
+        {
+            throw new InvalidOperationException(
+                "DamageCommitted.TargetShieldAfter must match the committed target shield resource.");
+        }
+    }
+}
 
 public sealed record CommittedOutboxEvent
 {
@@ -77,6 +117,9 @@ public sealed record CommittedOutboxEvent
         }
 
         ArgumentNullException.ThrowIfNull(@event);
+        EntityId.ThrowIfInvalid(@event.EventId, nameof(@event));
+        EntityId.ThrowIfInvalid(@event.CommandId, nameof(@event));
+        SourceRef.ThrowIfInvalid(@event.Source, nameof(@event));
         Sequence = sequence;
         Event = @event;
     }
@@ -94,11 +137,35 @@ public sealed class CommitPlan
         IEnumerable<StateMutation> mutations,
         IEnumerable<DomainEvent>? outboxEvents = null)
     {
+        EntityId.ThrowIfInvalid(commandId, nameof(commandId));
+
         var preconditionCopy = preconditions?.ToArray() ??
             throw new ArgumentNullException(nameof(preconditions));
         var mutationCopy = mutations?.ToArray() ??
             throw new ArgumentNullException(nameof(mutations));
         var outboxCopy = (outboxEvents ?? Enumerable.Empty<DomainEvent>()).ToArray();
+
+        if (preconditionCopy.Any(item => !item.ResourceId.IsValid))
+        {
+            throw new ArgumentException(
+                "Commit preconditions must contain initialized resource IDs.",
+                nameof(preconditions));
+        }
+
+        if (mutationCopy.Any(item => item is null))
+        {
+            throw new ArgumentException(
+                "Commit mutations cannot contain null values.",
+                nameof(mutations));
+        }
+
+        foreach (var @event in outboxCopy)
+        {
+            ArgumentNullException.ThrowIfNull(@event, nameof(outboxEvents));
+            EntityId.ThrowIfInvalid(@event.EventId, nameof(outboxEvents));
+            EntityId.ThrowIfInvalid(@event.CommandId, nameof(outboxEvents));
+            SourceRef.ThrowIfInvalid(@event.Source, nameof(outboxEvents));
+        }
 
         if (mutationCopy.Length == 0)
         {
@@ -195,6 +262,8 @@ public sealed record CommitReceipt
             throw new ArgumentOutOfRangeException(nameof(status));
         }
 
+        EntityId.ThrowIfInvalid(commandId, nameof(commandId));
+
         var outboxCopy = outboxEvents?.ToArray() ??
             throw new ArgumentNullException(nameof(outboxEvents));
         if (status != CommitStatus.Committed && outboxCopy.Length != 0)
@@ -253,6 +322,13 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
     {
         var stateCopy = (initialState ?? Enumerable.Empty<VersionedResourceState>())
             .ToArray();
+        if (stateCopy.Any(item => !item.ResourceId.IsValid))
+        {
+            throw new ArgumentException(
+                "Initial resource states must contain initialized resource IDs.",
+                nameof(initialState));
+        }
+
         if (stateCopy.Any(item => item.Value < 0 || item.Version < 0))
         {
             throw new ArgumentOutOfRangeException(
@@ -303,6 +379,12 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
                     checked(current.Version + 1));
             }
 
+            // 상태에서 파생된 이벤트 사실은 같은 커밋의 사후 상태와 일치할 때만 발행한다.
+            foreach (var @event in plan.OutboxEvents)
+            {
+                @event.ValidatePostState(nextState);
+            }
+
             var committedEvents = plan.OutboxEvents
                 .Select((item, index) => new CommittedOutboxEvent(
                     checked(_nextOutboxSequence + index),
@@ -330,6 +412,8 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
 
     public long GetValue(EntityId resourceId)
     {
+        EntityId.ThrowIfInvalid(resourceId, nameof(resourceId));
+
         lock (_gate)
         {
             return GetStateUnsafe(resourceId).Value;
@@ -338,6 +422,8 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
 
     public long GetVersion(EntityId resourceId)
     {
+        EntityId.ThrowIfInvalid(resourceId, nameof(resourceId));
+
         lock (_gate)
         {
             return GetStateUnsafe(resourceId).Version;

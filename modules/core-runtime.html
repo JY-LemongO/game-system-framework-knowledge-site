@@ -584,41 +584,103 @@
 </div>
 <h3 id="csharp-core-contracts">C# 실행 값 타입과 개념적 포트</h3>
 <p>EntityId·SourceRef 부분은 현재 <code>source/csharp/</code> 실행 참조와 같은 계약이다. 이어지는 IGameClock·IRandomStream·IEventBus는 소비자가 필요로 하는 최소 경계를 보여주는 <code>Normative conceptual contract</code>이며 현재 C# 프로젝트에는 구현·선언되어 있지 않다. Unity나 서버에 적용할 때 해당 adapter와 전달 보장을 별도로 구현한다.</p>
-<pre><code class="language-csharp">using System.Text.RegularExpressions;
-
-public readonly record struct EntityId : IComparable&lt;EntityId&gt;
+<pre><code class="language-csharp">public readonly record struct EntityId : IComparable&lt;EntityId&gt;
 {
-    private static readonly Regex IdPattern = new(
-        @"^[a-z][a-z0-9-]*(?:\.[a-z0-9][a-z0-9_-]*)+$",
-        RegexOptions.CultureInvariant);
-
-    public string Value { get; }
+    private readonly string? _value;
 
     public EntityId(string value)
     {
-        if (!TryValidate(value))
-            throw new ArgumentException("Use a canonical namespaced ID.", nameof(value));
+        if (!TryValidate(value, out var error))
+        {
+            throw new ArgumentException(error, nameof(value));
+        }
 
-        Value = value;
+        _value = value;
     }
 
-    public static bool TryCreate(string value, out EntityId id)
+    public bool IsValid =&gt; _value is not null;
+
+    public string Value =&gt; _value ?? throw new InvalidOperationException(
+        "A default EntityId is invalid and has no value.");
+
+    public static bool TryCreate(string? value, out EntityId entityId)
     {
-        if (!TryValidate(value))
+        if (!TryValidate(value, out _))
         {
-            id = default;
+            entityId = default;
             return false;
         }
 
-        id = new EntityId(value);
+        entityId = new EntityId(value!);
         return true;
     }
 
     public int CompareTo(EntityId other) =&gt;
         StringComparer.Ordinal.Compare(Value, other.Value);
 
-    private static bool TryValidate(string value) =&gt;
-        !string.IsNullOrWhiteSpace(value) &amp;&amp; IdPattern.IsMatch(value);
+    public override string ToString() =&gt; Value;
+
+    internal static void ThrowIfInvalid(
+        EntityId entityId,
+        string parameterName)
+    {
+        if (!entityId.IsValid)
+        {
+            throw new ArgumentException(
+                "An EntityId must be initialized with a canonical value.",
+                parameterName);
+        }
+    }
+
+    private static bool TryValidate(string? value, out string error)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            error = "An ID cannot be empty.";
+            return false;
+        }
+
+        var segments = value.Split('.');
+        if (segments.Length &lt; 2)
+        {
+            error = "An ID must be namespaced, for example 'skill.fireball'.";
+            return false;
+        }
+
+        for (var segmentIndex = 0; segmentIndex &lt; segments.Length; segmentIndex++)
+        {
+            var segment = segments[segmentIndex];
+            var validFirstCharacter = segment.Length &gt; 0 &amp;&amp;
+                (IsLowerAsciiLetter(segment[0]) ||
+                 (segmentIndex &gt; 0 &amp;&amp; char.IsAsciiDigit(segment[0])));
+            if (!validFirstCharacter)
+            {
+                error = segmentIndex == 0
+                    ? "The namespace segment must start with a lowercase ASCII letter."
+                    : "Local ID segments must start with a lowercase ASCII letter or digit.";
+                return false;
+            }
+
+            for (var index = 1; index &lt; segment.Length; index++)
+            {
+                var character = segment[index];
+                if (!IsLowerAsciiLetter(character) &amp;&amp;
+                    !char.IsAsciiDigit(character) &amp;&amp;
+                    (character != '_' || segmentIndex == 0) &amp;&amp;
+                    character != '-')
+                {
+                    error = "ID segments may contain lowercase ASCII letters, digits, underscores, and hyphens only.";
+                    return false;
+                }
+            }
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool IsLowerAsciiLetter(char character) =&gt;
+        character is &gt;= 'a' and &lt;= 'z';
 }
 
 public enum SourceKind
@@ -630,22 +692,61 @@ public enum SourceKind
 
 public readonly record struct SourceRef
 {
-    public SourceKind Kind { get; }
-    public EntityId DefinitionId { get; }
-    public EntityId? InstanceId { get; }
-
     public SourceRef(
         SourceKind kind,
         EntityId definitionId,
         EntityId? instanceId = null)
     {
-        if ((kind is SourceKind.SkillExecution or SourceKind.Status) &amp;&amp;
+        if (!Enum.IsDefined(kind))
+        {
+            throw new ArgumentOutOfRangeException(nameof(kind));
+        }
+
+        EntityId.ThrowIfInvalid(definitionId, nameof(definitionId));
+        if (instanceId.HasValue)
+        {
+            EntityId.ThrowIfInvalid(instanceId.Value, nameof(instanceId));
+        }
+
+        if (kind is SourceKind.SkillExecution or SourceKind.Status &amp;&amp;
             instanceId is null)
-            throw new ArgumentException("Execution sources require an instance ID.");
+        {
+            throw new ArgumentException(
+                $"A {kind} source must retain its instance ID.",
+                nameof(instanceId));
+        }
 
         Kind = kind;
         DefinitionId = definitionId;
         InstanceId = instanceId;
+    }
+
+    public SourceKind Kind { get; }
+
+    public EntityId DefinitionId { get; }
+
+    public EntityId? InstanceId { get; }
+
+    public bool IsValid =&gt;
+        Enum.IsDefined(Kind) &amp;&amp;
+        DefinitionId.IsValid &amp;&amp;
+        (Kind is not (SourceKind.SkillExecution or SourceKind.Status) ||
+         InstanceId.HasValue) &amp;&amp;
+        (!InstanceId.HasValue || InstanceId.Value.IsValid);
+
+    public EntityId? StatusInstanceId =&gt;
+        Kind == SourceKind.Status ? InstanceId : null;
+
+    internal static void ThrowIfInvalid(
+        SourceRef source,
+        string parameterName)
+    {
+        if (!source.IsValid)
+        {
+            throw new ArgumentException(
+                "A SourceRef must contain valid definition and instance IDs.",
+                parameterName);
+        }
     }
 
     public static SourceRef SkillExecution(

@@ -101,6 +101,27 @@ def extract_csharp_declaration(soup, declaration):
         return None, len(matches)
     return matches[0], 1
 
+def extract_csharp_declaration_from_source(source, declaration):
+    # 실행 소스도 공개 코드 블록과 같은 균형 괄호 규칙으로 정규화한다.
+    starts = [match.start() for match in re.finditer(re.escape(declaration), source)]
+    matches = []
+    for start in starts:
+        opening = source.find('{', start)
+        if opening < 0:
+            continue
+        depth = 0
+        for index in range(opening, len(source)):
+            if source[index] == '{':
+                depth += 1
+            elif source[index] == '}':
+                depth -= 1
+                if depth == 0:
+                    matches.append(re.sub(r'\s+', ' ', source[start:index + 1]).strip())
+                    break
+    if len(matches) != 1:
+        return None, len(matches)
+    return matches[0], 1
+
 def walk_json_ids(value, path='$'):
     if isinstance(value, dict):
         for key, item in value.items():
@@ -347,7 +368,7 @@ for token in ('AvailableTargetHp', 'Overkill', 'ResolvedDamage = ShieldAbsorbed 
         error(f'public Combat lethal-damage contract missing {token}')
 
 core_page_source = soups.get(ROOT/'modules/core-runtime.html').select_one('#article-content').get_text('\n')
-for token in ('IdPattern', 'TryCreate', 'SourceKind.SkillExecution', 'SourceRef SkillExecution'):
+for token in ('IsValid', 'TryCreate', 'TryValidate', 'ThrowIfInvalid', 'SourceKind.SkillExecution', 'SourceRef SkillExecution'):
     if token not in core_page_source:
         error(f'public Core contract missing canonical ID/source token: {token}')
 for retired_source_shape in ('"kind": "status-instance"', '"sourceId": "status-instance'):
@@ -709,6 +730,8 @@ if 'finalHpDamage' not in kernel_text or re.search(r'\bhpDamage\b', kernel_text)
     error('runtime kernel must expose finalHpDamage consistently')
 for token in (
     'validateCommandEnvelope', 'validateCommitPlan', 'validateInitialState',
+    'parseCommandEnvelope', 'parseDomainEventEnvelope',
+    'OUTBOX_STATE_VALIDATORS', 'validateTruthfulOutbox', 'OUTBOX_FACT_MISMATCH',
     '#state', '#processedCommands', '#outbox', '#isCommitting',
     'STORE_CLOCK_ADVANCERS', 'Object.preventExtensions(this)',
     '#isRecordingTrace', 'REACTION_TRACE_SIDE_EFFECT', 'STATUS_TIME_REGRESSION',
@@ -800,6 +823,35 @@ if golden_outcome.get('hitOutcome') != 'Hit' or 'hit' in golden_outcome:
     error('Fireball golden fixture must use canonical hitOutcome instead of a hit boolean')
 if golden_outcome.get('finalHpDamage') != 162 or 'hpDamage' in golden_outcome:
     error('Fireball golden fixture must use canonical finalHpDamage=162')
+try:
+    golden_input = golden['input']
+    golden_expected = golden['expected']
+    golden_target_id = golden_input['target']['id']
+    golden_formula_damage = (
+        golden_input['skill']['baseDamage'] +
+        (golden_input['caster']['spellPower'] *
+         golden_input['skill']['coefficientBps'] + 5_000) // 10_000
+    )
+    golden_tick_damage = (
+        golden_outcome['burn']['rawTickDamage'] *
+        (10_000 - golden_input['target']['fireResistanceBps']) + 5_000
+    ) // 10_000
+    fireball_golden_markers = {
+        'formulaDamage': golden_formula_damage,
+        'rawDamage': golden_outcome['rawDamage'],
+        'resolvedDamage': golden_outcome['resolvedDamage'],
+        'shieldAbsorbed': golden_outcome['shieldAbsorbed'],
+        'finalHpDamage': golden_outcome['finalHpDamage'],
+        'rawTickDamage': golden_outcome['burn']['rawTickDamage'],
+        'resolvedTickDamage': golden_tick_damage,
+        'finalTargetHp': golden_expected['finalState']['entities'][golden_target_id]['resources']['hp'],
+    }
+except (KeyError, TypeError, ValueError) as exc:
+    error(f'Fireball golden fixture cannot produce public markers: {exc}')
+else:
+    for marker, value in fireball_golden_markers.items():
+        if not re.search(rf'\b{re.escape(marker)}\s*=\s*{value}\b', fireball_source):
+            error(f'public Fireball marker {marker} must match golden value {value}')
 runtime_types = (ROOT/'source/runtime/runtime-kernel.d.ts').read_text(encoding='utf-8')
 if "hitOutcome: 'Hit' | 'Miss' | 'Blocked' | 'Immune' | 'Rejected'" not in runtime_types:
     error('runtime declarations must expose the canonical HitOutcome union')
@@ -811,6 +863,8 @@ if 'finalHpDamage: number' not in runtime_types or re.search(r'\bhpDamage\b', ru
     error('runtime declarations must expose finalHpDamage consistently')
 for token in (
     'export interface CommitPlan', 'readonly schemaVersion: typeof CONTRACT_SCHEMA_VERSION',
+    'export interface CommandEnvelopeInput', 'export interface DomainEventEnvelopeInput',
+    'parseCommandEnvelope', 'parseDomainEventEnvelope', 'targetShieldAfter: number',
     'plan: CommitPlan', 'ReadonlyArray<Readonly<DomainEventEnvelope>>',
     'readonly pending: ReadonlyArray<Readonly<Required<Reaction>>>',
     'RNG_KEY_SCHEMA_VERSION', "CLOCK_DOMAIN: 'simulation_tick'",
@@ -854,6 +908,21 @@ else:
     scenario_source = (csharp_root/'GameSystemKnowledge.Reference/Systems/FireballReferenceScenario.cs').read_text(encoding='utf-8')
     catch_up_source = (csharp_root/'GameSystemKnowledge.Reference/Systems/StatusCatchUpPolicy.cs').read_text(encoding='utf-8')
     verifier_source = (csharp_root/'GameSystemKnowledge.Reference.Verification/Program.cs').read_text(encoding='utf-8')
+    for declaration in (
+        'public readonly record struct EntityId',
+        'public enum SourceKind',
+        'public readonly record struct SourceRef',
+    ):
+        public_contract, public_count = extract_csharp_declaration(
+            soups.get(ROOT/'modules/core-runtime.html'),
+            declaration,
+        )
+        source_contract, source_count = extract_csharp_declaration_from_source(
+            identifier_source,
+            declaration,
+        )
+        if public_count != 1 or source_count != 1 or public_contract != source_contract:
+            error(f'public Core {declaration} must exactly match Contracts/Identifiers.cs')
     for token in ('SourceKind.SkillExecution', 'SourceRef SkillExecution', 'instanceId is null'):
         if token not in identifier_source:
             error(f'C# identifier contract missing {token}')
@@ -899,6 +968,7 @@ else:
         'scalingStatValue: 120m', 'Spend 20 mana', 'CommitThenReact',
         'SourceRef.SkillExecution', 'SkillCommitted', 'DamageCommitted',
         'effect.apply-burn', 'RequiresTargetAlive', 'TargetHpAfter',
+        'TargetShieldResourceId',
     ):
         if token not in scenario_source:
             error(f'C# Fireball reference missing canonical fixture token: {token}')
@@ -911,7 +981,8 @@ else:
         'StableOrderKey', 'IdempotencyKey', 'BudgetCost', '_maxBudget',
         '_activeAcceptedCount', '_activeAcceptedBudget',
         'A reaction causation wave cannot be drained recursively',
-        '_pending.Clear()',
+        '_pending.Clear()', 'ValidatePostState', 'TargetShieldAfter',
+        'must match the committed target shield resource',
     ):
         if token not in commit_source:
             error(f'C# runtime commit contract missing {token}')
@@ -940,7 +1011,13 @@ else:
             error(f'C# verifier missing contract assertion token: {token}')
     package = json.loads((ROOT/'package.json').read_text(encoding='utf-8'))
     scripts = package.get('scripts', {})
-    if 'csharp:verify' not in scripts or 'npm run csharp:verify' not in scripts.get('qa', ''):
+    qa_runner = ROOT/'source/tools/run_qa.py'
+    qa_runner_source = qa_runner.read_text(encoding='utf-8') if qa_runner.is_file() else ''
+    if (
+        'csharp:verify' not in scripts or
+        'source/tools/run_qa.py' not in scripts.get('qa', '') or
+        'csharp:verify' not in qa_runner_source
+    ):
         error('package scripts must run the C# verifier as part of qa')
 
 runtime_page = next((page for page in pages if page['file'] == 'modules/runtime-reference.html'), None)

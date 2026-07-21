@@ -8,6 +8,10 @@ public sealed class ApplyStatusRequest
         SourceRef source,
         int stackDelta)
     {
+        EntityId.ThrowIfInvalid(statusId, nameof(statusId));
+        EntityId.ThrowIfInvalid(targetId, nameof(targetId));
+        SourceRef.ThrowIfInvalid(source, nameof(source));
+
         if (stackDelta == 0)
         {
             throw new ArgumentOutOfRangeException(
@@ -53,15 +57,21 @@ public sealed class StatusResult
     public StatusFailureReason? FailureReason { get; }
 
     public static StatusResult Applied(EntityId instanceId) =>
-        new(true, instanceId, null, null);
+        new(true, ValidInstanceId(instanceId), null, null);
 
     public static StatusResult Removed(
         EntityId instanceId,
         StatusRemoveReason reason) =>
-        new(true, instanceId, reason, null);
+        new(true, ValidInstanceId(instanceId), reason, null);
 
     public static StatusResult Failed(StatusFailureReason reason) =>
         new(false, null, null, reason);
+
+    private static EntityId ValidInstanceId(EntityId instanceId)
+    {
+        EntityId.ThrowIfInvalid(instanceId, nameof(instanceId));
+        return instanceId;
+    }
 }
 
 public interface IStatusService

@@ -42,7 +42,9 @@ internal sealed class ContractVerificationSuite
 
     private void VerifyCanonicalIdsAndSources()
     {
-        Equal("skill.fireball", new EntityId("skill.fireball").Value, "canonical namespaced ID");
+        var canonicalId = new EntityId("skill.fireball");
+        True(canonicalId.IsValid, "constructed EntityId is valid");
+        Equal("skill.fireball", canonicalId.Value, "canonical namespaced ID");
         Equal(
             "status-instance.rage_001",
             new EntityId("status-instance.rage_001").Value,
@@ -54,6 +56,19 @@ internal sealed class ContractVerificationSuite
             () => _ = new EntityId("status_instance.rage_001"),
             "namespace segment cannot contain underscores");
 
+        True(
+            !EntityId.TryCreate("not-namespaced", out var invalidParsedId),
+            "TryCreate reports an invalid ID");
+        True(!invalidParsedId.IsValid, "failed TryCreate returns an explicit invalid sentinel");
+        var defaultId = default(EntityId);
+        True(!defaultId.IsValid, "default EntityId is invalid");
+        Throws<InvalidOperationException>(
+            () => _ = defaultId.Value,
+            "default EntityId value access fails fast");
+        Throws<InvalidOperationException>(
+            () => _ = defaultId.ToString(),
+            "default EntityId cannot silently format as an empty ID");
+
         var statusDefinitionId = new EntityId("status.rage");
         var statusInstanceId = new EntityId("status-instance.rage_001");
         var statusSource = SourceRef.Status(statusDefinitionId, statusInstanceId);
@@ -61,6 +76,13 @@ internal sealed class ContractVerificationSuite
         Throws<ArgumentException>(
             () => _ = new SourceRef(SourceKind.Status, statusDefinitionId),
             "status source cannot omit StatusInstanceId");
+        Throws<ArgumentException>(
+            () => _ = SourceRef.Status(statusDefinitionId, default),
+            "status source rejects a default instance ID");
+        Throws<ArgumentException>(
+            () => _ = SourceRef.System(default),
+            "system source rejects a default definition ID");
+        True(!default(SourceRef).IsValid, "default SourceRef is invalid");
 
         var skillSource = FireballReferenceScenario.SkillSource;
         Equal(SourceKind.SkillExecution, skillSource.Kind, "skill source identifies an execution");
@@ -99,16 +121,21 @@ internal sealed class ContractVerificationSuite
 
         var otherOwnerId = new EntityId("entity.other");
         var statId = new EntityId("stat.spell-power");
-        IStatQuery query = new DictionaryStatQuery(
-            new Dictionary<(EntityId OwnerId, EntityId StatId), decimal>
-            {
-                [(FireballReferenceScenario.CasterId, statId)] = 120m,
-                [(otherOwnerId, statId)] = 10m
-            });
+        var statValues = new Dictionary<(EntityId OwnerId, EntityId StatId), decimal>
+        {
+            [(FireballReferenceScenario.CasterId, statId)] = 120m,
+            [(otherOwnerId, statId)] = 10m
+        };
+        IStatQuery query = new DictionaryStatQuery(statValues);
         Equal(120m, query.GetValue(FireballReferenceScenario.CasterId, statId, context), "stat lookup uses ownerId");
+        statValues[(FireballReferenceScenario.CasterId, statId)] = 999m;
+        Equal(120m, query.GetValue(FireballReferenceScenario.CasterId, statId, context), "stat lookup is isolated from source dictionary mutation");
         Throws<ArgumentException>(
             () => query.GetValue(otherOwnerId, statId, context),
             "stat query rejects an owner that differs from its context");
+        Throws<ArgumentException>(
+            () => query.GetValue(default, statId, context),
+            "stat query rejects a default owner ID");
         var otherContext = new StatContext(
             otherOwnerId,
             FireballReferenceScenario.TargetId,
@@ -147,6 +174,14 @@ internal sealed class ContractVerificationSuite
         Equal(FireballReferenceScenario.SkillDefinitionId, request.SkillId, "skill request uses a typed skill ID");
         Equal(FireballReferenceScenario.CastTick, request.RequestedTick, "skill request keeps the simulation tick");
         Equal(61_710u, request.RootSeed, "skill request keeps the replay seed");
+        Throws<ArgumentException>(
+            () => _ = new SkillRequest(
+                default,
+                FireballReferenceScenario.SkillDefinitionId,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.CastTick,
+                rootSeed: 1),
+            "skill request rejects a default caster ID");
         Equal<SkillFailureReason?>(null, SkillDecision.Accepted().FailureReason, "accepted decision has no failure reason");
         Equal(
             SkillFailureReason.Cooldown,
@@ -205,6 +240,9 @@ internal sealed class ContractVerificationSuite
         Equal(EffectExecutionPolicy.CommitThenReact, bundle.Policy, "effect bundle uses CommitThenReact");
         Equal(1, bundle.Effects.Count, "Fireball bundle carries one primary damage effect");
         Equal(1, bundle.Reactions.Count, "Fireball bundle carries one Burn reaction rule");
+        Throws<ArgumentException>(
+            () => _ = new EffectBundle(default, bundle.Effects),
+            "effect bundle rejects a default bundle ID");
 
         var plan = new EffectBundlePlan(
             bundle.BundleId,
@@ -258,12 +296,22 @@ internal sealed class ContractVerificationSuite
                 FireballReferenceScenario.SkillSource,
                 stackDelta: 0),
             "status request must change stacks");
+        Throws<ArgumentException>(
+            () => _ = new ApplyStatusRequest(
+                default,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.SkillSource,
+                stackDelta: 1),
+            "status request rejects a default status ID");
 
         var applied = StatusResult.Applied(new EntityId("status-instance.burn.0001"));
         True(applied.Succeeded, "applied status result succeeds");
         Equal(new EntityId("status-instance.burn.0001"), applied.StatusInstanceId, "applied status returns its instance");
         Equal<StatusRemoveReason?>(null, applied.RemoveReason, "applied status has no removal reason");
         Equal<StatusFailureReason?>(null, applied.FailureReason, "applied status has no failure reason");
+        Throws<ArgumentException>(
+            () => _ = StatusResult.Applied(default),
+            "status result rejects a default instance ID");
 
         var removed = StatusResult.Removed(
             new EntityId("status-instance.burn.0001"),
@@ -284,6 +332,18 @@ internal sealed class ContractVerificationSuite
         Equal(FireballReferenceScenario.FormulaId, request.FormulaId, "Fireball uses a typed formula ID");
         Equal(FireballReferenceScenario.CasterId, request.AttackerId, "Fireball fixture uses entity.caster");
         Equal(FireballReferenceScenario.TargetId, request.DefenderId, "Fireball fixture uses entity.target");
+        Throws<ArgumentException>(
+            () => _ = new DamageRequest(
+                FireballReferenceScenario.CasterId,
+                FireballReferenceScenario.TargetId,
+                default,
+                FireballReferenceScenario.FormulaId,
+                "fire",
+                baseValue: 1,
+                coefficientBps: 0,
+                Array.Empty<string>(),
+                seed: 1),
+            "damage request rejects a default source");
 
         var formulaDamage = RoundDamage(
             request.BaseValue +
@@ -315,6 +375,72 @@ internal sealed class ContractVerificationSuite
                 int.MaxValue,
                 2),
             "damage conservation uses a widened sum and cannot pass through integer overflow");
+        var extremeCoefficientRequest = new DamageRequest(
+            FireballReferenceScenario.CasterId,
+            FireballReferenceScenario.TargetId,
+            FireballReferenceScenario.SkillSource,
+            FireballReferenceScenario.FormulaId,
+            "fire",
+            baseValue: 0,
+            coefficientBps: int.MaxValue,
+            tags: Array.Empty<string>(),
+            seed: 1);
+        var extremeScalingContext = new CombatContext(
+            decimal.MaxValue,
+            HitOutcome.Hit,
+            critical: false,
+            criticalMultiplierBps: 10_000,
+            resistanceBps: 0,
+            availableShield: 0,
+            availableTargetHp: int.MaxValue);
+        Throws<OverflowException>(
+            () => resolver.Resolve(extremeCoefficientRequest, extremeScalingContext),
+            "extreme coefficient math fails instead of wrapping decimal damage");
+        var extremeCriticalContext = new CombatContext(
+            scalingStatValue: 0m,
+            outcome: HitOutcome.Hit,
+            critical: true,
+            criticalMultiplierBps: int.MaxValue,
+            resistanceBps: 0,
+            availableShield: 0,
+            availableTargetHp: int.MaxValue);
+        Throws<OverflowException>(
+            () => resolver.Resolve(
+                new DamageRequest(
+                    FireballReferenceScenario.CasterId,
+                    FireballReferenceScenario.TargetId,
+                    FireballReferenceScenario.SkillSource,
+                    FireballReferenceScenario.FormulaId,
+                    "fire",
+                    baseValue: int.MaxValue,
+                    coefficientBps: 0,
+                    tags: Array.Empty<string>(),
+                    seed: 1),
+                extremeCriticalContext),
+            "damage outside Int32 range fails during the documented conversion boundary");
+        var widenedMitigation = resolver.Resolve(
+            new DamageRequest(
+                FireballReferenceScenario.CasterId,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.SkillSource,
+                FireballReferenceScenario.FormulaId,
+                "fire",
+                baseValue: int.MaxValue,
+                coefficientBps: 0,
+                tags: Array.Empty<string>(),
+                seed: 1),
+            new CombatContext(
+                scalingStatValue: 0m,
+                outcome: HitOutcome.Hit,
+                critical: false,
+                criticalMultiplierBps: 10_000,
+                resistanceBps: 1,
+                availableShield: 0,
+                availableTargetHp: int.MaxValue));
+        Equal(
+            RoundDamage((decimal)int.MaxValue * 9_999m / 10_000m),
+            widenedMitigation.ResolvedDamage,
+            "mitigation widens integer operands before multiplication");
 
         var lethal = resolver.Resolve(
             request,
@@ -349,6 +475,9 @@ internal sealed class ContractVerificationSuite
         Equal(2, plan.OutboxEvents.Count, "one atomic plan carries skill and damage facts");
         True(plan.OutboxEvents[0] is SkillCommitted, "SkillCommitted is planned first");
         True(plan.OutboxEvents[1] is DamageCommitted, "DamageCommitted is planned second");
+        Throws<ArgumentException>(
+            () => _ = new CommitPlan(default, plan.Preconditions, plan.Mutations),
+            "commit plan rejects a default command ID");
         Throws<ArgumentException>(
             () => _ = new CommitPlan(
                 new EntityId("command.verify.missing-precondition"),
@@ -400,6 +529,76 @@ internal sealed class ContractVerificationSuite
             () => maxVersionCommitter.Commit(maxVersionPlan),
             "version overflow does not consume command idempotency");
 
+        var inconsistentDamageFacts = new[]
+        {
+            (Suffix: "hp", TargetHpAfter: 337L, TargetShieldAfter: 0L),
+            (Suffix: "shield", TargetHpAfter: 338L, TargetShieldAfter: 1L)
+        };
+        foreach (var inconsistentFact in inconsistentDamageFacts)
+        {
+            var inconsistentCommandId = new EntityId(
+                $"command.verify.inconsistent-damage-{inconsistentFact.Suffix}");
+            var inconsistentDamagePlan = new CommitPlan(
+                inconsistentCommandId,
+                new[]
+                {
+                    new VersionPrecondition(
+                        FireballReferenceScenario.TargetHealthResourceId,
+                        7),
+                    new VersionPrecondition(
+                        FireballReferenceScenario.TargetShieldResourceId,
+                        7)
+                },
+                new[]
+                {
+                    new StateMutation(
+                        FireballReferenceScenario.TargetHealthResourceId,
+                        338,
+                        "Apply reference health damage"),
+                    new StateMutation(
+                        FireballReferenceScenario.TargetShieldResourceId,
+                        0,
+                        "Apply reference shield damage")
+                },
+                new DomainEvent[]
+                {
+                    new DamageCommitted(
+                        new EntityId(
+                            $"event.damage-committed.verify.inconsistent-{inconsistentFact.Suffix}"),
+                        inconsistentCommandId,
+                        FireballReferenceScenario.CasterId,
+                        FireballReferenceScenario.TargetId,
+                        FireballReferenceScenario.SkillSource,
+                        damage,
+                        FireballReferenceScenario.TargetHealthResourceId,
+                        inconsistentFact.TargetHpAfter,
+                        FireballReferenceScenario.TargetShieldResourceId,
+                        inconsistentFact.TargetShieldAfter)
+                });
+            var inconsistentDamageCommitter = new InMemoryRuntimeCommitter(
+                FireballReferenceScenario.CreateInitialState());
+            Throws<InvalidOperationException>(
+                () => inconsistentDamageCommitter.Commit(inconsistentDamagePlan),
+                $"damage fact cannot disagree with post-commit {inconsistentFact.Suffix}");
+            Equal(
+                500L,
+                inconsistentDamageCommitter.GetValue(
+                    FireballReferenceScenario.TargetHealthResourceId),
+                "an inconsistent damage fact leaves HP unchanged");
+            Equal(
+                40L,
+                inconsistentDamageCommitter.GetValue(
+                    FireballReferenceScenario.TargetShieldResourceId),
+                "an inconsistent damage fact leaves shield unchanged");
+            Equal(
+                0,
+                inconsistentDamageCommitter.GetOutbox().Count,
+                "an inconsistent damage fact appends no outbox event");
+            Throws<InvalidOperationException>(
+                () => inconsistentDamageCommitter.Commit(inconsistentDamagePlan),
+                "an inconsistent damage fact does not consume command idempotency");
+        }
+
         var committer = new InMemoryRuntimeCommitter(
             FireballReferenceScenario.CreateInitialState());
         var committed = committer.Commit(plan);
@@ -422,6 +621,7 @@ internal sealed class ContractVerificationSuite
         True(committed.OutboxEvents[1].Event is DamageCommitted, "committed order continues with DamageCommitted");
         var damageFact = (DamageCommitted)committed.OutboxEvents[1].Event;
         Equal(338L, damageFact.TargetHpAfter, "committed damage retains target HP-after");
+        Equal(0L, damageFact.TargetShieldAfter, "committed damage retains target shield-after");
         Equal(2, committer.GetOutbox().Count, "state and both outbox facts are stored together");
 
         var reactions = FireballReferenceScenario.CreateReactionCommands(
@@ -455,7 +655,10 @@ internal sealed class ContractVerificationSuite
                 FireballReferenceScenario.TargetId,
                 FireballReferenceScenario.SkillSource,
                 lethalDamage,
-                TargetHpAfter: 0));
+                FireballReferenceScenario.TargetHealthResourceId,
+                TargetHpAfter: 0,
+                TargetShieldResourceId: FireballReferenceScenario.TargetShieldResourceId,
+                TargetShieldAfter: 0));
         Throws<ArgumentOutOfRangeException>(
             () => _ = new CommittedOutboxEvent(0, lethalFact.Event),
             "committed outbox sequence must be positive");
@@ -497,7 +700,10 @@ internal sealed class ContractVerificationSuite
                     FireballReferenceScenario.TargetId,
                     FireballReferenceScenario.SkillSource,
                     damage,
-                    TargetHpAfter: 338)
+                    FireballReferenceScenario.TargetHealthResourceId,
+                    TargetHpAfter: 338,
+                    TargetShieldResourceId: FireballReferenceScenario.TargetShieldResourceId,
+                    TargetShieldAfter: 0)
             });
         var stale = committer.Commit(stalePlan);
         Equal(CommitStatus.PreconditionFailed, stale.Status, "stale version is rejected");

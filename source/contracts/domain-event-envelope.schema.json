@@ -12,10 +12,11 @@
     "type": { "type": "string", "minLength": 1 },
     "correlationId": { "$ref": "#/$defs/namespacedId" },
     "causationId": { "$ref": "#/$defs/namespacedId" },
-    "occurredTick": { "type": "integer", "minimum": 0 },
+    "occurredTick": { "$ref": "#/$defs/nonNegativeSafeInteger" },
     "payload": { "$ref": "#/$defs/jsonValue" }
   },
   "$defs": {
+    "nonNegativeSafeInteger": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
     "namespacedId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9_-]*)+$" },
     "jsonValue": {
       "anyOf": [

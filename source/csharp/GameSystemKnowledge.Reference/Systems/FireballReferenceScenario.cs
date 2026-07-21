@@ -172,7 +172,10 @@ public static class FireballReferenceScenario
                     TargetId,
                     SkillSource,
                     result,
-                    targetHpAfter)
+                    TargetHealthResourceId,
+                    targetHpAfter,
+                    TargetShieldResourceId,
+                    InitialShield - result.ShieldAbsorbed)
             });
     }
 

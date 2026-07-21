@@ -14,6 +14,14 @@ public sealed class StatContext
         decimal distance = 0m,
         string moment = "default")
     {
+        EntityId.ThrowIfInvalid(ownerId, nameof(ownerId));
+        if (targetId.HasValue)
+        {
+            EntityId.ThrowIfInvalid(targetId.Value, nameof(targetId));
+        }
+
+        EntityId.ThrowIfInvalid(skillId, nameof(skillId));
+
         if (distance < 0m)
         {
             throw new ArgumentOutOfRangeException(nameof(distance));
@@ -27,6 +35,12 @@ public sealed class StatContext
         var skillTagCopy = CopyTags(skillTags, nameof(skillTags));
         var targetTagCopy = CopyTags(targetTags, nameof(targetTags));
         var targetStatusCopy = (targetStatuses ?? Enumerable.Empty<EntityId>()).ToArray();
+        if (targetStatusCopy.Any(statusId => !statusId.IsValid))
+        {
+            throw new ArgumentException(
+                "Stat context status IDs must be initialized.",
+                nameof(targetStatuses));
+        }
 
         OwnerId = ownerId;
         TargetId = targetId;
@@ -102,6 +116,11 @@ public sealed class StatModifier
         EntityId stackRuleId,
         IModifierCondition? condition = null)
     {
+        EntityId.ThrowIfInvalid(modifierId, nameof(modifierId));
+        EntityId.ThrowIfInvalid(statId, nameof(statId));
+        SourceRef.ThrowIfInvalid(source, nameof(source));
+        EntityId.ThrowIfInvalid(stackRuleId, nameof(stackRuleId));
+
         ModifierId = modifierId;
         StatId = statId;
         Operation = operation;

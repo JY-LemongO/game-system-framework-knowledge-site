@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createRuntime() {
   'use strict';
 
-  const RUNTIME_VERSION = '3.3.0-reference';
+  const RUNTIME_VERSION = '3.4.0-reference';
   const CONTRACT_SCHEMA_VERSION = 1;
   const REPLAY_FORMAT_VERSION = 1;
   const RNG_ALGORITHM_VERSION = 'mulberry32-keyed-v1';
@@ -299,16 +299,16 @@
   function createCommandEnvelope(value) {
     const fields = ['schemaVersion', 'commandId', 'actorId', 'requestedTick', 'correlationId', 'causationId', 'dataVersion', 'payload'];
     requireObjectFields(value, { label: 'command', required: ['commandId', 'actorId', 'requestedTick', 'correlationId'], allowed: fields, code: 'INVALID_COMMAND', stage: 'contract' });
-    const payload = value.payload ?? {};
+    const payload = value.payload === undefined ? {} : value.payload;
     requireCanonicalJson(payload, 'command.payload');
     const envelope = {
-      schemaVersion: value.schemaVersion ?? CONTRACT_SCHEMA_VERSION,
+      schemaVersion: value.schemaVersion === undefined ? CONTRACT_SCHEMA_VERSION : value.schemaVersion,
       commandId: requireId(value.commandId, 'commandId'),
       actorId: requireId(value.actorId, 'actorId'),
       requestedTick: requireInteger(value.requestedTick, 'requestedTick', 0),
       correlationId: requireId(value.correlationId, 'correlationId'),
       causationId: value.causationId == null ? null : requireId(value.causationId, 'causationId'),
-      dataVersion: requireString(value.dataVersion ?? 'data.reference', 'dataVersion'),
+      dataVersion: requireString(value.dataVersion === undefined ? 'data.reference' : value.dataVersion, 'dataVersion'),
       payload: deepClone(payload),
     };
     requireCurrentSchemaVersion(envelope.schemaVersion, 'schemaVersion', 'contract');
@@ -318,10 +318,10 @@
   function createDomainEventEnvelope(value) {
     const fields = ['schemaVersion', 'eventId', 'type', 'correlationId', 'causationId', 'occurredTick', 'payload'];
     requireObjectFields(value, { label: 'event', required: ['eventId', 'type', 'correlationId', 'causationId', 'occurredTick'], allowed: fields, code: 'INVALID_DOMAIN_EVENT', stage: 'contract' });
-    const payload = value.payload ?? {};
+    const payload = value.payload === undefined ? {} : value.payload;
     requireCanonicalJson(payload, 'event.payload');
     const envelope = {
-      schemaVersion: value.schemaVersion ?? CONTRACT_SCHEMA_VERSION,
+      schemaVersion: value.schemaVersion === undefined ? CONTRACT_SCHEMA_VERSION : value.schemaVersion,
       eventId: requireId(value.eventId, 'eventId'),
       type: requireString(value.type, 'type'),
       correlationId: requireId(value.correlationId, 'correlationId'),
@@ -657,16 +657,22 @@
     return deepClone(state);
   }
 
-  function validateCommandEnvelope(value) {
+  function parseCommandEnvelope(value) {
     const fields = ['schemaVersion', 'commandId', 'actorId', 'requestedTick', 'correlationId', 'causationId', 'dataVersion', 'payload'];
-    requireObjectFields(value, { label: 'command', required: fields, code: 'INVALID_COMMAND', stage: 'commit' });
-    return createCommandEnvelope(value);
+    const canonicalValue = deepFreeze(deepClone(value));
+    requireObjectFields(canonicalValue, { label: 'command', required: fields, code: 'INVALID_COMMAND', stage: 'commit' });
+    return createCommandEnvelope(canonicalValue);
   }
 
-  function validateDomainEventEnvelope(value, label = 'event') {
+  function validateCommandEnvelope(value) {
+    return parseCommandEnvelope(value);
+  }
+
+  function parseDomainEventEnvelope(value, label = 'event') {
     const fields = ['schemaVersion', 'eventId', 'type', 'correlationId', 'causationId', 'occurredTick', 'payload'];
-    requireObjectFields(value, { label, required: fields, code: 'INVALID_DOMAIN_EVENT', stage: 'store' });
-    return createDomainEventEnvelope(value);
+    const canonicalValue = deepFreeze(deepClone(value));
+    requireObjectFields(canonicalValue, { label, required: fields, code: 'INVALID_DOMAIN_EVENT', stage: 'store' });
+    return createDomainEventEnvelope(canonicalValue);
   }
 
   function validateCommitPlan(plan) {
@@ -725,6 +731,83 @@
       requireCanonicalJson(blueprint.payload, `eventBlueprints[${index}].payload`);
     }
     return plan;
+  }
+
+  function findWorkingEntity(workingState, entityId) {
+    return typeof entityId === 'string' && Object.hasOwn(workingState.entities, entityId)
+      ? workingState.entities[entityId]
+      : null;
+  }
+
+  // 상태에서 파생되는 outbox 사실은 publish 직전의 working state를 기준으로 검증한다.
+  const OUTBOX_STATE_VALIDATORS = Object.freeze({
+    DamageCommitted(event, workingState) {
+      const payload = event.payload;
+      const targetId = payload?.targetId;
+      const entity = findWorkingEntity(workingState, targetId);
+      domainAssert(
+        Boolean(entity)
+          && payload.targetHpAfter === entity.resources.hp
+          && payload.targetShieldAfter === entity.resources.shield,
+        'OUTBOX_FACT_MISMATCH',
+        'commit',
+        'DamageCommitted must match committed target HP and shield.',
+        {
+          eventId: event.eventId,
+          targetId: targetId ?? null,
+          expectedHpAfter: entity?.resources.hp ?? null,
+          actualHpAfter: payload?.targetHpAfter ?? null,
+          expectedShieldAfter: entity?.resources.shield ?? null,
+          actualShieldAfter: payload?.targetShieldAfter ?? null,
+        },
+      );
+    },
+    StatusApplied(event, workingState) {
+      const payload = event.payload;
+      const targetId = payload?.targetId;
+      const statusInstanceId = payload?.status?.instanceId;
+      const entity = findWorkingEntity(workingState, targetId);
+      domainAssert(
+        Boolean(entity && statusInstanceId && Object.hasOwn(entity.statuses, statusInstanceId)),
+        'OUTBOX_FACT_MISMATCH',
+        'commit',
+        'StatusApplied must reference an instance present in committed state.',
+        { eventId: event.eventId, targetId: targetId ?? null, statusInstanceId: statusInstanceId ?? null },
+      );
+    },
+    StatusExpired(event, workingState) {
+      const payload = event.payload;
+      const targetId = payload?.targetId;
+      const statusInstanceId = payload?.statusInstanceId;
+      const entity = findWorkingEntity(workingState, targetId);
+      domainAssert(
+        Boolean(entity && statusInstanceId && !Object.hasOwn(entity.statuses, statusInstanceId)),
+        'OUTBOX_FACT_MISMATCH',
+        'commit',
+        'StatusExpired must reference an instance absent from committed state.',
+        { eventId: event.eventId, targetId: targetId ?? null, statusInstanceId: statusInstanceId ?? null },
+      );
+    },
+    EntityDefeated(event, workingState) {
+      const targetId = event.payload?.targetId;
+      const entity = findWorkingEntity(workingState, targetId);
+      domainAssert(
+        Boolean(entity) && entity.resources.hp === 0,
+        'OUTBOX_FACT_MISMATCH',
+        'commit',
+        'EntityDefeated must reference a target with zero committed HP.',
+        { eventId: event.eventId, targetId: targetId ?? null, committedHp: entity?.resources.hp ?? null },
+      );
+    },
+  });
+
+  function validateTruthfulOutbox(events, workingState) {
+    for (const event of events) {
+      const validator = Object.hasOwn(OUTBOX_STATE_VALIDATORS, event.type)
+        ? OUTBOX_STATE_VALIDATORS[event.type]
+        : null;
+      if (validator) validator(event, workingState);
+    }
   }
 
   function validateEntityResources(entity) {
@@ -816,7 +899,7 @@
     domainAssert(Array.isArray(outbox), 'INVALID_RUNTIME_STATE', 'store', 'outbox must be an array.');
     const eventIds = new Set();
     for (const [index, event] of outbox.entries()) {
-      const normalized = validateDomainEventEnvelope(event, `outbox[${index}]`);
+      const normalized = parseDomainEventEnvelope(event, `outbox[${index}]`);
       domainAssert(normalized.occurredTick <= tick, 'INVALID_RUNTIME_STATE', 'store', 'Outbox event cannot occur after the state tick.', { eventId: normalized.eventId, eventTick: normalized.occurredTick, stateTick: tick });
       domainAssert(!eventIds.has(normalized.eventId), 'INVALID_RUNTIME_STATE', 'store', 'Outbox event IDs must be unique.', { eventId: normalized.eventId });
       eventIds.add(normalized.eventId);
@@ -877,7 +960,7 @@
       domainAssert(traceObserverDepth === 0, 'TRACE_OBSERVER_SIDE_EFFECT', 'commit', 'A trace observer cannot commit runtime state.');
       this.#isCommitting = true;
       try {
-      const canonicalCommand = validateCommandEnvelope(deepFreeze(deepClone(command)));
+      const canonicalCommand = validateCommandEnvelope(command);
       const canonicalPlan = deepFreeze(deepClone(plan));
       validateCommitPlan(canonicalPlan);
       const commandId = canonicalCommand.commandId;
@@ -912,14 +995,6 @@
         domainAssert(Boolean(entity), 'ENTITY_NOT_FOUND', 'commit', 'Precondition entity is missing.', precondition);
         domainAssert(entity.version === precondition.expectedVersion, 'VERSION_CONFLICT', 'commit', 'Entity version changed after resolve.', { entityId: entity.id, expectedVersion: precondition.expectedVersion, actualVersion: entity.version }, true);
       }
-      const events = eventBlueprints.map((blueprint, index) => createDomainEventEnvelope({
-        eventId: deriveEventId(commandId, blueprint.type, index, commitTick),
-        type: blueprint.type,
-          correlationId: canonicalCommand.correlationId,
-        causationId: commandId,
-        occurredTick: commitTick,
-        payload: blueprint.payload,
-      }));
       validateTraceSink(trace, 'INVALID_COMMIT_TRACE', 'commit', 'Commit trace must expose a record function.');
       recordTraceSafely(trace, 'commit_preconditions_checked', commitTick, { commandId, preconditions });
       const working = cloneState(this.#state);
@@ -961,6 +1036,15 @@
         working.entities[entityId].version += 1;
       }
       working.tick = nextTick;
+      const events = eventBlueprints.map((blueprint, index) => createDomainEventEnvelope({
+        eventId: deriveEventId(commandId, blueprint.type, index, commitTick),
+        type: blueprint.type,
+        correlationId: canonicalCommand.correlationId,
+        causationId: commandId,
+        occurredTick: commitTick,
+        payload: blueprint.payload,
+      }));
+      validateTruthfulOutbox(events, working);
       this.#state = deepFreeze(working);
       this.#tick = working.tick;
       this.#processedCommands.add(commandId);
@@ -1076,6 +1160,7 @@
       finalHpDamage,
       overkill: Math.max(0, remaining - finalHpDamage),
       targetHpAfter: target.resources.hp - finalHpDamage,
+      targetShieldAfter: target.resources.shield - shieldAbsorbed,
     });
   }
 
@@ -1389,7 +1474,8 @@
   return deepFreeze({
     RUNTIME_VERSION, CONTRACT_SCHEMA_VERSION, REPLAY_FORMAT_VERSION, RNG_ALGORITHM_VERSION, RNG_KEY_SCHEMA_VERSION, CLOCK_DOMAIN, NUMERIC_POLICY_VERSION, BASIS_POINTS,
     DomainError, KeyedRandom, TraceRecorder, StateStore, ReactionQueue, ContextualStatCache, SchemaMigrationRegistry,
-    canonicalStringify, hashHex, hash32, multiplyBps, createSourceRef, createContextFingerprint, createCommandEnvelope, createDomainEventEnvelope,
+    canonicalStringify, hashHex, hash32, multiplyBps, createSourceRef, createContextFingerprint,
+    createCommandEnvelope, createDomainEventEnvelope, parseCommandEnvelope, parseDomainEventEnvelope,
     defaultScenarioInput, normalizeScenarioInput, createInitialState, createFireballCommand, resolveDamageAgainstTarget, resolveFireball, enqueueReactions,
     applyStatusReaction, advanceStatuses, executeImpact, runFireballScenario, verifyReplay,
     demonstrateDuplicateCommand, demonstrateVersionConflict, demonstrateAtomicRollback,

@@ -355,7 +355,7 @@
     }
   },
   "replayHeader": {
-    "runtimeVersion": "3.3.0-reference",
+    "runtimeVersion": "3.4.0-reference",
     "contractSchemaVersion": 1,
     "replayFormatVersion": 1,
     "rngAlgorithmVersion": "mulberry32-keyed-v1",
@@ -664,7 +664,7 @@ static int MultiplyBpsHalfUp(int value, int bps)
      </p>
 <pre><code class="language-text">sourceRef: skill-execution / skill.fireball / command.fireball.cast.0001
 DamageCalculated trace
-  outcome=Hit, critical=true, rawDamage=252, resolvedDamage=202
+  outcome=Hit, critical=true, formulaDamage=168, rawDamage=252, resolvedDamage=202
 Atomic commit
   manaSpent=20, cooldownReadyTick=18300, shieldAbsorbed=40, finalHpDamage=162, overkill=0
   outboxOrder=SkillCommitted → DamageCommitted
@@ -677,7 +677,7 @@ ReactionCommand
 StatusApplied
   status.burn durationTicks=6 nextTick=18242, applicationCause=DamageCommitted
 DamageCommitted + StatusTicked
-  rawDamage=30, resolvedDamage=24 at +2/+4/+6
+  rawTickDamage=30, resolvedTickDamage=24 at +2/+4/+6
   firstTrigger=StatusApplied, nextTrigger=previous StatusTicked
 StatusExpired
   finalTargetHp=266</code></pre>

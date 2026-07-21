@@ -10,7 +10,7 @@
     "schemaVersion": { "type": "integer", "const": 1 },
     "planId": { "$ref": "#/$defs/namespacedId" },
     "commandId": { "$ref": "#/$defs/namespacedId" },
-    "commitTick": { "type": "integer", "minimum": 0 },
+    "commitTick": { "$ref": "#/$defs/nonNegativeSafeInteger" },
     "preconditions": {
       "type": "array",
       "items": {
@@ -19,7 +19,7 @@
         "required": ["entityId", "expectedVersion"],
         "properties": {
           "entityId": { "$ref": "#/$defs/namespacedId" },
-          "expectedVersion": { "type": "integer", "minimum": 0 }
+          "expectedVersion": { "$ref": "#/$defs/nonNegativeSafeInteger" }
         }
       }
     },
@@ -41,6 +41,9 @@
     }
   },
   "$defs": {
+    "safeInteger": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+    "nonNegativeSafeInteger": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "positiveSafeInteger": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
     "namespacedId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9_-]*)+$" },
     "jsonValue": {
       "anyOf": [
@@ -88,12 +91,12 @@
         "correlationId": { "$ref": "#/$defs/namespacedId" },
         "lastTransitionEventId": { "$ref": "#/$defs/namespacedId" },
         "dataVersion": { "type": "string", "minLength": 1 },
-        "appliedTick": { "type": "integer", "minimum": 0 },
-        "nextTickAt": { "type": "integer", "minimum": 0 },
-        "expireTick": { "type": "integer", "minimum": 0 },
-        "intervalTicks": { "type": "integer", "minimum": 1 },
-        "rawTickDamage": { "type": "integer", "minimum": 0 },
-        "maxCatchUpTicks": { "type": "integer", "minimum": 1 }
+        "appliedTick": { "$ref": "#/$defs/nonNegativeSafeInteger" },
+        "nextTickAt": { "$ref": "#/$defs/nonNegativeSafeInteger" },
+        "expireTick": { "$ref": "#/$defs/nonNegativeSafeInteger" },
+        "intervalTicks": { "$ref": "#/$defs/positiveSafeInteger" },
+        "rawTickDamage": { "$ref": "#/$defs/nonNegativeSafeInteger" },
+        "maxCatchUpTicks": { "$ref": "#/$defs/positiveSafeInteger" }
       }
     },
     "operation": {
@@ -103,9 +106,9 @@
           "additionalProperties": false,
           "required": ["order", "kind", "entityId", "resource", "delta", "key"],
           "properties": {
-            "order": { "type": "integer" }, "kind": { "const": "resource.delta" },
+            "order": { "$ref": "#/$defs/safeInteger" }, "kind": { "const": "resource.delta" },
             "entityId": { "$ref": "#/$defs/namespacedId" }, "resource": { "type": "string", "minLength": 1 },
-            "delta": { "type": "integer" }, "key": { "type": "string", "minLength": 1 }
+            "delta": { "$ref": "#/$defs/safeInteger" }, "key": { "type": "string", "minLength": 1 }
           }
         },
         {
@@ -113,9 +116,9 @@
           "additionalProperties": false,
           "required": ["order", "kind", "entityId", "definitionId", "readyTick", "key"],
           "properties": {
-            "order": { "type": "integer" }, "kind": { "const": "cooldown.set" },
+            "order": { "$ref": "#/$defs/safeInteger" }, "kind": { "const": "cooldown.set" },
             "entityId": { "$ref": "#/$defs/namespacedId" }, "definitionId": { "$ref": "#/$defs/namespacedId" },
-            "readyTick": { "type": "integer", "minimum": 0 }, "key": { "type": "string", "minLength": 1 }
+            "readyTick": { "$ref": "#/$defs/nonNegativeSafeInteger" }, "key": { "type": "string", "minLength": 1 }
           }
         },
         {
@@ -123,7 +126,7 @@
           "additionalProperties": false,
           "required": ["order", "kind", "entityId", "status", "key"],
           "properties": {
-            "order": { "type": "integer" }, "kind": { "const": "status.add" },
+            "order": { "$ref": "#/$defs/safeInteger" }, "kind": { "const": "status.add" },
             "entityId": { "$ref": "#/$defs/namespacedId" }, "status": { "$ref": "#/$defs/statusInstance" },
             "key": { "type": "string", "minLength": 1 }
           }
@@ -133,13 +136,13 @@
           "additionalProperties": false,
           "required": ["order", "kind", "entityId", "instanceId", "patch", "key"],
           "properties": {
-            "order": { "type": "integer" }, "kind": { "const": "status.patch" },
+            "order": { "$ref": "#/$defs/safeInteger" }, "kind": { "const": "status.patch" },
             "entityId": { "$ref": "#/$defs/namespacedId" }, "instanceId": { "$ref": "#/$defs/namespacedId" },
             "patch": {
               "type": "object", "additionalProperties": false,
               "required": ["nextTickAt", "lastTransitionEventId"],
               "properties": {
-                "nextTickAt": { "type": "integer", "minimum": 0 },
+                "nextTickAt": { "$ref": "#/$defs/nonNegativeSafeInteger" },
                 "lastTransitionEventId": { "$ref": "#/$defs/namespacedId" }
               }
             },
@@ -151,7 +154,7 @@
           "additionalProperties": false,
           "required": ["order", "kind", "entityId", "instanceId", "key"],
           "properties": {
-            "order": { "type": "integer" }, "kind": { "const": "status.remove" },
+            "order": { "$ref": "#/$defs/safeInteger" }, "kind": { "const": "status.remove" },
             "entityId": { "$ref": "#/$defs/namespacedId" }, "instanceId": { "$ref": "#/$defs/namespacedId" },
             "key": { "type": "string", "minLength": 1 }
           }

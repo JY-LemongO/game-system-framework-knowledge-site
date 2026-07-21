@@ -9,6 +9,13 @@ public sealed class SkillRequest
         long requestedTick,
         uint rootSeed)
     {
+        EntityId.ThrowIfInvalid(casterId, nameof(casterId));
+        EntityId.ThrowIfInvalid(skillId, nameof(skillId));
+        if (targetId.HasValue)
+        {
+            EntityId.ThrowIfInvalid(targetId.Value, nameof(targetId));
+        }
+
         if (requestedTick < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(requestedTick));

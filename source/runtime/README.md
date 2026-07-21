@@ -18,6 +18,8 @@
 - 순차 N−2 schema migration registry와 audit hash
 - replay hash, trace hash, golden fixture
 
+`createCommandEnvelope`과 `createDomainEventEnvelope`은 생략 가능한 기본값을 채우는 convenience builder다. 외부 wire object는 모든 canonical 필드를 요구하고 unknown field를 거부하는 `parseCommandEnvelope`과 `parseDomainEventEnvelope`을 통과해야 한다.
+
 ## 실행
 
 ```bash

@@ -1,7 +1,7 @@
 {
   "fixtureVersion": 1,
   "name": "default-fireball-golden",
-  "runtimeVersion": "3.3.0-reference",
+  "runtimeVersion": "3.4.0-reference",
   "input": {
     "rootSeed": 61710,
     "tick": 18240,
@@ -44,8 +44,8 @@
     "simulateStatusTicks": true
   },
   "expected": {
-    "replayHash": "18ea7715eebe2c03",
-    "traceHash": "f7ba8ff22fec26ba",
+    "replayHash": "9ebfbe8397c05c15",
+    "traceHash": "53680cfe919b59c8",
     "finalState": {
       "tick": 18246,
       "entities": {
@@ -106,6 +106,7 @@
       "finalHpDamage": 162,
       "overkill": 0,
       "targetHpAfter": 338,
+      "targetShieldAfter": 0,
       "skillDefinitionId": "skill.fireball",
       "hitOutcome": "Hit",
       "critical": true,
