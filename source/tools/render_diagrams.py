@@ -61,7 +61,8 @@ def selected_sources(patterns: list[str]) -> list[Path]:
 
 
 def source_digest(source: Path) -> str:
-    return hashlib.sha256(source.read_bytes()).hexdigest()
+    canonical_text = source.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(canonical_text.encode("utf-8")).hexdigest()
 
 
 def load_source_manifest() -> dict[str, str]:
