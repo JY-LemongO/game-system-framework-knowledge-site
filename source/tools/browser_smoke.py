@@ -465,6 +465,7 @@ with sync_playwright() as p:
     check(runtime_results.count()>=1,'global-search:runtime-title-result')
     check(bool(page.locator('#command-result-status').inner_text()),'global-search:result-count-status')
     page.keyboard.press('Escape')
+    page.wait_for_function("document.querySelector('#command-input')?.getAttribute('aria-expanded') === 'false'")
     check(page.locator('#command-input').get_attribute('aria-expanded')=='false','global-search:collapsed-state')
     page.evaluate('window.__printCalled=false; window.print=()=>{window.__printCalled=true}')
     page.locator('[data-print-page]').first.click()

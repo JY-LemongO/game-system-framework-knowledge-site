@@ -188,7 +188,7 @@ b22b05adf3b617d3563f5a226a79a352f7c9671832584316d36994da6914f40b  ./source/runti
 43f67e9639990852835310f2f9a71e2f0def7192efaebcbf34e2dc45d7f46ac0  ./source/search-index.json
 83def120126189b5db98cff295448bc3c83caf6bf4f4f1c08522efc08b0e0728  ./source/site-map.json
 333f8b0bbc1e522843ad59a054f7732fe290d270ceab3a2e6b5fb1d5fc618805  ./source/tools/browser_launch.py
-c7d6aac4d5cb333bdca052da1b174984b51229868c617e70c5cd4643bc9ad312  ./source/tools/browser_smoke.py
+0a90070f8ab498c00ce5a7ac4db59843811c786d105c03fc0f9258d9ff0a87b8  ./source/tools/browser_smoke.py
 b9c2bbdb86151e7c759beee27c4756e37345fa9b79a518737e3af9ed3665207a  ./source/tools/build_manifest.py
 c535ed8155fa84029e1ddf43211f471ad668e2755da1e70dcddf4f53251a2564  ./source/tools/build_search_index.py
 d50745ad38425dd634972d0aa2adaaa21e993e490d40253d4e9e2a4db1076f04  ./source/tools/capture_previews.py

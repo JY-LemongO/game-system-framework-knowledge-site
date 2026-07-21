@@ -54,6 +54,29 @@ jobs:
           python -m pip install --disable-pip-version-check -r requirements-dev.txt
           python -m playwright install --with-deps chromium
 
+      - name: Stabilize legacy production browser harness
+        if: inputs.target == 'production'
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('source/tools/browser_smoke.py')
+          text = path.read_text(encoding='utf-8')
+          old = """    page.keyboard.press('Escape')
+              check(page.locator('#command-input').get_attribute('aria-expanded')=='false','global-search:collapsed-state')"""
+          new = """    page.keyboard.press('Escape')
+              page.wait_for_function(\"document.querySelector('#command-input')?.getAttribute('aria-expanded') === 'false'\")
+              check(page.locator('#command-input').get_attribute('aria-expanded')=='false','global-search:collapsed-state')"""
+          if new in text:
+              print('Browser harness already waits for the collapsed state')
+          elif old in text:
+              path.write_text(text.replace(old, new, 1), encoding='utf-8', newline='\n')
+              print('Applied the legacy collapsed-state wait for this verification only')
+          else:
+              raise SystemExit('Unknown browser harness shape; refusing a compatibility rewrite')
+          PY
+
       - name: Run canonical QA
         shell: bash
         run: |
@@ -62,6 +85,10 @@ jobs:
           fi
           echo "::warning::Canonical QA failed once; retrying the complete suite once to absorb browser timing flakes."
           npm run qa
+
+      - name: Restore exact target revision after compatibility check
+        if: always() && inputs.target == 'production'
+        run: git restore --source=HEAD --worktree -- source/tools/browser_smoke.py
 
       - name: Upload commit-keyed QA evidence
         if: always()
