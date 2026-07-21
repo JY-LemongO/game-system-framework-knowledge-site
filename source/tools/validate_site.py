@@ -409,6 +409,9 @@ for token in (
     'public sealed record EffectContext',
     'EntityId CasterId', 'EntityId? InitialTargetId',
     'SourceRef Source', 'uint RandomSeed',
+    'ValidEntityId(CasterId',
+    'ValidOperationId(OperationId',
+    'EntityId.ThrowIfInvalid(bundleId',
     'EffectBundlePlan Prepare',
 ):
     if token not in effect_page_source:
@@ -943,6 +946,10 @@ else:
         'EntityId CasterId', 'EntityId? InitialTargetId',
         'SourceRef Source', 'uint RandomSeed', 'ReactionBudget',
         'if (maxBudget <= 0)',
+        'ValidEntityId(CasterId',
+        'private static EntityId ValidOperationId',
+        'EntityId.ThrowIfInvalid(bundleId',
+        'ValidSource(Source',
         'public interface IEffectExecutor', 'EffectOperationResult Execute',
         'EffectBundleResult Execute', 'public interface IEffectPlanner',
         'EffectBundlePlan Prepare',
@@ -982,6 +989,8 @@ else:
         '_activeAcceptedCount', '_activeAcceptedBudget',
         'A reaction causation wave cannot be drained recursively',
         '_pending.Clear()', 'ValidatePostState', 'TargetShieldAfter',
+        'ValidateContract', 'EntityId.ThrowIfInvalid(CasterId',
+        'EntityId.ThrowIfInvalid(AttackerId',
         'must match the committed target shield resource',
     ):
         if token not in commit_source:
@@ -1006,6 +1015,11 @@ else:
         'dispatch exceptions are surfaced to the caller',
         'effect plan requires at least one primary operation',
         'skill result keeps immutable effect results',
+        'effect context rejects a default caster ID',
+        'effect operation rejects a default operation ID',
+        'effect bundle result rejects a default bundle ID',
+        'invalidOutboxEvents', 'damage fact attacker',
+        'damage fact shield resource',
     ):
         if token not in verifier_source:
             error(f'C# verifier missing contract assertion token: {token}')

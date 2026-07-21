@@ -5,7 +5,7 @@
 - 피드백 기준: `main` 정적 검수 문서
 - 계획 기준: clean `dev`, `b876a2e1566cee01e1fb73a2c686c19d3ea47ffb`
 - 범위: 피드백 판정과 수정 계획, 사용자 승인 후 구현 및 독립 QA 결과
-- 구현 상태: 완료, 원격 Actions와 repository ruleset 운영 확인만 남음
+- 구현 상태: 릴리스 전 독립 재감사 보완까지 반영. 최종 증빙은 `v3` 태그, Actions, Preview metadata로 고정
 
 ## 분석 요약
 
@@ -293,7 +293,7 @@
 - Core Runtime의 동일-source C# 블록을 실제 `Identifiers.cs`와 exact 비교하고 Fireball 핵심 수치를 golden marker로 검증한다.
 - 외부 verifier는 `net9.0`을 유지하고 SDK `9.0.306`을 고정했다. Unity 소비 target의 `net10.0` 전환은 Unity 6.8 정식 출시와 필요한 Editor·Player·IL2CPP 지원 확인 뒤 재검토한다.
 
-## 독립 QA 결과 (unity-qa, 2026-07-22)
+## 독립 QA 결과 (unity-qa, 2026-07-22, `dc3fe3e` 기준)
 
 정상·엣지·실패 3축 재검토에서 미해결 구현 결함은 발견되지 않았다.
 
@@ -304,12 +304,34 @@
 - 다이어그램: 34 sets
 - 검색 색인: 326 entries
 - 정적 검증: 오류 0, 경고 0
-- Manifest: 198 files
+- Manifest: 199 files
 - 브라우저: 443/443 checks
 - source/browser runtime kernel SHA-256 동일
 - 거짓 HP/shield/status/defeat fact, unsafe integer, strict parser 누락·unknown·null, callback, stale manifest 실패 경로 통과
 
-로컬에서 실행할 수 없는 잔여 운영 확인은 두 가지다.
+해당 SHA의 원격 `Deploy production and QA preview` run `29857300289`에서 production QA, Preview QA, deploy가 모두 통과했고 Preview metadata가 같은 `dev` SHA와 `3.4.0-reference`를 기록했다.
 
-1. 변경을 원격에 올린 뒤 첫 `Repository QA`와 Pages workflow가 실제 GitHub-hosted runner에서 통과하는지 확인
-2. 저장소 관리자 권한으로 `main` required check와 직접 push 제한 ruleset 설정
+`main` branch protection의 required-check 강제와 repository ruleset은 이번 `dev` Preview 릴리스의 코드·배포 범위와 분리한 운영 정책이다. 현재 main 직접 push 제한 정책을 임의로 강화하지 않으며, production 승격 작업에서 저장소 관리자가 별도로 결정한다.
+
+## 릴리스 전 재감사 보완 (2026-07-22)
+
+초기 PASS 뒤 다른 검수자가 완료 기준을 다시 공격적으로 대조해 다음 두 누락을 발견했다.
+
+1. legacy production 브라우저 호환 단계가 `MANIFEST.sha256`을 먼저 재생성해 frozen production SHA의 stale manifest를 가릴 수 있었다.
+2. Effect planner/executor 입력·결과와 committed event payload 일부가 `default(EntityId)`를 실제 public/아웃박스 경계까지 통과시킬 수 있었다.
+
+반영 내용:
+
+- production 호환 rewrite 전에 원본 exact SHA의 `MANIFEST.sha256`을 `--check`로 먼저 검증한다.
+- `EffectContext`, `EffectOperation`, `EffectOperationResult`, `EffectBundleResult`가 생성과 record `with` 경로 모두 invalid ID를 거부한다.
+- Effect positional constructor, named argument, `Deconstruct`, record copy API는 유지한다.
+- `SkillCommitted`와 `DamageCommitted`의 공통 envelope·actor·target·resource ID를 `CommitPlan`과 `CommittedOutboxEvent` 수용 전에 검증한다.
+- 중간 DTO인 `VersionPrecondition`과 `VersionedResourceState`는 각각 aggregate ingress에서 거부되는 negative assertion으로 고정한다.
+- C# targeted verifier는 보완 뒤 236 assertions를 통과했다.
+
+최종 통과 기준:
+
+- 생성 파일 갱신 뒤 clean worktree의 최종 commit에서 `npm run qa` 전 단계 PASS
+- 최종 `dev` SHA의 production QA, Preview QA, deploy job PASS
+- Preview `build-metadata.json`의 branch/SHA/version이 최종 `dev`와 일치
+- 같은 SHA에 annotated `v3` 태그를 생성하고 원격 peeled tag까지 확인

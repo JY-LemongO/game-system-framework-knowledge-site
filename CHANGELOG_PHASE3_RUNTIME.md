@@ -9,12 +9,16 @@
 - 100-point rubric, per-dimension 80% floors, normal·edge·failure gates, critical violations
 - deterministic fixture probes for target ordering, per-target RNG, stale rollback, reaction budget, Status causation, and atomic final tick
 - desktop and 390px mobile interaction smoke coverage for assess, evidence, malformed JSON, and reset
+- release/runtime version-integrity gate and commit-keyed QA evidence
+- reusable exact-SHA GitHub Actions QA for production and Preview targets
 
 ### Changed
 
 - replay teaching envelope now names contract schema, replay format, RNG key schema, clock domain, data, and target-order policy versions explicitly
 - reaction failure teaching now distinguishes committed, dispatched, undispatched, non-durable diagnostic, idempotency, and retry semantics
 - Status teaching now connects application and periodic source provenance to the direct transition-event causation chain
+- Pages deployment now freezes `main` and `dev` revisions, gates both targets, and records release/runtime versions plus commit SHA
+- builder-friendly envelope inputs and strict wire parsers now have separate, explicit contracts
 
 ### Fixed
 
@@ -23,6 +27,10 @@
 - made mutation version subjects order-independent as a set contract
 - prevented high aggregate scores from hiding a weak rubric dimension or incorrect ownership boundary
 - rejected sparse arrays, index accessors, symbol/extra properties, and other non-JSON array shapes before assessor values are read
+- rejected outbox facts whose state-derived payload disagrees with the committed post-state without mutating state, outbox, or idempotency
+- rejected default `EntityId` values at Effect and committed-event boundaries while preserving positional record APIs
+- defensively copied `DictionaryStatQuery` inputs and rejected numeric overflow at the documented C# damage boundary
+- verified the frozen production manifest before applying the temporary legacy browser compatibility rewrite
 
 ### Evidence boundary
 

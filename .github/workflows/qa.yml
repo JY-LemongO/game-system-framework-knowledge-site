@@ -54,6 +54,10 @@ jobs:
           python -m pip install --disable-pip-version-check -r requirements-dev.txt
           python -m playwright install --with-deps chromium
 
+      - name: Verify exact target manifest before compatibility changes
+        if: inputs.target == 'production'
+        run: python source/tools/build_manifest.py --check
+
       - name: Stabilize legacy production browser harness
         if: inputs.target == 'production'
         shell: bash

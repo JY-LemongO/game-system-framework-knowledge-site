@@ -180,9 +180,83 @@ public sealed record EffectContext(
     EntityId CasterId,
     EntityId? InitialTargetId,
     SourceRef Source,
-    uint RandomSeed);
+    uint RandomSeed)
+{
+    private EntityId _casterId = ValidEntityId(CasterId, nameof(CasterId));
+    private EntityId? _initialTargetId = ValidOptionalEntityId(
+        InitialTargetId,
+        nameof(InitialTargetId));
+    private SourceRef _source = ValidSource(Source, nameof(Source));
 
-public abstract record EffectOperation(EntityId OperationId);
+    public EntityId CasterId
+    {
+        get => _casterId;
+        init => _casterId = ValidEntityId(value, nameof(CasterId));
+    }
+
+    public EntityId? InitialTargetId
+    {
+        get => _initialTargetId;
+        init => _initialTargetId = ValidOptionalEntityId(
+            value,
+            nameof(InitialTargetId));
+    }
+
+    public SourceRef Source
+    {
+        get => _source;
+        init => _source = ValidSource(value, nameof(Source));
+    }
+
+    private static EntityId ValidEntityId(
+        EntityId entityId,
+        string parameterName)
+    {
+        EntityId.ThrowIfInvalid(entityId, parameterName);
+        return entityId;
+    }
+
+    private static EntityId? ValidOptionalEntityId(
+        EntityId? entityId,
+        string parameterName)
+    {
+        if (entityId.HasValue)
+        {
+            EntityId.ThrowIfInvalid(entityId.Value, parameterName);
+        }
+
+        return entityId;
+    }
+
+    private static SourceRef ValidSource(
+        SourceRef source,
+        string parameterName)
+    {
+        SourceRef.ThrowIfInvalid(source, parameterName);
+        return source;
+    }
+}
+
+public abstract record EffectOperation(EntityId OperationId)
+{
+    private EntityId _operationId = ValidOperationId(
+        OperationId,
+        nameof(OperationId));
+
+    public EntityId OperationId
+    {
+        get => _operationId;
+        init => _operationId = ValidOperationId(value, nameof(OperationId));
+    }
+
+    private static EntityId ValidOperationId(
+        EntityId operationId,
+        string parameterName)
+    {
+        EntityId.ThrowIfInvalid(operationId, parameterName);
+        return operationId;
+    }
+}
 
 public sealed record DamageEffectOperation(
     EntityId OperationId,
@@ -308,8 +382,29 @@ public interface IEffectPlanner
 
 public abstract record EffectResult(bool Succeeded);
 
-public sealed record EffectOperationResult(bool Succeeded, EntityId OperationId)
-    : EffectResult(Succeeded);
+public sealed record EffectOperationResult(
+    bool Succeeded,
+    EntityId OperationId)
+    : EffectResult(Succeeded)
+{
+    private EntityId _operationId = ValidOperationId(
+        OperationId,
+        nameof(OperationId));
+
+    public EntityId OperationId
+    {
+        get => _operationId;
+        init => _operationId = ValidOperationId(value, nameof(OperationId));
+    }
+
+    private static EntityId ValidOperationId(
+        EntityId operationId,
+        string parameterName)
+    {
+        EntityId.ThrowIfInvalid(operationId, parameterName);
+        return operationId;
+    }
+}
 
 public sealed record EffectBundleResult : EffectResult
 {
@@ -320,6 +415,8 @@ public sealed record EffectBundleResult : EffectResult
         int queuedReactionCount)
         : base(committed)
     {
+        EntityId.ThrowIfInvalid(bundleId, nameof(bundleId));
+
         if (appliedEffectCount < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(appliedEffectCount));

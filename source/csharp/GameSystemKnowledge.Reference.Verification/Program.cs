@@ -234,8 +234,53 @@ internal sealed class ContractVerificationSuite
         Equal(FireballReferenceScenario.TargetId, effectContext.InitialTargetId, "effect context keeps initial target");
         Equal(FireballReferenceScenario.SkillSource, effectContext.Source, "effect context keeps structured source");
         Equal(61_710u, effectContext.RandomSeed, "effect context keeps deterministic seed");
+        var (deconstructedCasterId, _, _, deconstructedSeed) = effectContext;
+        Equal(FireballReferenceScenario.CasterId, deconstructedCasterId, "effect context retains positional deconstruction");
+        Equal(61_710u, deconstructedSeed, "effect context deconstruction retains the seed");
+        Throws<ArgumentException>(
+            () => _ = new EffectContext(
+                default,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.SkillSource,
+                RandomSeed: 1),
+            "effect context rejects a default caster ID");
+        Throws<ArgumentException>(
+            () => _ = new EffectContext(
+                FireballReferenceScenario.CasterId,
+                default(EntityId),
+                FireballReferenceScenario.SkillSource,
+                RandomSeed: 1),
+            "effect context rejects a default target ID");
+        Throws<ArgumentException>(
+            () => _ = new EffectContext(
+                FireballReferenceScenario.CasterId,
+                FireballReferenceScenario.TargetId,
+                default,
+                RandomSeed: 1),
+            "effect context rejects a default source");
+        Throws<ArgumentException>(
+            () => _ = effectContext with { CasterId = default },
+            "effect context rejects a default caster ID through record copy syntax");
 
         var damageRequest = FireballReferenceScenario.CreateDamageRequest();
+        var damageOperation = new DamageEffectOperation(
+            new EntityId("effect.verify.copy-guard"),
+            damageRequest);
+        Throws<ArgumentException>(
+            () => _ = new DamageEffectOperation(default, damageRequest),
+            "effect operation rejects a default operation ID");
+        Throws<ArgumentException>(
+            () => _ = damageOperation with { OperationId = default },
+            "effect operation rejects a default operation ID through record copy syntax");
+        var validOperationResult = new EffectOperationResult(
+            Succeeded: true,
+            OperationId: damageOperation.OperationId);
+        Throws<ArgumentException>(
+            () => _ = new EffectOperationResult(true, default),
+            "effect operation result rejects a default operation ID");
+        Throws<ArgumentException>(
+            () => _ = validOperationResult with { OperationId = default },
+            "effect operation result rejects a default ID through record copy syntax");
         var bundle = FireballReferenceScenario.CreateEffectBundle(damageRequest);
         Equal(EffectExecutionPolicy.CommitThenReact, bundle.Policy, "effect bundle uses CommitThenReact");
         Equal(1, bundle.Effects.Count, "Fireball bundle carries one primary damage effect");
@@ -278,6 +323,9 @@ internal sealed class ContractVerificationSuite
         Throws<ArgumentException>(
             () => _ = new EffectBundleResult(false, bundle.BundleId, 1, 0),
             "uncommitted effect bundle cannot report applied work");
+        Throws<ArgumentException>(
+            () => _ = new EffectBundleResult(true, default, 0, 0),
+            "effect bundle result rejects a default bundle ID");
 
         var applyStatus = new ApplyStatusRequest(
             FireballReferenceScenario.BurnDefinitionId,
@@ -490,6 +538,136 @@ internal sealed class ContractVerificationSuite
                 plan.Preconditions.Concat(new[] { plan.Preconditions[0] }),
                 plan.Mutations),
             "duplicate version preconditions are rejected");
+        Throws<ArgumentException>(
+            () => _ = new CommitPlan(
+                new EntityId("command.verify.invalid-precondition-id"),
+                new[] { new VersionPrecondition(default, 0) },
+                plan.Mutations.Take(1)),
+            "commit plan rejects a default precondition resource ID");
+        Throws<ArgumentException>(
+            () => _ = new InMemoryRuntimeCommitter(
+                new[] { new VersionedResourceState(default, 0, 0) }),
+            "runtime state rejects a default resource ID at aggregate ingress");
+
+        var invalidOutboxEvents = new (DomainEvent Event, string Label)[]
+        {
+            (
+                new SkillCommitted(
+                    default,
+                    plan.CommandId,
+                    FireballReferenceScenario.CasterId,
+                    FireballReferenceScenario.SkillDefinitionId,
+                    FireballReferenceScenario.TargetId,
+                    FireballReferenceScenario.SkillSource),
+                "event envelope"),
+            (
+                new SkillCommitted(
+                    new EntityId("event.skill-committed.verify.invalid-command"),
+                    default,
+                    FireballReferenceScenario.CasterId,
+                    FireballReferenceScenario.SkillDefinitionId,
+                    FireballReferenceScenario.TargetId,
+                    FireballReferenceScenario.SkillSource),
+                "event command"),
+            (
+                new SkillCommitted(
+                    new EntityId("event.skill-committed.verify.invalid-source"),
+                    plan.CommandId,
+                    FireballReferenceScenario.CasterId,
+                    FireballReferenceScenario.SkillDefinitionId,
+                    FireballReferenceScenario.TargetId,
+                    default),
+                "event source"),
+            (
+                new SkillCommitted(
+                    new EntityId("event.skill-committed.verify.invalid-caster"),
+                    plan.CommandId,
+                    default,
+                    FireballReferenceScenario.SkillDefinitionId,
+                    FireballReferenceScenario.TargetId,
+                    FireballReferenceScenario.SkillSource),
+                "skill fact caster"),
+            (
+                new SkillCommitted(
+                    new EntityId("event.skill-committed.verify.invalid-skill"),
+                    plan.CommandId,
+                    FireballReferenceScenario.CasterId,
+                    default,
+                    FireballReferenceScenario.TargetId,
+                    FireballReferenceScenario.SkillSource),
+                "skill fact skill"),
+            (
+                new SkillCommitted(
+                    new EntityId("event.skill-committed.verify.invalid-target"),
+                    plan.CommandId,
+                    FireballReferenceScenario.CasterId,
+                    FireballReferenceScenario.SkillDefinitionId,
+                    default(EntityId),
+                    FireballReferenceScenario.SkillSource),
+                "skill fact target"),
+            (
+                new DamageCommitted(
+                    new EntityId("event.damage-committed.verify.invalid-attacker"),
+                    plan.CommandId,
+                    default,
+                    FireballReferenceScenario.TargetId,
+                    FireballReferenceScenario.SkillSource,
+                    damage,
+                    FireballReferenceScenario.TargetHealthResourceId,
+                    TargetHpAfter: 338,
+                    TargetShieldResourceId: FireballReferenceScenario.TargetShieldResourceId,
+                    TargetShieldAfter: 0),
+                "damage fact attacker"),
+            (
+                new DamageCommitted(
+                    new EntityId("event.damage-committed.verify.invalid-defender"),
+                    plan.CommandId,
+                    FireballReferenceScenario.CasterId,
+                    default,
+                    FireballReferenceScenario.SkillSource,
+                    damage,
+                    FireballReferenceScenario.TargetHealthResourceId,
+                    TargetHpAfter: 338,
+                    TargetShieldResourceId: FireballReferenceScenario.TargetShieldResourceId,
+                    TargetShieldAfter: 0),
+                "damage fact defender"),
+            (
+                new DamageCommitted(
+                    new EntityId("event.damage-committed.verify.invalid-hp-resource"),
+                    plan.CommandId,
+                    FireballReferenceScenario.CasterId,
+                    FireballReferenceScenario.TargetId,
+                    FireballReferenceScenario.SkillSource,
+                    damage,
+                    default,
+                    TargetHpAfter: 338,
+                    TargetShieldResourceId: FireballReferenceScenario.TargetShieldResourceId,
+                    TargetShieldAfter: 0),
+                "damage fact HP resource"),
+            (
+                new DamageCommitted(
+                    new EntityId("event.damage-committed.verify.invalid-shield-resource"),
+                    plan.CommandId,
+                    FireballReferenceScenario.CasterId,
+                    FireballReferenceScenario.TargetId,
+                    FireballReferenceScenario.SkillSource,
+                    damage,
+                    FireballReferenceScenario.TargetHealthResourceId,
+                    TargetHpAfter: 338,
+                    TargetShieldResourceId: default,
+                    TargetShieldAfter: 0),
+                "damage fact shield resource")
+        };
+        foreach (var invalidOutboxEvent in invalidOutboxEvents)
+        {
+            Throws<ArgumentException>(
+                () => _ = new CommitPlan(
+                    plan.CommandId,
+                    plan.Preconditions,
+                    plan.Mutations,
+                    new[] { invalidOutboxEvent.Event }),
+                $"commit plan rejects a default {invalidOutboxEvent.Label} ID");
+        }
 
         var readOnlyPreconditionPlan = new CommitPlan(
             new EntityId("command.verify.read-only-precondition"),

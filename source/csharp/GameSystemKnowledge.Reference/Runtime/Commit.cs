@@ -50,6 +50,13 @@ public abstract record DomainEvent(
     EntityId CommandId,
     SourceRef Source)
 {
+    internal virtual void ValidateContract()
+    {
+        EntityId.ThrowIfInvalid(EventId, nameof(EventId));
+        EntityId.ThrowIfInvalid(CommandId, nameof(CommandId));
+        SourceRef.ThrowIfInvalid(Source, nameof(Source));
+    }
+
     internal virtual void ValidatePostState(
         IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
     {
@@ -63,7 +70,19 @@ public sealed record SkillCommitted(
     EntityId SkillId,
     EntityId? TargetId,
     SourceRef Source)
-    : DomainEvent(EventId, CommandId, Source);
+    : DomainEvent(EventId, CommandId, Source)
+{
+    internal override void ValidateContract()
+    {
+        base.ValidateContract();
+        EntityId.ThrowIfInvalid(CasterId, nameof(CasterId));
+        EntityId.ThrowIfInvalid(SkillId, nameof(SkillId));
+        if (TargetId.HasValue)
+        {
+            EntityId.ThrowIfInvalid(TargetId.Value, nameof(TargetId));
+        }
+    }
+}
 
 public sealed record DamageCommitted(
     EntityId EventId,
@@ -78,6 +97,15 @@ public sealed record DamageCommitted(
     long TargetShieldAfter)
     : DomainEvent(EventId, CommandId, Source)
 {
+    internal override void ValidateContract()
+    {
+        base.ValidateContract();
+        EntityId.ThrowIfInvalid(AttackerId, nameof(AttackerId));
+        EntityId.ThrowIfInvalid(DefenderId, nameof(DefenderId));
+        EntityId.ThrowIfInvalid(TargetHpResourceId, nameof(TargetHpResourceId));
+        EntityId.ThrowIfInvalid(TargetShieldResourceId, nameof(TargetShieldResourceId));
+    }
+
     internal override void ValidatePostState(
         IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
     {
@@ -117,9 +145,7 @@ public sealed record CommittedOutboxEvent
         }
 
         ArgumentNullException.ThrowIfNull(@event);
-        EntityId.ThrowIfInvalid(@event.EventId, nameof(@event));
-        EntityId.ThrowIfInvalid(@event.CommandId, nameof(@event));
-        SourceRef.ThrowIfInvalid(@event.Source, nameof(@event));
+        @event.ValidateContract();
         Sequence = sequence;
         Event = @event;
     }
@@ -162,9 +188,7 @@ public sealed class CommitPlan
         foreach (var @event in outboxCopy)
         {
             ArgumentNullException.ThrowIfNull(@event, nameof(outboxEvents));
-            EntityId.ThrowIfInvalid(@event.EventId, nameof(outboxEvents));
-            EntityId.ThrowIfInvalid(@event.CommandId, nameof(outboxEvents));
-            SourceRef.ThrowIfInvalid(@event.Source, nameof(outboxEvents));
+            @event.ValidateContract();
         }
 
         if (mutationCopy.Length == 0)

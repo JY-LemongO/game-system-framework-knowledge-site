@@ -420,15 +420,65 @@
     EntityId CasterId,
     EntityId? InitialTargetId,
     SourceRef Source,
-    uint RandomSeed);
+    uint RandomSeed)
+{
+    private EntityId _casterId =
+        ValidEntityId(CasterId, nameof(CasterId));
+    private EntityId? _initialTargetId =
+        ValidOptionalEntityId(InitialTargetId, nameof(InitialTargetId));
+    private SourceRef _source = ValidSource(Source, nameof(Source));
 
-public abstract record EffectOperation(EntityId OperationId);
+    public EntityId CasterId
+    {
+        get =&gt; _casterId;
+        init =&gt; _casterId = ValidEntityId(value, nameof(CasterId));
+    }
+
+    public EntityId? InitialTargetId
+    {
+        get =&gt; _initialTargetId;
+        init =&gt; _initialTargetId =
+            ValidOptionalEntityId(value, nameof(InitialTargetId));
+    }
+
+    public SourceRef Source
+    {
+        get =&gt; _source;
+        init =&gt; _source = ValidSource(value, nameof(Source));
+    }
+
+    // Valid* helper bodies are omitted; they reject default IDs and sources.
+}
+
+public abstract record EffectOperation(EntityId OperationId)
+{
+    private EntityId _operationId =
+        ValidOperationId(OperationId, nameof(OperationId));
+
+    public EntityId OperationId
+    {
+        get =&gt; _operationId;
+        init =&gt; _operationId =
+            ValidOperationId(value, nameof(OperationId));
+    }
+}
 
 public abstract record EffectResult(bool Succeeded);
 
 public sealed record EffectOperationResult(
     bool Succeeded,
-    EntityId OperationId) : EffectResult(Succeeded);
+    EntityId OperationId) : EffectResult(Succeeded)
+{
+    private EntityId _operationId =
+        ValidOperationId(OperationId, nameof(OperationId));
+
+    public EntityId OperationId
+    {
+        get =&gt; _operationId;
+        init =&gt; _operationId =
+            ValidOperationId(value, nameof(OperationId));
+    }
+}
 
 public sealed record EffectBundleResult : EffectResult
 {
@@ -438,6 +488,8 @@ public sealed record EffectBundleResult : EffectResult
         int appliedEffectCount,
         int queuedReactionCount) : base(committed)
     {
+        EntityId.ThrowIfInvalid(bundleId, nameof(bundleId));
+
         if (appliedEffectCount &lt; 0)
             throw new ArgumentOutOfRangeException(nameof(appliedEffectCount));
         if (queuedReactionCount &lt; 0)
