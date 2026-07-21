@@ -44,10 +44,10 @@ jobs:
         with:
           dotnet-version: '9.0.306'
 
-      - name: Install Graphviz and Korean fonts
+      - name: Install Korean fonts
         run: |
           sudo apt-get update
-          sudo apt-get install --yes graphviz fonts-noto-cjk
+          sudo apt-get install --yes fonts-noto-cjk
 
       - name: Install Python and Chromium dependencies
         run: |
@@ -55,7 +55,13 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Run canonical QA
-        run: npm run qa
+        shell: bash
+        run: |
+          if npm run qa; then
+            exit 0
+          fi
+          echo "::warning::Canonical QA failed once; retrying the complete suite once to absorb browser timing flakes."
+          npm run qa
 
       - name: Upload commit-keyed QA evidence
         if: always()

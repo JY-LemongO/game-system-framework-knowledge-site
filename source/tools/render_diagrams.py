@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -15,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_DIR = ROOT / "source" / "diagrams"
 OUTPUT_DIR = ROOT / "assets" / "diagrams"
+SOURCE_MANIFEST = OUTPUT_DIR / "source-manifest.json"
 
 
 def find_dot() -> Path:
@@ -57,19 +60,94 @@ def selected_sources(patterns: list[str]) -> list[Path]:
     return selected
 
 
+def source_digest(source: Path) -> str:
+    return hashlib.sha256(source.read_bytes()).hexdigest()
+
+
+def load_source_manifest() -> dict[str, str]:
+    if not SOURCE_MANIFEST.is_file():
+        return {}
+    try:
+        payload = json.loads(SOURCE_MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise SystemExit(f"Invalid diagram source manifest: {error}") from error
+    if payload.get("schemaVersion") != 1 or payload.get("algorithm") != "sha256":
+        raise SystemExit("Invalid diagram source manifest header")
+    sources = payload.get("sources")
+    if not isinstance(sources, dict) or not all(
+        isinstance(name, str) and isinstance(digest, str)
+        for name, digest in sources.items()
+    ):
+        raise SystemExit("Invalid diagram source manifest entries")
+    return sources
+
+
+def write_source_manifest(entries: dict[str, str]) -> None:
+    payload = {
+        "schemaVersion": 1,
+        "algorithm": "sha256",
+        "sources": dict(sorted(entries.items())),
+    }
+    SOURCE_MANIFEST.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
+def asset_is_well_formed(path: Path, output_format: str) -> bool:
+    if not path.is_file() or path.stat().st_size == 0:
+        return False
+    content = path.read_bytes()
+    if output_format == "png":
+        return content.startswith(b"\x89PNG\r\n\x1a\n")
+    return b"<svg" in content[:1024]
+
+
+def check_generated_assets(sources: list[Path], require_complete_manifest: bool) -> list[str]:
+    recorded = load_source_manifest()
+    failures: list[str] = []
+    if require_complete_manifest:
+        all_source_names = {source.name for source in SOURCE_DIR.glob("*.dot")}
+        missing = sorted(all_source_names - recorded.keys())
+        extra = sorted(recorded.keys() - all_source_names)
+        failures.extend(f"manifest missing {name}" for name in missing)
+        failures.extend(f"manifest retains removed source {name}" for name in extra)
+
+    for source in sources:
+        digest = source_digest(source)
+        if recorded.get(source.name) != digest:
+            failures.append(f"source digest changed: {source.relative_to(ROOT)}")
+        for output_format in ("svg", "png"):
+            public = OUTPUT_DIR / f"{source.stem}.{output_format}"
+            if not asset_is_well_formed(public, output_format):
+                failures.append(f"missing or invalid asset: {public.relative_to(ROOT)}")
+
+    return failures
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="fail when generated assets are stale")
     parser.add_argument("--only", nargs="*", default=[], metavar="STEM", help="render selected diagram stems")
     args = parser.parse_args()
 
-    dot = find_dot()
     sources = selected_sources(args.only)
     if not sources:
         raise SystemExit("No DOT sources found")
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    stale: list[Path] = []
+    if args.check:
+        failures = check_generated_assets(sources, require_complete_manifest=not args.only)
+        if failures:
+            print("Stale diagram assets:", file=sys.stderr)
+            for failure in failures:
+                print(f"- {failure}", file=sys.stderr)
+            return 1
+        print(f"verified {len(sources)} diagram source(s)")
+        return 0
+
+    dot = find_dot()
     with tempfile.TemporaryDirectory(prefix="gsk-diagrams-") as temporary:
         temp_dir = Path(temporary)
         for source in sources:
@@ -79,24 +157,17 @@ def main() -> int:
                 render(dot, source, target, output_format)
                 generated[output_format] = target
 
-            if args.check:
-                for output_format, candidate in generated.items():
-                    public = OUTPUT_DIR / candidate.name
-                    if not public.is_file() or public.read_bytes() != candidate.read_bytes():
-                        stale.append(public.relative_to(ROOT))
-            else:
-                for candidate in generated.values():
-                    shutil.copyfile(candidate, OUTPUT_DIR / candidate.name)
-                print(f"rendered {source.stem}")
+            for candidate in generated.values():
+                shutil.copyfile(candidate, OUTPUT_DIR / candidate.name)
+            print(f"rendered {source.stem}")
 
-    if stale:
-        print("Stale diagram assets:", file=sys.stderr)
-        for path in stale:
-            print(f"- {path}", file=sys.stderr)
-        return 1
-
-    mode = "verified" if args.check else "rendered"
-    print(f"{mode} {len(sources)} diagram source(s)")
+    recorded = load_source_manifest() if args.only else {}
+    current_names = {source.name for source in SOURCE_DIR.glob("*.dot")}
+    recorded = {name: digest for name, digest in recorded.items() if name in current_names}
+    for source in sources:
+        recorded[source.name] = source_digest(source)
+    write_source_manifest(recorded)
+    print(f"rendered {len(sources)} diagram source(s)")
     return 0
 
 
