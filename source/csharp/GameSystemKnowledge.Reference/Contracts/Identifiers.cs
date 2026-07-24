@@ -2,6 +2,8 @@ namespace GameSystemKnowledge.Reference.Contracts;
 
 public readonly record struct EntityId : IComparable<EntityId>
 {
+    private readonly string? _value;
+
     public EntityId(string value)
     {
         if (!TryValidate(value, out var error))
@@ -9,10 +11,13 @@ public readonly record struct EntityId : IComparable<EntityId>
             throw new ArgumentException(error, nameof(value));
         }
 
-        Value = value;
+        _value = value;
     }
 
-    public string Value { get; }
+    public bool IsValid => _value is not null;
+
+    public string Value => _value ?? throw new InvalidOperationException(
+        "A default EntityId is invalid and has no value.");
 
     public static bool TryCreate(string? value, out EntityId entityId)
     {
@@ -29,7 +34,19 @@ public readonly record struct EntityId : IComparable<EntityId>
     public int CompareTo(EntityId other) =>
         StringComparer.Ordinal.Compare(Value, other.Value);
 
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
+
+    internal static void ThrowIfInvalid(
+        EntityId entityId,
+        string parameterName)
+    {
+        if (!entityId.IsValid)
+        {
+            throw new ArgumentException(
+                "An EntityId must be initialized with a canonical value.",
+                parameterName);
+        }
+    }
 
     private static bool TryValidate(string? value, out string error)
     {
@@ -96,6 +113,17 @@ public readonly record struct SourceRef
         EntityId definitionId,
         EntityId? instanceId = null)
     {
+        if (!Enum.IsDefined(kind))
+        {
+            throw new ArgumentOutOfRangeException(nameof(kind));
+        }
+
+        EntityId.ThrowIfInvalid(definitionId, nameof(definitionId));
+        if (instanceId.HasValue)
+        {
+            EntityId.ThrowIfInvalid(instanceId.Value, nameof(instanceId));
+        }
+
         if (kind is SourceKind.SkillExecution or SourceKind.Status &&
             instanceId is null)
         {
@@ -115,8 +143,27 @@ public readonly record struct SourceRef
 
     public EntityId? InstanceId { get; }
 
+    public bool IsValid =>
+        Enum.IsDefined(Kind) &&
+        DefinitionId.IsValid &&
+        (Kind is not (SourceKind.SkillExecution or SourceKind.Status) ||
+         InstanceId.HasValue) &&
+        (!InstanceId.HasValue || InstanceId.Value.IsValid);
+
     public EntityId? StatusInstanceId =>
         Kind == SourceKind.Status ? InstanceId : null;
+
+    internal static void ThrowIfInvalid(
+        SourceRef source,
+        string parameterName)
+    {
+        if (!source.IsValid)
+        {
+            throw new ArgumentException(
+                "A SourceRef must contain valid definition and instance IDs.",
+                parameterName);
+        }
+    }
 
     public static SourceRef SkillExecution(
         EntityId skillDefinitionId,

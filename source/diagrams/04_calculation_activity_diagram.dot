@@ -1,38 +1,41 @@
 digraph ActivityDiagram {
-	graph [bgcolor=white fontname="Noto Sans CJK KR" fontsize=18 label="UML Activity Diagram - GetFinalValue(statId, context)" labelloc=t nodesep=0.45 rankdir=TB ranksep=0.55 splines=ortho]
-	node [color="#425466" fontname="Noto Sans CJK KR" fontsize=11 style="rounded,filled"]
-	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans CJK KR" fontsize=10]
+	graph [bgcolor=white fontname="Noto Sans KR" fontsize=18 label="Executable C# Reference - Derived Stat Evaluation" labelloc=t nodesep=0.55 rankdir=TB ranksep=0.62 splines=polyline]
+	node [color="#425466" fontname="Noto Sans KR" fontsize=11 style="rounded,filled"]
+	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans KR" fontsize=10]
 	start [label=Start fillcolor="#111827" fontcolor=white shape=circle width=0.35]
-	query [label="StatBlock.GetValue(statId, context)" fillcolor="#E8F0FE" shape=box]
-	exists [label="StatInstance exists?" fillcolor="#FFF3CD" shape=diamond]
-	default [label="Return default / error policy" fillcolor="#FCE8E6" shape=box]
-	dirty [label="Cache dirty or context-sensitive?" fillcolor="#FFF3CD" shape=diamond]
-	cache [label="Return cached value" fillcolor="#F1F8E9" shape=box]
-	collect [label="Collect active modifiers
- filter expired without mutation" fillcolor="#DFF7E4" shape=box]
-	filter [label="Filter by Condition.Evaluate(context)" fillcolor="#DFF7E4" shape=box]
-	sort [label="Sort by phase, operation, priority" fillcolor="#E0F7FA" shape=box]
-	apply [label="Apply calculation phases
-Base -> Add -> Percent -> More/Less -> Override -> Clamp" fillcolor="#E0F7FA" shape=box]
-	derived [label="Evaluate derived dependencies
-when formula requires other stats" fillcolor="#FFFDE7" shape=box]
-	breakdown [label="Build debug breakdown
-and update cache" fillcolor="#F3E5F5" shape=box]
-	return [label="Return StatValue" fillcolor="#F1F8E9" shape=box]
+	query [label="ReferenceDerivedStatEvaluator.GetScalar\n(ownerId, statId, context, versions)" fillcolor="#E8F0FE" shape=box]
+	valid [label="IDs valid and\nownerId == context.OwnerId?" fillcolor="#FFF3CD" shape=diamond]
+	reject [label="Reject invalid query\n(no cache mutation)" fillcolor="#FCE8E6" shape=box]
+	key [label="Build correctness key\nStatId + full canonical StatContext\n+ owner/definition/numeric versions" fillcolor="#E8F0FE" shape=box]
+	hit [label="Exact cache-key hit?" fillcolor="#FFF3CD" shape=diamond]
+	cache [label="Return cached StatScalar" fillcolor="#F1F8E9" shape=box]
+	order [label="Get dependency closure in\ndependency-first topological order" fillcolor="#FFFDE7" shape=box]
+	next [label="Next ordered stat definition" fillcolor="#FFFDE7" shape=box]
+	formula [label="Read already-resolved declared dependencies\nEvaluate formula(base, dependencies, context)" fillcolor="#DFF7E4" shape=box]
+	filter [label="Filter local modifiers by\nCondition.Evaluate(context)" fillcolor="#DFF7E4" shape=box]
+	apply [label="Apply local modifier phases\nAdd -> PercentAdd -> More -> Less -> Override\norder: Operation -> Priority -> ModifierId Ordinal" fillcolor="#E0F7FA" shape=box]
+	clamp [label="Clamp this stat to declared min/max\nthen add it to resolved values" fillcolor="#E0F7FA" shape=box]
+	more [label="More required stats?" fillcolor="#FFF3CD" shape=diamond]
+	store [label="Store requested StatScalar\nunder the full correctness key" fillcolor="#F3E5F5" shape=box]
+	return [label="Return requested StatScalar.Value (decimal)" fillcolor="#F1F8E9" shape=box]
 	end [label=End fillcolor="#111827" fontcolor=white shape=doublecircle width=0.35]
 	start -> query
-	query -> exists
-	exists -> default [label=No]
-	default -> end
-	exists -> dirty [label=Yes]
-	dirty -> cache [label=No]
+	query -> valid
+	valid -> reject [label=No]
+	reject -> end
+	valid -> key [label=Yes]
+	key -> hit
+	hit -> cache [label=Yes]
 	cache -> end
-	dirty -> collect [label=Yes]
-	collect -> filter
-	filter -> sort
-	sort -> apply
-	apply -> derived
-	derived -> breakdown
-	breakdown -> return
+	hit -> order [label=No]
+	order -> next
+	next -> formula
+	formula -> filter
+	filter -> apply
+	apply -> clamp
+	clamp -> more
+	more -> next [label=Yes]
+	more -> store [label=No]
+	store -> return
 	return -> end
 }

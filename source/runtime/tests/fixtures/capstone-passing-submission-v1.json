@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "challengeId": "chain-lightning-shock.v1",
+  "ownership": {
+    "orchestrationOwner": "Skill",
+    "targetSelectionOwner": "Effect",
+    "damageResolutionOwner": "Combat",
+    "statusLifecycleOwner": "Status",
+    "commitOwner": "RuntimeCommitter"
+  },
+  "resolve": {
+    "mutatesState": false,
+    "emitsEvents": false,
+    "maxTargets": 3,
+    "duplicateTargetPolicy": "reject-request",
+    "limitAfterSort": true,
+    "targetOrder": [
+      "distanceBucket:asc",
+      "entityId:ordinal:asc"
+    ],
+    "rngMode": "keyed-per-target",
+    "rngKeyParts": [
+      "correlationId",
+      "decisionKind",
+      "targetId"
+    ]
+  },
+  "commit": {
+    "scope": "cost-cooldown-all-primary-damage",
+    "expectedVersionSubjects": [
+      "caster",
+      "target:*"
+    ],
+    "publish": "state-and-outbox-atomic",
+    "duplicatePolicy": "reject-before-mutation",
+    "versionConflict": "reject-entire-plan"
+  },
+  "reaction": {
+    "triggerEvent": "DamageCommitted",
+    "causationId": "direct-trigger-event",
+    "sortOrder": [
+      "priority:asc",
+      "stableOrderKey:ordinal:asc",
+      "reactionId:ordinal:asc"
+    ],
+    "limits": [
+      "maxDepth",
+      "maxReactions",
+      "maxBudget",
+      "idempotency"
+    ],
+    "budgetFailure": "keep-primary-and-dispatched-discard-undispatched-diagnostic-trace",
+    "commandIdPolicy": "derive-from-trigger-event-and-reaction-kind",
+    "retryPolicy": "same-business-keys-per-reaction-disposition-retry"
+  },
+  "status": {
+    "applyRule": "committed-hit-and-target-alive",
+    "applicationSource": "origin-skill-execution",
+    "periodicSource": "shock-status-instance",
+    "periodicCausation": "last-transition-event",
+    "instanceIdPolicy": "derive-from-reaction-target-applied-tick",
+    "clockDomain": "simulation_tick",
+    "tickOffsets": [
+      2,
+      4
+    ],
+    "expiresAtOffset": 4,
+    "sameTickOrder": "DamageCommitted-StatusTicked-StatusExpired",
+    "finalTickCommit": "damage-tick-expire-status-remove-atomic"
+  },
+  "replay": {
+    "targetPermutationInvariant": true,
+    "envelopeFields": [
+      "runtimeVersion",
+      "contractSchemaVersion",
+      "replayFormatVersion",
+      "rngAlgorithmVersion",
+      "rngKeySchemaVersion",
+      "clockDomain",
+      "numericPolicyVersion",
+      "dataVersion",
+      "definitionVersion",
+      "formulaVersion",
+      "rootSeed",
+      "targetOrderPolicyVersion"
+    ],
+    "evidence": [
+      "normal",
+      "edge",
+      "failure"
+    ]
+  },
+  "scenarios": {
+    "normal": [
+      "stable-target-order",
+      "target-keyed-rng",
+      "single-primary-plan",
+      "damage-event-per-target",
+      "direct-shock-reaction"
+    ],
+    "edge": [
+      "permuted-input-same-hash",
+      "distance-tie-entity-id",
+      "sort-before-limit-max-3",
+      "duplicate-target-rejected",
+      "full-shield-hit-applies-shock",
+      "final-tick-expire-atomic"
+    ],
+    "failure": [
+      "stale-target-zero-mutation",
+      "stale-target-zero-outbox",
+      "reaction-budget-keeps-primary",
+      "reaction-dispatched-commit-kept",
+      "reaction-wave-discards-undispatched",
+      "reaction-idempotency-consumed"
+    ]
+  }
+}

@@ -1,7 +1,7 @@
 digraph DataModelDiagram {
-	graph [bgcolor=white fontname="Noto Sans CJK KR" fontsize=18 label="UML Data Model Diagram - Definition Data and Runtime State" labelloc=t nodesep=0.55 rankdir=LR ranksep=0.85 splines=ortho]
-	node [fontname="Noto Sans CJK KR" shape=plain]
-	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans CJK KR" fontsize=10]
+	graph [bgcolor=white fontname="Noto Sans KR" fontsize=18 label="UML Data Model Diagram - Definition Data and Runtime State" labelloc=t nodesep=0.68 rankdir=LR ranksep=1.0 splines=polyline]
+	node [fontname="Noto Sans KR" shape=plain]
+	edge [arrowsize=0.8 color="#425466" fontname="Noto Sans KR" fontsize=10]
 	StatDefinitionData [label=<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#3B4A5A">
 <TR><TD BGCOLOR="#FFF3CD"><FONT POINT-SIZE="12"><B>StatDefinitionData</B></FONT></TD></TR>
@@ -51,11 +51,11 @@ digraph DataModelDiagram {
 <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10"> </FONT></TD></TR>
 </TABLE>
 >]
-	DerivedFormulaData -> StatDefinitionData [label="extends stat definition"]
+	DerivedFormulaData -> StatDefinitionData [label="extends stat\ndefinition"]
 	ModifierDefinitionData -> StatDefinitionData [label=targets]
-	StatusDefinitionData -> ModifierDefinitionData [label="contains 0..*"]
-	ItemDefinitionData -> ModifierDefinitionData [label="grants 0..*"]
-	StatRuntimeState -> StatDefinitionData [label="references values"]
-	StatRuntimeState -> ModifierRuntimeState [label="contains states"]
-	ModifierRuntimeState -> ModifierDefinitionData [label=definition]
+	StatusDefinitionData -> ModifierDefinitionData [label="contains\n0..*"]
+	ItemDefinitionData -> ModifierDefinitionData [label="grants\n0..*"]
+	StatRuntimeState:e -> StatDefinitionData:s [label="references\nstat values" minlen=2]
+	StatRuntimeState:n -> ModifierRuntimeState:s [label="contains\nruntime states"]
+	ModifierRuntimeState:e -> ModifierDefinitionData:n [label="definition\nreference"]
 }

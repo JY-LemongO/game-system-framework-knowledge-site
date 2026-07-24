@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Integration Map · GSF System Atlas</title>
-<meta content="Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약" name="description"/>
+<meta content="Core, Stat, Effect, Skill, Combat, Status의 실행 C# handoff와 아직 남은 product 확장을 구분한 의존 방향" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <link href="../favicon.svg" rel="icon" sizes="any" type="image/svg+xml"/>
 <script>
@@ -214,7 +214,7 @@
        Integration Map
       </h1>
 <p class="lead">
-       Integration Map은 Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 타입을 정리한다. 각 시스템을 독립적으로 테스트하면서도 Fireball 같은 실행 흐름이 끊기지 않게 만드는 것이 목표다.
+       Integration Map은 Core, Stat, Effect, Skill, Combat, Status의 현재 C# 실행 계약과 production에서 추가할 개념적 port를 구분해 의존 방향을 정리한다. 각 시스템을 독립적으로 테스트하면서도 Fireball 같은 실행 흐름이 끊기지 않게 만드는 것이 목표다.
       </p>
 <div class="badges">
 <span class="badge" data-example-language="csharp">예제 언어 · C#</span>
@@ -236,7 +236,7 @@
 </div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>여섯 시스템의 C# 인터페이스와 handoff 타입을 한 흐름으로 읽고, 금지해야 할 역방향 의존성을 찾는다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>여섯 시스템에서 실행 가능한 C# 인터페이스·handoff 타입과 개념적 product port를 구분해 한 흐름으로 읽고, 금지해야 할 역방향 의존성을 찾는다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Core부터 Status까지 각 장의 책임 경계를 한 번씩 읽은 뒤 비교하면 좋다.</p></article>
 </div>
 <section aria-labelledby="architecture-lens-title" class="architecture-lens" data-architecture-lens="">
@@ -518,6 +518,7 @@
 <h2 id="시스템별-계약">
       시스템별 계약
      </h2>
+<div class="callout warn"><b>표 읽기.</b> 현재 C# 실행 계약의 공통 값은 <code>EntityId</code>, <code>SourceRef</code>, canonical <code>Tag</code>/<code>TagSet</code>이다. <code>IEventBus</code>·<code>IGameClock</code>·<code>IRandomStream</code>은 production adapter가 추가할 규범적 개념 port이며 현재 C# 프로젝트에는 선언되어 있지 않다.</div>
 <div class="table-scroll">
 <table class="data-table">
 <tr>
@@ -536,32 +537,11 @@
          Core → 모든 시스템
         </td>
 <td>
-<code>
-          EntityId
-         </code>
-         ,
-         <code>
-          TagSet
-         </code>
-         ,
-         <code>
-          SourceRef
-         </code>
-         ,
-         <code>
-          IEventBus
-         </code>
-         ,
-         <code>
-          IGameClock
-         </code>
-         ,
-         <code>
-          IRandomStream
-         </code>
+<strong>실행 C#:</strong> <code>EntityId</code>, <code>SourceRef</code>, <code>Tag</code>, <code>TagSet</code><br/>
+         <strong>개념 확장:</strong> <code>IEventBus</code>, <code>IGameClock</code>, <code>IRandomStream</code>
 </td>
 <td>
-         모든 시스템이 공유하는 최소 런타임 언어다.
+         앞의 네 값은 현재 실행 참조가 공유하며, 뒤의 세 port는 production에서 같은 책임 경계를 유지하기 위한 목표 언어다.
         </td>
 </tr>
 <tr>
@@ -570,7 +550,7 @@
         </td>
 <td>
 <code>
-          GetValue(EntityId, StatId, StatContext)
+          GetValue(EntityId ownerId, EntityId statId, StatContext context)
          </code>
 </td>
 <td>
@@ -630,7 +610,7 @@
          </code>
 </td>
 <td>
-         CombatResolver의 DamageResult는 계산 결과로만 유지한다. DamageCommitService 또는 RuntimeCommitter가 Shield·HP와 outbox를 commit한 뒤 DamageCommitted 사실을 전파한다.
+         CombatResolver의 DamageResult는 계산 결과로만 유지한다. 현재 실행 참조의 RuntimeCommitter가 Shield·HP와 outbox를 commit한 뒤 DamageCommitted 사실을 전파한다. 전투별로 분리한 DamageCommitService는 가능한 product adapter 이름일 뿐 현재 타입은 아니다.
         </td>
 </tr>
 <tr>
@@ -662,7 +642,8 @@
 </table>
 </div>
 <h3 id="csharp-system-ports">C# 시스템 포트</h3>
-<p>상위 조율자는 구현 클래스를 직접 참조하지 않고, 각 시스템이 소유한 요청·결과 포트와 상태를 바꾸지 않는 planning 포트만 호출한다. IEffectExecutor는 독립 command 실행 경계이고, Skill처럼 비용·쿨다운과 주 Effect를 함께 commit할 때는 IEffectPlanner로 EffectBundlePlan을 먼저 준비한다.</p>
+<p>상위 조율자는 구현 클래스를 직접 참조하지 않고 각 시스템이 소유한 요청·결과 포트를 호출한다. 현재 실행 C#의 <code>IEffectPlanner.Prepare</code>가 받는 <code>EffectBundle</code>은 이미 target-specific request를 품은 <code>EffectOperation</code> 모음이고, 반환하는 <code>EffectBundlePlan</code>도 target-resolved operation과 reaction rule을 담은 <strong>도메인 실행 계획</strong>이다. 둘 다 Runtime의 <code>CommitPlan</code>은 아니다. 비용·쿨다운·피해 mutation과 outbox를 한 transaction으로 합치는 책임은 별도의 composition 단계가 소유해야 한다.</p>
+<p>아래 코드는 포트 모양을 비교하기 위한 발췌다. 전체 불변식과 구현은 <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Stats.cs"><code>Contracts/Stats.cs</code></a>, <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Effects.cs"><code>Contracts/Effects.cs</code></a>, <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Skills.cs"><code>Contracts/Skills.cs</code></a>, <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Combat.cs"><code>Contracts/Combat.cs</code></a>, <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Status.cs"><code>Contracts/Status.cs</code></a>, <a href="../source/csharp/GameSystemKnowledge.Reference/Runtime/Commit.cs"><code>Runtime/Commit.cs</code></a>를 기준으로 삼는다.</p>
 <pre><code class="language-csharp">public interface IStatQuery
 {
     decimal GetValue(EntityId ownerId, EntityId statId, StatContext context);
@@ -705,11 +686,6 @@ public interface ICombatResolver
     DamageResult Resolve(DamageRequest request, CombatContext context);
 }
 
-public interface IDamageCommitService
-{
-    AppliedDamage Commit(EntityId defenderId, DamageResult result);
-}
-
 public interface IRuntimeCommitter
 {
     CommitReceipt Commit(CommitPlan plan);
@@ -727,7 +703,8 @@ public interface IReactionQueue
     void Enqueue(ReactionCommand command);
     int Drain(ReactionBudget budget);
 }</code></pre>
-<p>Combat 포트의 DamageResult는 <code>HitOutcome Outcome</code>을 사용한다. Hit, Miss, Blocked, Immune, Rejected를 구분하므로 Block을 bool Hit나 Miss에 합치지 않는다. CombatContext는 AvailableTargetHp를 포함하고, 결과는 <code>ResolvedDamage = ShieldAbsorbed + FinalHpDamage + Overkill</code>을 만족한다. Resolve는 상태를 바꾸거나 이벤트를 발행하지 않고, IDamageCommitService 또는 상위 RuntimeCommitter만 commit 성공 뒤 DamageCommitted를 만든다.</p>
+<div class="callout"><b>Effect → Runtime handoff에는 구분해야 할 두 계약이 있다.</b><p>target-independent 학습 파이프라인은 <a href="../source/csharp/GameSystemKnowledge.Reference/Systems/ReferenceEffectPipeline.cs"><code>ReferenceEffectSpecification</code></a>에서 시작해 <code>ReferenceEffectTargetResolver</code>가 Self·ExplicitTarget·canonical candidate snapshot을 정확히 한 번 해석하고 <code>ResolvedEffectOperation</code>을 만든다. 이후 <code>EffectOperationOutcome → CommitPlanFragment → DeterministicEffectCommitPlanComposer → RuntimeCommitter</code>로 전달한다. resolver는 adapter가 고정한 후보 snapshot만 읽고 <code>(SelectionPriority desc, DistanceSquared asc, EntityId Ordinal asc)</code> 순서를 사용하며, composer는 같은 resource의 모순 version, 중복 mutation, 중복 event를 commit 전에 거부한다.</p><p>반대로 기존 <code>EffectBundle</code>/<code>EffectBundlePlan</code> 계약은 이미 target-resolved인 <code>EffectOperation</code>을 담으므로 <code>ReferenceEffectTargetResolver</code>의 입력이라고 해석하면 안 된다. 일반 composer가 합치는 것도 현재 Effect fragment뿐이다. Skill 비용·쿨다운 fragment까지 같은 API로 합치는 범용 계층은 아직 없고, Fireball의 <code>FireballSkillPlanner</code>가 그 수직 슬라이스를 하나의 plan으로 직접 구성한다.</p></div>
+<p>Combat 포트의 DamageResult는 <code>HitOutcome Outcome</code>을 사용한다. Hit, Miss, Blocked, Immune, Rejected를 구분하므로 Block을 bool Hit나 Miss에 합치지 않는다. compact <code>CombatResolver</code> 외에 실행 가능한 <code>ReferenceCombatPolicy</code>가 <code>roll &lt; chance</code> 경계, critical, percent-then-flat 방어 관통, hyperbolic armor, signed resistance, 단일 정수 반올림, barrier의 <code>(priority, EntityId Ordinal)</code> 흡수를 검증한다. 결과는 <code>ResolvedDamage = BarrierAbsorbed + FinalHpDamage + Overkill</code>을 만족한다. keyed RNG의 roll 생성과 formula registry는 여전히 별도 개념 확장이다. 두 resolver 모두 상태를 바꾸거나 이벤트를 발행하지 않고, commit 성공 뒤에만 authoritative fact를 만든다.</p>
 <h2 id="수직-슬라이스">
       수직 슬라이스
      </h2>
@@ -869,6 +846,7 @@ public interface IReactionQueue
 <h2 id="이벤트-흐름">
       이벤트 흐름
      </h2>
+<div class="callout warn"><b>Commit 소유자 범위.</b> 현재 C# 실행 타입은 <code>IRuntimeCommitter</code>/<code>InMemoryRuntimeCommitter</code>이며 C# outbox fact는 <code>SkillCommitted</code>와 <code>DamageCommitted</code>뿐이다. JavaScript <code>StateStore</code>는 여기에 <code>StatusApplied</code>·<code>StatusTicked</code> 등을 더 실행한다. 아래 <code>*CommitService</code>, <code>EffectCompleted</code>, <code>ModifierChanged</code>는 product 확장 예시이고 저장소의 실행 C# 타입·event가 아니다.</div>
 <div class="table-scroll">
 <table class="data-table">
 <tr>
@@ -889,7 +867,7 @@ public interface IReactionQueue
          </code>
 </td>
 <td>
-         RuntimeCommitter / SkillCommitService
+         IRuntimeCommitter (실행 C#) · JavaScript StateStore · SkillCommitService (개념 대안)
         </td>
 <td>
          UI 로그와 업적은 관찰하고, 장비 triggered effect는 ReactionCommand로 변환
@@ -902,7 +880,7 @@ public interface IReactionQueue
          </code>
 </td>
 <td>
-         RuntimeCommitter / EffectCommitService
+         현재 실행 event 없음 · EffectCommitService/runtime adapter (개념 확장)
         </td>
 <td>
          DebugTrace와 튜토리얼은 관찰하고, 연쇄 효과는 ReactionQueue 명령으로 변환
@@ -915,7 +893,7 @@ public interface IReactionQueue
          </code>
 </td>
 <td>
-         DamageCommitService / RuntimeCommitter
+         IRuntimeCommitter (실행 C#) · JavaScript StateStore · DamageCommitService (개념 대안)
         </td>
 <td>
          피해 숫자 UI와 카메라 흔들림은 관찰하고, 흡혈·반사는 ReactionQueue 명령으로 변환
@@ -928,7 +906,7 @@ public interface IReactionQueue
          </code>
 </td>
 <td>
-         RuntimeCommitter / StatusCommitService
+         JavaScript StateStore (실행) · C# StatusCommitService/runtime adapter (개념 확장)
         </td>
 <td>
          상태 아이콘, 면역 로그, 업적
@@ -941,7 +919,7 @@ public interface IReactionQueue
          </code>
 </td>
 <td>
-         RuntimeCommitter / StatusCommitService
+         JavaScript StateStore (실행) · C# StatusCommitService/runtime adapter (개념 확장)
         </td>
 <td>
          DoT 표시와 사운드는 관찰하고, 추가 연쇄 효과는 ReactionCommand로 변환
@@ -954,7 +932,7 @@ public interface IReactionQueue
          </code>
 </td>
 <td>
-         RuntimeCommitter / StatCommitService
+         현재 실행 event 없음 · StatCommitService/runtime adapter (개념 확장)
         </td>
 <td>
          스탯 패널 갱신, 캐시 무효화
@@ -973,10 +951,10 @@ public interface IReactionQueue
       </code>
       순서로 처리한다.
      </p>
-<p>한 번의 <code>Drain</code>은 하나의 causation wave 전체를 처리한다. dispatch 중 새로 enqueue된 반응도 같은 wave의 depth·총 reaction 수·총 budget에 포함된다. queue 생성 제한과 <code>ReactionBudget</code> 중 더 작은 상한을 넘거나 handler가 예외를 내면 오류를 호출자에게 전달하고 아직 dispatch하지 않은 항목은 폐기한다. 따라서 상한 때문에 남은 반응이 다음 <code>Drain</code>에서 뒤늦게 실행되는 일은 없다.</p>
+<p>한 번의 <code>Drain</code>은 하나의 causation wave 전체를 처리한다. <code>maxReactions</code>와 <code>maxBudget</code>은 1 이상, <code>maxDepth</code>는 0 이상이어야 한다. dispatch 중 새로 enqueue된 반응도 같은 wave의 depth·총 reaction 수·총 budget에 포함된다. queue 생성 제한과 <code>ReactionBudget</code> 중 더 작은 상한을 넘거나 handler가 예외를 내면 오류를 호출자에게 전달하고 아직 dispatch하지 않은 항목은 폐기한다. 따라서 상한 때문에 남은 반응이 다음 <code>Drain</code>에서 뒤늦게 실행되는 일은 없다.</p>
 <ul class="check">
 <li>
-       EventId / CorrelationId / CausationId를 분리한다.
+       JavaScript envelope는 EventId / CorrelationId / CausationId를 분리한다. C# DomainEvent는 EventId / CommandId / Source를 가지며 직접 원인은 ReactionCommand.CausationId로 전달한다.
       </li>
 <li>
        최대 reactionDepth와 반복 idempotencyKey를 둔다.
@@ -1012,7 +990,7 @@ StatusApplied
 <p class="checkpoint-intro">요청·계산·commit·reaction이 어느 시스템 경계에서 이어지는지 확인한다.</p>
 <ol class="checkpoint-grid">
 <li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="integration.q1"><summary>Status tick의 주기 피해가 필요할 때 Status가 HP를 직접 줄여도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">안 된다. Status는 PeriodicEffect를 실행하고 Effect가 DamageRequest를 만들어 Combat에 전달한다. Combat은 DamageResult를 계산하고 commit 계층이 HP를 변경한다.</p></div></details></li>
-<li><span>02 · Commit 경계</span><details data-checkpoint-question="" data-question-id="integration.q2"><summary>CombatResolver가 DamageResult를 만든 즉시 DamageCommitted를 발행해도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">안 된다. CombatResolver는 순수 계산만 한다. DamageCommitService 또는 RuntimeCommitter가 Shield·HP와 outbox를 성공적으로 commit한 뒤에만 DamageCommitted를 발행한다.</p></div></details></li>
+<li><span>02 · Commit 경계</span><details data-checkpoint-question="" data-question-id="integration.q2"><summary>CombatResolver가 DamageResult를 만든 즉시 DamageCommitted를 발행해도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">안 된다. CombatResolver는 순수 계산만 한다. 현재 실행 참조에서는 RuntimeCommitter가 Shield·HP와 outbox를 성공적으로 commit한 뒤에만 DamageCommitted를 발행한다. DamageCommitService는 이를 전투별로 분리할 때의 개념적 adapter 이름이다.</p></div></details></li>
 <li><span>03 · 후속 반응</span><details data-checkpoint-question="" data-question-id="integration.q3"><summary>EffectCompleted를 받은 연쇄 Effect와 튜토리얼 UI는 같은 방식으로 실행해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">아니다. 튜토리얼 UI와 로그는 상태를 바꾸지 않는 관찰 subscriber다. 연쇄 Effect는 CausationId·우선순위·멱등 키를 가진 ReactionCommand로 변환해 ReactionQueue에서 순서대로 실행한다.</p></div></details></li>
 </ol>
 </section>
@@ -1038,8 +1016,8 @@ StatusApplied
 </ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/status-system.html"><span>← 이전</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a>
-<a class="next" href="../modules/fireball-case-study.html"><span>다음 →</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a>
+<a class="prev" href="../modules/status-system.html"><span>← 이전</span><b>Status</b><small>C# 상태 재적용·중첩·지속시간·정화 결정 정책과 JavaScript Burn tick 실행을 함께 배우는 구조</small></a>
+<a class="next" href="../modules/fireball-case-study.html"><span>다음 →</span><b>Fireball 예제</b><small>Fireball의 C# admission·snapshot·atomic commit과 JavaScript replay·Burn reaction을 잇는 수직 슬라이스</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -1194,7 +1172,7 @@ StatusApplied
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a aria-current="page" class="is-active" href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Derived Stat DAG·Modifier 계산·versioned context cache와 리소스·저장 경계를 함께 배우는 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# Effect 계약과 결정론적 target snapshot·resolved operation·원자적 commit fragment 합성 구조</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# Skill admission과 snapshot 기반 비용·쿨다운 검증, Fireball resolve·원자적 plan 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# 순수 정책으로 명중·치명타·관통·방어·저항·barrier·overkill과 단일 반올림 경계를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# 상태 재적용·중첩·지속시간·정화 결정 정책과 JavaScript Burn tick 실행을 함께 배우는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a aria-current="page" class="is-active" href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# handoff와 아직 남은 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# admission·snapshot·atomic commit과 JavaScript replay·Burn reaction을 잇는 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 검증하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 표기의 개념·혼합 학습 모델을 UML 관계도와 비-UML 실행 흐름도로 구분하고 구현 증거 경계를 확인하는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

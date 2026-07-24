@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Runtime Contract Lab · GSF System Atlas</title>
-<meta content="C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습" name="description"/>
+<meta content="C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 검증하는 실습" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <link href="../favicon.svg" rel="icon" sizes="any" type="image/svg+xml"/>
 <script>
@@ -190,13 +190,29 @@
 <article class="content-area doc-article runtime-reference" id="article-content">
 <section class="hero runtime-hero" data-accent="violet">
 <span class="eyebrow">Executable Learning Lab</span><h1>Runtime Contract<br/>Lab</h1>
-<p class="lead">C# 계약이 보장해야 할 실행 의미를 브라우저 시뮬레이터로 확인한다. Fireball replay와 실패 probe를 조작하며 필수 흐름인 resolve·commit·reaction·status tick과 context cache를 비교하고, schema migration은 선택 학습으로 다룬다.</p>
+<p class="lead">C# 계약이 보장해야 할 실행 의미를 브라우저 시뮬레이터로 확인한다. Fireball replay와 실패 probe를 조작한 뒤, 낯선 Chain Lightning 요구를 JSON 계약 워크시트로 작성해 정책 누락을 형성평가한다. 이 도구는 학습자 코드를 실행하거나 실무 숙련도를 인증하지 않는다. schema migration은 선택 학습으로 다룬다.</p>
 <div class="badges"><span class="badge" data-example-language="csharp">기준 언어 · C#</span><span class="badge" data-simulator-language="javascript">시뮬레이터 · JavaScript</span><span class="badge">Deterministic replay</span><span class="badge">Atomic commit</span><span class="badge">Bounded reaction</span><span class="badge">Advanced · Schema migration</span></div>
-<div class="hero-actions"><a class="button primary" href="#fireball-workbench">Workbench 실행</a><a class="button secondary" href="../modules/fireball-case-study.html">사례 먼저 읽기</a></div>
+<div class="hero-actions"><a class="button primary" href="#fireball-workbench">Workbench 실행</a><a class="button secondary" href="#middle-capstone">Capstone 도전</a><a class="button secondary" href="../modules/fireball-case-study.html">사례 먼저 읽기</a></div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>C# 구현이 보장할 동일 입력 replay, 원자적 commit, 제한된 reaction과 context cache 결과를 직접 관찰한다. 저장 문서의 단계별 migration은 필수 흐름을 익힌 뒤 선택해서 확인한다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>C# 핵심 계약과 JavaScript 확장 Lab이 각각 검증하는 replay, 원자적 commit, 제한된 reaction, context cache 결과를 증거 범위에 맞춰 관찰한다. 마지막에는 다중 대상 변형의 설계 산출물을 직접 작성하고 정상·경계·실패 항목에서 빠진 정책을 찾는다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Fireball 사례를 먼저 읽고 다음 경계를 설명할 수 있어야 한다.</p><ul><li>C#의 불변 요청·결과, 인터페이스, 읽기 전용 snapshot</li><li>순수 resolve와 원자적 commit, rollback, resource invariant</li><li>commandId 멱등성, optimistic version 사전 조건, state와 outbox의 동시 확정</li><li>결정론적 RNG, stableOrderKey, correlation·causation, version envelope</li></ul><p>낯선 용어는 <a href="../modules/glossary.html#idempotency">용어집의 Runtime 계약 항목</a>을 먼저 확인한다.</p></article>
+</div>
+<div aria-labelledby="runtime-reference-scope" class="callout" role="note">
+<h2 class="callout-title" id="runtime-reference-scope">증거 수준과 실행 참조 한계</h2>
+<p><code>Normative contract</code>는 요청·결과 경계, 정렬 순서, 원자성, replay 불변식처럼 구현이 지켜야 할 규칙이다. <code>Executable reference</code>는 이 저장소의 C# 참조와 JavaScript 커널이 실제 빌드·테스트로 검증하는 동작이다. <code>Conceptual extension</code>은 계약을 적용할 수 있는 설계 확장이지만 현재 실행 참조가 보증하지 않으며, <code>Out of scope</code>는 이 학습용 참조가 의도적으로 구현하지 않는 영역이다.</p>
+<p>C# 참조는 <code>net9.0</code> 검증 프로젝트이며 특정 Unity 버전·scripting backend·API 호환성을 보증하지 않는다. Unity에 적용할 때는 <a href="https://docs.unity3d.com/kr/current/Manual/dotnet-profile-support.html">Unity의 .NET API profile</a>과 <a href="https://docs.unity3d.com/kr/6000.0/Manual/csharp-compiler.html">C# compiler 지원 범위</a>를 확인하고, 엔진 resource·animation·clock·serialization adapter를 별도로 맞춰야 한다. Burst 경로는 <a href="https://docs.unity3d.com/ja/Packages/com.unity.burst%401.8/manual/csharp-type-support.html">지원 타입 제한</a> 때문에 decimal domain 참조와 같은 결과를 내는 fixed-point adapter가 필요할 수 있다.</p>
+<div class="table-scroll"><table class="data-table"><tr><th scope="col">증거 항목</th><th scope="col">C# <code>net9.0</code></th><th scope="col">JavaScript Runtime Lab</th></tr>
+<tr><td>Command·snapshot·원자적 commit·메모리 outbox</td><td>실행 검증</td><td>실행 검증</td></tr>
+<tr><td>Skill admission·snapshot plan</td><td>대상 → cooldown → resource 순서, stale rollback 실행</td><td>Fireball availability와 commit 실행</td></tr>
+<tr><td>Combat Hit/Critical·완화</td><td>명시적 roll 입력, 관통·armor·signed 저항·barrier·단일 반올림 실행</td><td>keyed RNG roll과 fire resistance 실행</td></tr>
+<tr><td>Effect targeting·fragment composition</td><td>Self·ExplicitTarget·candidate snapshot, 충돌 거부 실행</td><td>Fireball 단일 대상 수직 슬라이스 실행</td></tr>
+<tr><td>Bounded ReactionQueue</td><td>부모 기반 자식 depth·개수·budget·실패 wave 실행</td><td>동등한 enqueue·drain 상한과 실패 trace 실행</td></tr>
+<tr><td>Status 정책·시간 처리</td><td>재적용·중첩·지속시간·정화와 catch-up 순수 정책</td><td>Burn instance·tick·expire commit 실행</td></tr>
+<tr><td>Derived Stat·context cache</td><td>DAG·modifier·versioned full-context key와 hash 충돌 안전성 실행. LRU 없음</td><td>선언 dependency fingerprint·bounded LRU 실행</td></tr>
+<tr><td>Replay hash·schema migration</td><td>구현하지 않음</td><td>실행 검증</td></tr>
+</table></div>
+<p>두 참조 모두 엔진 비종속의 단일 프로세스·메모리 학습 구현이다. 데이터베이스 transaction, durable outbox와 외부 전달 보장, network prediction/reconciliation, multi-target AoE, authoritative server, 엔진 resource·animation adapter는 <code>Out of scope</code>이며 생산 환경 완성도를 보증하지 않는다. production outbox의 상태·event 동시 저장과 relay 경계는 Microsoft의 <a href="https://learn.microsoft.com/en-us/azure/architecture/databases/guide/transactional-out-box-cosmos">Transactional Outbox pattern</a>을 참고하되, 이 페이지의 메모리 구현을 durable delivery로 오해하지 않는다.</p>
 </div>
 
 <h2 id="실행-아키텍처">실행 아키텍처</h2>
@@ -220,9 +236,10 @@ public interface IReactionQueue
 <div class="grid cols2 runtime-principles">
 <article class="card"><span class="section-kicker">Resolve</span><h3 id="pure-resolve">읽고 계산하되 바꾸지 않는다</h3><p>고정 snapshot, version envelope, keyed RNG만으로 immutable outcome과 operation plan을 만든다. target이나 caster 객체는 변경하지 않는다.</p><code>snapshot + command + policies → plan</code></article>
 <article class="card"><span class="section-kicker">Commit</span><h3 id="atomic-commit">전부 성공하거나 아무것도 바꾸지 않는다</h3><p>idempotency와 entity version을 먼저 확인하고 working copy에서 모든 operation과 resource invariant를 검증한 뒤 state를 한 번 교체한다.</p><code>plan + preconditions → state + outbox</code></article>
-<article class="card"><span class="section-kicker">Reaction</span><h3 id="bounded-reaction">상태 변경 반응은 queue로 직렬화한다</h3><p>numeric priority 오름차순(작은 값 우선), stableOrderKey ordinal 오름차순, reactionId ordinal 오름차순으로 정렬한다. 한 번의 <code>Drain</code>이 하나의 causation wave를 열며, dispatch 중 추가된 reaction도 같은 depth·개수·budget 합계와 idempotency 상한 안에서 그 wave가 닫히기 전에 실행한다.</p><code>event → bounded causation wave → new command</code></article>
-<article class="card"><span class="section-kicker">Status time</span><h3 id="tick-semantics">마지막 tick 후 같은 시각에 만료한다</h3><p>Burn은 +2, +4, +6에 tick하고 +6 tick을 commit한 뒤 expire한다. 프레임 지연 catch-up에는 instance별 budget이 있다.</p><code>tick ≤ expire → tick, then expire</code></article>
+<article class="card"><span class="section-kicker">Reaction</span><h3 id="bounded-reaction">상태 변경 반응은 queue로 직렬화한다</h3><p>numeric priority 오름차순(작은 값 우선), stableOrderKey ordinal 오름차순, reactionId ordinal 오름차순으로 정렬한다. 한 번의 <code>Drain</code>이 하나의 causation wave를 열고, dispatch 중 추가된 자식의 depth는 호출자가 제출한 숫자가 아니라 queue가 <code>parent.depth + 1</code>로 파생한다. 개수·누적 budget·인과 depth·idempotency 상한을 넘으면 handler가 지역 예외를 삼켜도 wave 전체가 실패한다. 후속 command의 <code>CausationId</code>는 직접 촉발한 직전 event로 전진한다.</p><code>event → bounded causation wave → new command</code></article>
+<article class="card"><span class="section-kicker">Status time</span><h3 id="tick-semantics">예약 시각과 실제 처리 시각을 함께 보존한다</h3><p>정상 Burn은 +2, +4, +6에 tick하고 +6 tick과 expire를 같은 commit으로 닫는다. 지연 복구에서는 payload의 <code>tickAt</code>/<code>scheduledExpireTick</code>은 원래 예약 시각을, envelope의 <code>occurredTick</code>과 <code>endedTick</code>은 <code>max(schedule, current simulation tick)</code>인 실제 commit 시각을 기록한다. instance별 catch-up budget을 넘겨도 아직 active인 status의 overdue tick은 다음 <code>AdvanceTo</code>로 미룬다. 이미 expire 시각까지 지난 status의 남은 backlog만 <code>catch-up-limited</code>로 명시 폐기하고 status를 제거한다.</p><code>scheduled fact + actual commit tick</code></article>
 </div>
+<div class="callout"><b>JavaScript 공개 경계.</b><p><code>StateStore</code>는 입력을 한 번만 canonical snapshot으로 만든 뒤 runtime state·StatusInstance·기존 outbox를 검증하고, 내부 state·clock·처리 command·outbox를 private하게 보관한다. <code>commit</code>은 <a href="../source/contracts/command-envelope.schema.json">CommandEnvelope</a>와 <a href="../source/contracts/commit-plan.schema.json">CommitPlan</a>의 v2 정확 필드 집합, 판별형 operation, 유한·비순환 JSON payload를 mutation 전에 강제한다. <code>__proto__</code>도 일반 데이터 키로 보존하며 sparse array·accessor처럼 JSON에 없는 shape은 거부한다. 모든 resource 덧셈은 매 단계 safe integer인지 확인하고, Status add/remove는 instance의 부재/존재를 각각 요구한다.</p><p>Fireball resolve는 command의 actor·tick·data version·target·skill을 정규화된 input에 RNG 전에 정확히 결속한다. formula·critical 중간값은 <code>BigInt</code> 기약 유리수로 유지하고, JSON에는 canonical numerator/denominator 문자열을 기록한다. 표시용 raw 정수를 같은 primary 완화 입력으로 재사용하지 않으며, raw 투영과 exact 저항 결과를 각각 half-away-from-zero 경계에서 변환한다. 이 fixture의 Burn은 별도 downstream formula로 committed raw 정수를 명시적으로 snapshot한다.</p><p>Commit은 임의 문자열 event를 확장점으로 받아들이지 않고 공개 schema의 닫힌 taxonomy만 허용하며, 각 built-in/probe fact를 command, pre-state, operation, post-state에 대조한다. 특히 피해 event는 exact raw의 canonical 표현·투영, 실제 저항 stat, Shield 우선 분배, 보존식, SourceRef를 검증하고 Status·사망 event는 해당 add/patch/remove·치명 전이와 provenance를 검증한다. <code>enqueueReactions</code>는 event를 reaction으로 투영하는 순수 builder이고 그 자체는 권위 경계가 아니다. 실제 <code>applyStatusReaction</code>은 causation ID가 같은 store outbox의 유일한 <code>DamageCommitted</code>인지 확인하고, 그 event에서 ID·정렬·budget과 actor/source/target/Burn payload 전체를 다시 파생해 정확히 일치할 때만 commit한다. event가 정한 최초 causal <code>depth=1</code>은 낮출 수 없고, 더 큰 depth는 <code>ReactionQueue</code>가 현재 부모에서 파생해 상한을 적용한다. 또한 handler는 queue의 동기 dispatch 중 동일 reaction object에만 부여되는 내부 권한을 요구하므로 직접 호출로 wave budget을 우회할 수 없다. 따라서 raw input이나 위조 reaction은 후속 상태를 만들 수 없고, 정상적인 nested reaction도 부모 depth를 보존한다.</p><p>Commit과 내부 clock은 재진입할 수 없고 Status의 <code>appliedTick</code>·<code>nextTickAt</code>은 되감을 수 없다. trace에는 동결 snapshot만 전달하며 관찰 callback은 어느 store나 ReactionQueue에도 새 mutation을 주입할 수 없다. 실패하면 state·tick·outbox·멱등 기록은 모두 그대로이고, 읽기 getter는 동결된 복사본만 반환한다.</p><p><strong>제품 경계:</strong> 이 원자성은 한 JavaScript 프로세스의 in-memory working copy에 대한 교육용 보장이다. 서버 재시작·다중 writer·DB transaction·durable outbox 저장·claim/lease·publisher retry를 구현하지 않는다. 생성자의 기존 state/outbox도 신뢰된 restore snapshot이라는 전제이며, 외부 wire나 저장소에서 읽은 event의 인증·스키마 migration·aggregate 소속 검증은 제품 admission adapter가 먼저 수행해야 한다. 제품에서는 state 변경과 outbox insert를 같은 내구성 transaction에 넣고, dispatcher의 at-least-once 전달과 consumer idempotency를 별도로 설계해야 한다.</p></div>
 <div class="diagram runtime-diagram">
 <div class="dh"><div><span class="section-kicker">Resolve to reaction</span><strong>실패 시 mutation과 event가 모두 남지 않는 흐름</strong></div><div class="da"><a href="../assets/diagrams/40_resolve_commit_reaction_sequence.svg" rel="noopener" target="_blank">SVG</a><a href="../source/diagrams/40_resolve_commit_reaction_sequence.dot">DOT</a></div></div>
 <img alt="command에서 pure resolve, atomic commit, outbox, reaction, status tick으로 이어지는 흐름" class="zoomable" loading="lazy" src="../assets/diagrams/40_resolve_commit_reaction_sequence.svg"/>
@@ -238,11 +255,16 @@ public interface IReactionQueue
 <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Combat.cs"><span>Combat contract</span><b>Combat.cs</b><small>DamageRequest, HitOutcome, DamageResult와 순수 resolver 경계</small></a>
 <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Status.cs"><span>Status contract</span><b>Status.cs</b><small>ApplyStatusRequest와 IStatusService의 요청·결과 경계</small></a>
 <a href="../source/csharp/GameSystemKnowledge.Reference/Systems/FireballReferenceScenario.cs"><span>Scenario</span><b>FireballReferenceScenario.cs</b><small>비용·쿨다운·피해를 묶는 commit plan과 Burn reaction</small></a>
+<a href="../source/csharp/GameSystemKnowledge.Reference/Systems/ReferenceDerivedStatEvaluator.cs"><span>Stat policy</span><b>ReferenceDerivedStatEvaluator.cs</b><small>Derived DAG·modifier·versioned full-context cache</small></a>
+<a href="../source/csharp/GameSystemKnowledge.Reference/Systems/ReferenceEffectPipeline.cs"><span>Effect policy</span><b>ReferenceEffectPipeline.cs</b><small>target-independent spec, deterministic binding과 fragment composer</small></a>
+<a href="../source/csharp/GameSystemKnowledge.Reference/Systems/ReferenceCombatPolicy.cs"><span>Combat policy</span><b>ReferenceCombatPolicy.cs</b><small>확률 경계·관통·완화·barrier·단일 반올림</small></a>
+<a href="../source/csharp/GameSystemKnowledge.Reference/Systems/ReferenceStatusPolicy.cs"><span>Status policy</span><b>ReferenceStatusPolicy.cs</b><small>identity·재적용·중첩·지속시간 결정</small></a>
+<a href="../source/csharp/GameSystemKnowledge.Reference/Systems/ReferenceStatusCleansePolicy.cs"><span>Cleanse policy</span><b>ReferenceStatusCleansePolicy.cs</b><small>tag filter와 안정적인 제거 순서</small></a>
 <a href="../source/csharp/GameSystemKnowledge.Reference/Runtime/Commit.cs"><span>Runtime + Reaction</span><b>Commit.cs</b><small>원자적 commit과 단일 causation wave ReactionQueue 구현</small></a>
 <a href="../source/csharp/GameSystemKnowledge.Reference/Systems/StatusCatchUpPolicy.cs"><span>Status time</span><b>StatusCatchUpPolicy.cs</b><small>지연된 tick의 실행 한도, defer, 만료 종료 정책</small></a>
 <a href="../source/csharp/GameSystemKnowledge.Reference.Verification/Program.cs"><span>Verification</span><b>Program.cs</b><small>외부 테스트 패키지 없이 실행하는 계약과 기준 수치 검증</small></a>
 </div>
-<div class="callout warn"><b>Reaction wave 실패 정책.</b><p><code>Drain</code> 인자와 queue 생성자의 제한 중 더 작은 값이 현재 wave의 상한이다. 시작 시 이미 상한을 넘었거나 dispatch 중 새 reaction이 상한을 넘으면 <code>InvalidOperationException</code>을 호출자에게 전달하고 아직 dispatch하지 않은 항목을 모두 폐기한다. dispatch handler 자체가 예외를 내도 같은 방식으로 중단하므로 남은 항목이 다음 <code>Drain</code>에서 조용히 실행되지 않는다. 이미 handler가 별도 commit한 사실은 queue가 되돌릴 수 없으므로 handler는 멱등 command와 원자적 commit 경계를 사용해야 한다.</p></div>
+<div class="callout warn"><b>Reaction wave 실패와 재시도.</b><p><code>maxReactions</code>와 <code>maxBudget</code>은 1 이상, <code>maxDepth</code>는 0 이상이어야 한다. <code>Drain</code> 인자와 queue 생성자의 제한 중 더 작은 값이 현재 wave의 상한이다. 시작 시 이미 상한을 넘었거나 dispatch 중 새 reaction이 상한을 넘으면 예외를 전달하고 아직 dispatch하지 않은 항목을 폐기한다. 이미 handler가 commit한 사실은 queue가 되돌릴 수 없다.</p><p><strong>전체 wave를 새 business key로 다시 실행하지 않는다.</strong> A가 commit되고 B/C가 미실행인 상황에서 새 idempotency key를 주면 A가 중복 적용될 수 있다. 제품 구현은 reaction별 <code>Committed / OutcomeUnknown / Undispatched / PermanentFailure</code> disposition을 내구 저장하고, B/C만 같은 reaction ID·business idempotency key·command ID로 명시적으로 재시도해야 한다. 현재 메모리 reference는 durable disposition/retry API를 제공하지 않으므로 실패 trace는 진단 증거일 뿐 안전한 복구 기능이 아니다.</p></div>
 <h2 id="fireball-workbench">Fireball Replay Workbench</h2>
 <p>아래 입력은 이 페이지의 JavaScript 시뮬레이터에 전달된다. 같은 입력을 반복 실행하면 replay hash와 trace hash가 유지되고, seed나 전투 수치를 바꾸면 첫 divergent decision부터 결과가 달라진다.</p>
 <section class="runtime-lab" data-runtime-lab="">
@@ -285,11 +307,12 @@ public interface IReactionQueue
 <p>happy path만 보여주지 않고 실제로 가장 위험한 세 실패를 같은 kernel에서 재현한다. 실패 전후 state hash가 같아야 probe를 통과한다.</p>
 <div class="probe-grid">
 <article class="probe-card"><span>01 · Idempotency</span><h3>Duplicate command</h3><p>이미 처리한 commandId를 다시 commit한다.</p><p><b>예상 결과</b> <code>DUPLICATE_COMMAND</code>로 거부되고 state와 outbox가 늘어나지 않는다.</p><p><b>왜 유지해야 하나</b> 같은 요청의 재전송이 비용·피해·이벤트를 두 번 적용하면 안 된다.</p><p><b>확인할 점</b> commandId가 한 번만 처리되는 멱등 키인지 확인한다.</p><button data-runtime-check="duplicate" type="button">중복 commit 시도</button><output aria-live="polite" data-runtime-check-output="duplicate" role="status">실행 전 · 기대: 중복 요청 거부, 상태 해시 동일</output></article>
-<article class="probe-card"><span>02 · Concurrency</span><h3>Version conflict</h3><p>resolve 뒤 shield version을 외부 command로 바꾼다.</p><p><b>예상 결과</b> <code>VERSION_CONFLICT</code>로 stale plan을 거부하고 추가 mutation을 남기지 않는다.</p><p><b>왜 유지해야 하나</b> 최신 shield를 오래된 snapshot 결과로 덮으면 동시 변경이 유실된다.</p><p><b>확인할 점</b> expectedVersion 사전 조건이 commit 직전에 다시 검사되는지 확인한다.</p><button data-runtime-check="conflict" type="button">stale plan 시도</button><output aria-live="polite" data-runtime-check-output="conflict" role="status">실행 전 · 기대: stale plan 거부, 상태 해시 동일</output></article>
+<article class="probe-card"><span>02 · Concurrency</span><h3>Version conflict</h3><p>resolve 뒤 대상 entity의 cooldown을 외부 command로 바꿔 version을 전진시킨다.</p><p><b>예상 결과</b> <code>VERSION_CONFLICT</code>로 stale plan을 거부하고 추가 mutation을 남기지 않는다.</p><p><b>왜 유지해야 하나</b> 같은 entity의 최신 상태를 오래된 snapshot 결과로 덮으면 변경 종류가 달라도 동시 변경이 유실된다.</p><p><b>확인할 점</b> expectedVersion 사전 조건이 commit 직전에 다시 검사되는지 확인한다.</p><button data-runtime-check="conflict" type="button">stale plan 시도</button><output aria-live="polite" data-runtime-check-output="conflict" role="status">실행 전 · 기대: stale plan 거부, 상태 해시 동일</output></article>
 <article class="probe-card"><span>03 · Transaction</span><h3>Atomic rollback</h3><p>첫 operation 뒤 invalid resource operation을 넣는다.</p><p><b>예상 결과</b> <code>RESOURCE_OVERFLOW</code>로 전체 commit이 실패하고 첫 operation도 취소된다.</p><p><b>왜 유지해야 하나</b> 비용만 빠지거나 피해만 남는 부분 성공은 transaction invariant를 깨뜨린다.</p><p><b>확인할 점</b> working copy를 검증한 뒤 한 번에 교체하는지 확인한다.</p><button data-runtime-check="rollback" type="button">부분 실패 시도</button><output aria-live="polite" data-runtime-check-output="rollback" role="status">실행 전 · 기대: working copy 폐기, 상태 해시 동일</output></article>
 </div>
+<div class="callout good"><b>자동 경계 회귀.</b><p>Node 테스트는 화면의 세 버튼 외에도 command/input 불일치의 RNG 전 거절, 닫힌 event taxonomy, 변조된 저항·Miss 피해·Status·사망 fact의 무변경 거절, restored overdue status의 예약/실제 시각 분리, malformed reaction, primary commit 뒤 reaction 전에 대상이 사망한 interleaving, <code>maxDepth=0</code> same-depth 자식 우회, missing context와 실제 값의 cache 분리를 실행한다. C# 검증은 <code>readyTick == now</code>, 미래 쿨다운의 Combat 전 거절, cooldown version 충돌, Derived DAG cycle, 강제 cache hash 충돌, target permutation, fragment 충돌, status 재적용·정화 경계를 별도로 실행한다.</p></div>
 <h2 id="context-cache-lab">Contextual Stat Cache Lab</h2>
-<p>owner 하나에 최종값 하나를 캐시하지 않는다. 실제 Modifier가 읽는 context path를 선언하고 target·tag·거리 값으로 fingerprint를 만든다.</p>
+<p>owner 하나에 최종값 하나를 캐시하지 않는다. 이 JavaScript Lab은 실제 Modifier가 읽는 context path를 선언하고 target·tag·거리 값으로 fingerprint를 만든다. 각 값은 <code>presence=missing</code> 또는 <code>presence=present + value</code>로 구분하므로 실제 값이 sentinel 모양이어도 충돌하지 않는다. 짧은 hash는 표시용이고 cache hit는 전체 canonical descriptor 문자열의 동일성으로 판정한다. C# 학습 evaluator는 formula가 전체 <code>StatContext</code>를 관찰할 수 있으므로 correctness를 위해 전체 context descriptor와 owner·definition·numeric-policy version을 key에 넣는다. 더 보수적으로 miss할 수 있지만 읽지 않은 값을 누락해 잘못 hit하지는 않는다.</p>
 <section class="runtime-mini-lab" data-runtime-cache-probe="">
 <header><div><span class="section-kicker">Cache correctness</span><h3>같은 질의는 hit, 다른 context는 miss</h3></div><button class="button secondary" data-runtime-cache-run="" type="button">패턴 다시 실행</button></header>
 <div class="mini-lab-status"><strong data-runtime-cache-status="">Ready</strong><span data-runtime-cache-pattern="">MISS → HIT → MISS</span></div>
@@ -312,30 +335,86 @@ public interface IReactionQueue
 </div>
 <div class="table-scroll"><table class="data-table"><thead><tr><th>Envelope field</th><th>고정하는 의미</th><th>변경 시 처리</th></tr></thead><tbody>
 <tr><td><code>runtimeVersion</code></td><td>커널 구현의 semantics</td><td>golden fixture 재승인</td></tr>
+<tr><td><code>contractSchemaVersion</code></td><td>command·plan·event 공개 계약의 구조</td><td>호환 lane 분리 또는 계약 migration</td></tr>
+<tr><td><code>replayFormatVersion</code></td><td>replay 문서 자체의 직렬화 형식</td><td>reader 호환 범위와 migration 명시</td></tr>
 <tr><td><code>rngAlgorithmVersion</code></td><td>key hash와 sample 생성 방식</td><td>별도 replay lane 또는 migration</td></tr>
+<tr><td><code>rngKeySchemaVersion</code></td><td><code>[correlationId, branch, targetId]</code> key 조립 규칙</td><td>키 의미가 달라지면 독립 버전 승격</td></tr>
+<tr><td><code>clockDomain</code></td><td>현재 tick이 속한 시간축(<code>simulation_tick</code>)</td><td>시간축 변환 없이 혼합 금지</td></tr>
 <tr><td><code>numericPolicyVersion</code></td><td>BPS 단위와 반올림 위치</td><td>formula version과 함께 승격</td></tr>
+<tr><td><code>dataVersion</code></td><td>실행에 사용한 전체 데이터 snapshot</td><td>live data 대신 동일 snapshot 복원</td></tr>
 <tr><td><code>definitionVersion</code></td><td>Fireball·Burn 정적 데이터</td><td>과거 definition snapshot 보관</td></tr>
 <tr><td><code>formulaVersion</code></td><td>피해 단계와 계산식</td><td>live balance와 replay 분리</td></tr>
 <tr><td><code>rootSeed</code></td><td>keyed decision sample의 root</td><td>같은 실행 안에서 불변</td></tr>
+<tr><td><code>targetOrderPolicyVersion</code></td><td>다중 대상 실행의 정렬·동률·상한 적용 의미</td><td>다중 대상일 때 필수, 규칙 변경 시 독립 버전 승격</td></tr>
 </tbody></table></div>
+<div class="callout"><b>현재 호환 lane.</b><p><code>runtimeVersion=4.0.1-reference</code>, <code>contractSchemaVersion=2</code>, <code>replayFormatVersion=2</code>다. v2는 피해 fact의 필수 exact fraction과 replay outcome/trace projection shape를 고정하며, v1 wire object는 묵시 변환하지 않고 거절한다.</p><p><code>numericPolicyVersion=integer-bps-half-away-from-zero-v1</code>과 <code>formulaVersion=combat.fire.v3</code>는 유지한다. 이 두 규범은 처음부터 exact intermediate와 primary 완화 전 raw 미되먹임을 요구했고, Runtime 4.0.0의 단계 반올림은 정책 변경이 아니라 구현 결함이었다. 4.0.1 runtime과 v2 wire/replay lane이 교정된 결과를 구 결과와 분리한다.</p></div>
+<div class="callout" role="note"><b>조건부 envelope 필드.</b><p>현재 단일 대상 Fireball replay header에는 대상 집합 정렬이 없으므로 <code>targetOrderPolicyVersion</code>을 넣지 않는다. 아래 다중 대상 캡스톤처럼 선택 순서가 결과를 바꿀 수 있는 실행에서는 이 필드를 추가해 정책 의미를 고정한다.</p></div>
+<div class="callout warn" role="note"><b>증거 경계 · 실행 가능한 rubric, 비실행 설계 워크시트.</b><p>아래 도구는 제출 JSON의 token 조합을 검사하고 선택한 token으로 예시 evidence를 합성한다. 학습자가 작성한 resolver나 CommitPlan builder를 실행하지 않으며, 구현 능력·중급 진입·production readiness를 인증하지 않는다. 용도는 책임과 정책 누락을 찾는 형성평가다.</p></div>
+<h2 id="middle-capstone">Chain Lightning 계약 워크시트</h2>
+<p>입력 순서가 섞인 대상을 처리하는 <strong>Chain Lightning + Shock</strong>의 책임·결정성·실패 의미를 하나의 JSON 계약으로 작성한다. starter의 <code>null</code>과 빈 배열을 채운 뒤 token rubric과 합성 scenario feedback으로 누락된 정책을 찾는다. 실제 전이 학습 증거는 별도의 C# native candidate runner가 learner 구현을 정상·경계·실패 입력으로 실행할 때만 성립한다.</p>
+<section aria-labelledby="capstone-brief-title" class="capstone-brief">
+<header><div><span class="section-kicker">Design worksheet · learner-authored tokens</span><h3 id="capstone-brief-title">설계 요구</h3></div><span class="capstone-level">형성평가</span></header>
+<div class="capstone-requirements">
+<article><span>01 · Resolve</span><h4>순서와 RNG를 입력 순회에서 분리</h4><p>중복 target 요청은 전체를 거부한다. 전체 후보를 <code>distanceBucket asc</code>, 동률이면 <code>EntityId ordinal asc</code>로 먼저 정렬한 뒤 최대 3개를 고른다. 각 Hit 판정은 <code>correlationId + decisionKind + targetId</code> keyed RNG를 사용한다.</p></article>
+<article><span>02 · Commit</span><h4>주 효과는 하나의 원자적 plan</h4><p>Mana 비용·쿨다운·모든 주 피해와 outbox를 함께 확정한다. caster와 모든 target version 중 하나라도 stale이면 아무 mutation과 event도 남기지 않는다.</p></article>
+<article><span>03 · Reaction</span><h4>직접 피해 event에서 Shock 생성</h4><p>각 <code>DamageCommitted</code>가 자기 Shock reaction의 직접 원인이다. budget 실패 전 이미 확정된 primary와 reaction commit은 유지하고 아직 dispatch하지 않은 항목만 폐기한다. 재시도는 reaction별 disposition을 확인해 미커밋 항목만 <strong>같은 business idempotency key와 command ID</strong>로 수행한다. 새 key로 전체 wave를 재실행하는 것은 이미 commit된 반응을 중복 적용하므로 금지한다.</p></article>
+<article><span>04 · Status</span><h4>제품 규칙과 시간·출처를 명시</h4><p>보호막이 전부 흡수해도 <code>Hit</code>이고 대상이 생존했다면 Shock을 적용한다. 적용 command와 <code>StatusInstance.applicationCausationId</code>는 직접 <code>DamageCommitted</code>를 가리키고, <code>StatusApplied</code> event는 그 적용 command를 가리킨다. 첫 tick command는 <code>StatusApplied</code>, 다음 tick command는 직전 <code>StatusTicked</code>를 원인으로 삼는다. <code>simulation_tick</code> +4에는 피해 resource delta·<code>StatusTicked</code>·<code>StatusExpired</code>·status remove를 한 status-tick plan에서 원자적으로 확정한다.</p></article>
+</div>
+</section>
+<div class="callout" role="note"><b>제출 토큰을 찾는 방법</b><p><a href="../source/contracts/combat-capstone-submission.schema.json">제출 JSON Schema</a>에 각 필드에서 사용할 수 있는 정확한 후보 token과 scenario slug가 있다. 후보에는 오답도 포함되므로 위 요구와 기존 계약을 근거로 선택한다. <a href="../source/runtime/capstone-assessor.js">assessor source</a>는 판정과 probe가 어떻게 계산되는지 검토할 수 있지만 완성 제출물을 생성하는 공개 API는 제공하지 않는다.</p><p>판단 근거는 <a href="../source/adr/ADR-001-deterministic-numeric-and-rng.md">ADR-001 · 결정론</a>, <a href="../source/adr/ADR-002-pure-resolve-atomic-commit.md">ADR-002 · resolve/commit</a>, <a href="../source/adr/ADR-003-bounded-reaction-queue.md">ADR-003 · reaction</a>에서 확인한다.</p><p><code>target:*</code>는 “선택된 모든 대상마다 명시적 version precondition이 있어야 한다”는 assessor 표기다. 실제 <code>CommitPlan</code>에 wildcard ID를 넣으라는 뜻이 아니며, production plan에서는 선택된 각 <code>EntityId</code>를 열거한다.</p></div>
+<h3 id="capstone-rubric">100점 Rubric</h3>
+<div class="table-scroll"><table class="data-table capstone-rubric" data-capstone-rubric=""><thead><tr><th scope="col">평가 차원</th><th scope="col">배점</th><th scope="col">검증 초점</th></tr></thead><tbody>
+<tr><td>책임 소유권</td><td><strong>15</strong></td><td>Skill·Effect·Combat·Status·RuntimeCommitter의 경계</td></tr>
+<tr><td>순수 resolve·정렬·RNG</td><td><strong>20</strong></td><td>mutation/event 없음, 안정 정렬, target-keyed RNG</td></tr>
+<tr><td>원자적 commit·version·rollback</td><td><strong>20</strong></td><td>단일 primary plan, 모든 mutation 대상 version, state+outbox</td></tr>
+<tr><td>event·reaction 인과·상한</td><td><strong>20</strong></td><td>직접 causation, 정렬 tuple, 멱등성, wave 실패 정책</td></tr>
+<tr><td>Status 시간·출처</td><td><strong>15</strong></td><td>적용/주기 provenance, +2/+4, tick 후 expire</td></tr>
+<tr><td>Replay envelope·증거</td><td><strong>10</strong></td><td>정렬 정책 version과 정상·경계·실패 증거</td></tr>
+</tbody><tfoot><tr><th scope="row">워크시트 통과</th><td><strong>80+</strong></td><td>각 차원 최소 80%와 합성 scenario gate를 만족한다. learner 구현 실행이나 실무 역량 인증을 뜻하지 않는다.</td></tr></tfoot></table></div>
+<section aria-label="Chain Lightning 설계 채점기" class="capstone-lab" data-capstone-lab="">
+<header class="capstone-lab-head"><div><span class="section-kicker">Executable token rubric</span><h3>Chain Lightning Worksheet</h3></div><span class="capstone-live">JSON ONLY</span></header>
+<div class="capstone-workspace">
+<div class="capstone-editor-panel">
+<label for="capstone-submission">설계 제출 JSON</label>
+<textarea aria-describedby="capstone-editor-help capstone-draft-status" autocapitalize="off" autocomplete="off" data-capstone-editor="" id="capstone-submission" spellcheck="false"></textarea>
+<p id="capstone-editor-help">필드 이름은 고정 계약이다. <a href="../source/contracts/combat-capstone-submission.schema.json">후보 token·slug 계약</a>을 참고해 값을 채우되 JavaScript나 주석은 넣지 않는다. assessor는 제출 코드를 실행하지 않고 JSON만 해석한다.</p>
+<div class="capstone-actions"><button class="button primary" data-capstone-assess="" type="button">설계 채점</button><button class="button secondary" data-capstone-reset="" type="button">Starter로 초기화</button></div>
+<p aria-live="polite" data-capstone-draft-status="" id="capstone-draft-status">Starter를 준비하는 중입니다.</p>
+</div>
+<aside class="capstone-score-panel" aria-label="채점 요약">
+<span>Current assessment</span>
+<div class="capstone-score"><strong data-capstone-score="">—</strong><small>/ 100</small></div>
+<meter aria-label="캡스톤 점수" data-capstone-meter="" max="100" min="0" value="0">0 / 100</meter>
+<output aria-live="polite" data-capstone-status="" role="status">아직 채점하지 않았습니다.</output>
+<div class="capstone-critical"><span>Critical violations</span><strong data-capstone-critical-count="">—</strong></div>
+</aside>
+</div>
+<div aria-label="필수 시나리오 gate" class="capstone-gates">
+<article><span>Golden path</span><strong data-capstone-gate="normal">대기</strong><small>소유권·3 target order·keyed RNG·단일 commit·직접 reaction</small></article>
+<article><span>Boundary</span><strong data-capstone-gate="edge">대기</strong><small>permutation·tie·sort-before-limit·duplicate·shield·원자적 expire</small></article>
+<article><span>Failure</span><strong data-capstone-gate="failure">대기</strong><small>stale state/outbox 불변·dispatch 경계·비영속 trace·멱등 재시도</small></article>
+</div>
+<div class="capstone-evidence"><header><div><span class="section-kicker">Synthesized example</span><h3>Scenario 결과</h3></div><small>제출 token을 내부 fixture 모델에 적용해 합성한 값 · learner code 실행 아님</small></header><output aria-live="polite" data-capstone-evidence="">{}</output></div>
+<div class="capstone-feedback"><header><div><span class="section-kicker">Dimension feedback</span><h3>항목별 결과</h3></div><small>합격선 80 · 각 차원 80% · gate 3/3 · critical 0</small></header><ol data-capstone-feedback=""><li>설계를 채점하면 배점과 빠진 계약이 여기에 표시됩니다.</li></ol></div>
+</section>
 <section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
 <span class="section-kicker">Comprehension check</span>
 <h2 id="이해도-확인">이해도 확인</h2>
 <p class="checkpoint-intro">실행 결과를 계산하는 단계와 실제 상태를 확정하는 단계, 그리고 같은 실행을 재현하기 위해 고정해야 할 입력을 구분해 본다.</p>
 <ol class="checkpoint-grid">
 <li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="runtime.q1"><summary>Resolve가 DamageResult를 계산하면서 target HP도 바로 변경하면 왜 replay와 commit 경계가 무너질까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Resolve는 같은 snapshot과 command에서 같은 plan을 만드는 순수 단계여야 한다. 여기서 상태를 바꾸면 재실행할 때 입력이 달라지고, commit의 version 검사와 전체 성공·실패 보장을 적용할 수 없다.</p></div></details></li>
-<li><span>02 · 실패 안전성</span><details data-checkpoint-question="" data-question-id="runtime.q2"><summary>Fireball을 resolve한 뒤 다른 command가 대상 shield를 변경했다면 stale plan의 commit은 무엇을 남겨야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">expectedVersion 불일치로 전체 commit을 거부해야 한다. stale plan이 만든 HP·Shield mutation과 outbox event는 하나도 남지 않아야 하며, 최신 snapshot으로 다시 resolve할 수 있다.</p></div></details></li>
-<li><span>03 · 재현 계약</span><details data-checkpoint-question="" data-question-id="runtime.q3"><summary>rootSeed가 같아도 formulaVersion이나 stableOrderKey 규칙이 달라지면 같은 결과를 보장할 수 있을까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">보장할 수 없다. 결정론은 seed뿐 아니라 runtime·RNG·수치·definition·formula 버전과 정렬 규칙을 포함한 replay envelope 전체가 같을 때 성립한다.</p></div></details></li>
+<li><span>02 · 실패 안전성</span><details data-checkpoint-question="" data-question-id="runtime.q2"><summary>Fireball을 resolve한 뒤 다른 command가 같은 대상 entity의 cooldown을 변경했다면 stale plan의 commit은 무엇을 남겨야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">변경한 필드가 피해와 직접 관련 없어 보여도 entity expectedVersion이 달라졌으므로 전체 commit을 거부해야 한다. stale plan의 HP·Shield mutation과 outbox event는 하나도 남지 않아야 하며, 최신 snapshot으로 다시 resolve할 수 있다.</p></div></details></li>
+<li><span>03 · 재현 계약</span><details data-checkpoint-question="" data-question-id="runtime.q3"><summary>rootSeed가 같아도 formulaVersion이나 stableOrderKey 규칙이 달라지면 같은 결과를 보장할 수 있을까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">보장할 수 없다. 결정론은 seed뿐 아니라 runtime·RNG algorithm·RNG key schema·clock domain·수치·definition·formula 버전과 정렬 규칙을 포함한 replay envelope 전체가 같을 때 성립한다.</p></div></details></li>
 </ol>
 </section>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/fireball-case-study.html"><span>← 이전</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a>
-<a class="next" href="../modules/diagram-gallery.html"><span>다음 →</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a>
+<a class="prev" href="../modules/fireball-case-study.html"><span>← 이전</span><b>Fireball 예제</b><small>Fireball의 C# admission·snapshot·atomic commit과 JavaScript replay·Burn reaction을 잇는 수직 슬라이스</small></a>
+<a class="next" href="../modules/diagram-gallery.html"><span>다음 →</span><b>다이어그램</b><small>C# 표기의 개념·혼합 학습 모델을 UML 관계도와 비-UML 실행 흐름도로 구분하고 구현 증거 경계를 확인하는 갤러리</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
-<section class="context-card toc-card"><div class="context-title"><span>On this page</span><button data-print-page="" type="button">Print</button></div><nav class="page-toc"><a href="#학습-목표">학습 목표</a><a href="#실행-아키텍처">실행 아키텍처</a><a href="#csharp-reference-source">C# 참조 코드</a><a href="#fireball-workbench">Fireball Workbench</a><a href="#failure-probes">Hardening Probes</a><a href="#context-cache-lab">Context Cache</a><a href="#migration-lab">선택 학습 · Migration</a><a href="#deterministic-envelope">결정론 envelope</a><a href="#이해도-확인">이해도 확인</a></nav></section>
+<section class="context-card toc-card"><div class="context-title"><span>On this page</span><button data-print-page="" type="button">Print</button></div><nav class="page-toc"><a href="#학습-목표">학습 목표</a><a href="#실행-아키텍처">실행 아키텍처</a><a href="#csharp-reference-source">C# 참조 코드</a><a href="#fireball-workbench">Fireball Workbench</a><a href="#failure-probes">Hardening Probes</a><a href="#context-cache-lab">Context Cache</a><a href="#migration-lab">선택 학습 · Migration</a><a href="#deterministic-envelope">결정론 envelope</a><a href="#middle-capstone">Middle Capstone</a><a href="#이해도-확인">이해도 확인</a></nav></section>
 
 <section class="context-card"><div class="context-title"><span>Related paths</span></div><div class="related-links"><a href="../modules/fireball-case-study.html"><span>Case</span><b>Fireball 예제</b></a><a href="../modules/integration-map.html"><span>Map</span><b>통합 구조</b></a><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b></a></div></section>
 <a class="readiness-card runtime-side-cta" href="#fireball-workbench"><span>Hands-on lab</span><b>Replay를 직접 실행</b><small>입력과 결과를 비교</small><i>↓</i></a>
@@ -421,7 +500,7 @@ public interface IReactionQueue
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat 타입, Modifier, 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest와 결과 타입으로 구성하는 비용, 쿨다운, 타겟팅, EffectBundle 실행 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest를 명중 판정, 공식, 치명타, 방어·저항, 보호막을 거쳐 DamageResult로 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# StatusDefinition과 StatusInstance로 버프, DoT, 중첩, tick, 정화, 면역을 관리하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 C# 인터페이스 의존 방향과 요청·결과 계약</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball C# command가 Skill, Effect, Combat, Status, Stat을 통과하는 실행 흐름</small></a><a aria-current="page" class="is-active" href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C# 실행 계약의 replay, atomic commit, reaction, cache를 JavaScript 시뮬레이터로 확인하고 migration을 선택 학습하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Derived Stat DAG·Modifier 계산·versioned context cache와 리소스·저장 경계를 함께 배우는 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# Effect 계약과 결정론적 target snapshot·resolved operation·원자적 commit fragment 합성 구조</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# Skill admission과 snapshot 기반 비용·쿨다운 검증, Fireball resolve·원자적 plan 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# 순수 정책으로 명중·치명타·관통·방어·저항·barrier·overkill과 단일 반올림 경계를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# 상태 재적용·중첩·지속시간·정화 결정 정책과 JavaScript Burn tick 실행을 함께 배우는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# handoff와 아직 남은 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# admission·snapshot·atomic commit과 JavaScript replay·Burn reaction을 잇는 수직 슬라이스</small></a><a aria-current="page" class="is-active" href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 검증하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 표기의 개념·혼합 학습 모델을 UML 관계도와 비-UML 실행 흐름도로 구분하고 구현 증거 경계를 확인하는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">
@@ -471,7 +550,7 @@ public interface IReactionQueue
 </svg>
 </button>
 </header>
-<nav><a href="#학습-목표">학습 목표</a><a href="#실행-아키텍처">실행 아키텍처</a><a href="#csharp-reference-source">C# 참조 코드</a><a href="#fireball-workbench">Fireball Workbench</a><a href="#failure-probes">Hardening Probes</a><a href="#context-cache-lab">Context Cache</a><a href="#migration-lab">선택 학습 · Migration</a><a href="#deterministic-envelope">결정론 envelope</a><a href="#이해도-확인">이해도 확인</a></nav>
+<nav><a href="#학습-목표">학습 목표</a><a href="#실행-아키텍처">실행 아키텍처</a><a href="#csharp-reference-source">C# 참조 코드</a><a href="#fireball-workbench">Fireball Workbench</a><a href="#failure-probes">Hardening Probes</a><a href="#context-cache-lab">Context Cache</a><a href="#migration-lab">선택 학습 · Migration</a><a href="#deterministic-envelope">결정론 envelope</a><a href="#middle-capstone">Middle Capstone</a><a href="#이해도-확인">이해도 확인</a></nav>
 </div>
 </dialog>
 <dialog aria-labelledby="diagram-modal-title" class="diagram-modal" data-diagram-modal="">
@@ -513,7 +592,7 @@ public interface IReactionQueue
 </dialog>
 <script src="../assets/js/search-index.js">
 </script>
-<script src="../assets/js/runtime-kernel.js"></script><script src="../assets/js/app.js">
+<script src="../assets/js/runtime-kernel.js"></script><script src="../assets/js/capstone-assessor.js"></script><script src="../assets/js/app.js">
 </script>
 </body>
 </html>

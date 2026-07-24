@@ -1,11 +1,11 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.34, ranksep=0.72, nodesep=0.48, splines=true];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#b8c5d8", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.18,0.13"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", arrowsize=0.75, penwidth=1.35];
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.34, ranksep=0.72, nodesep=0.58, splines=true];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#b8c5d8", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.18,0.13"];
+  edge [fontname="Noto Sans KR", color="#59687e", arrowsize=0.75, penwidth=1.35];
   rankdir=LR;
 
   Input [fillcolor="#f3eefc", label="Input\ncommand · snapshot\nroot seed"];
-  Versions [fillcolor="#fff7e6", label="Version Envelope\nruntime · contract · replay\nRNG · numeric · data\ndefinition · formula"];
+  Versions [fillcolor="#fff7e6", label="Version Envelope\nruntime · contract · replay\nRNG algorithm · RNG key schema\nclock domain · numeric · data\ndefinition · formula"];
   Ordering [fillcolor="#eefbf6", label="Stable Semantics\ncanonical JSON · stable IDs\noperation order · tick order"];
   Runtime [shape=component, fillcolor="#eaf0ff", penwidth=2.0, label="Deterministic Runtime\nResolve → Commit → Reaction → Tick"];
   Outputs [fillcolor="#e9fbff", label="Outputs\nfinal state · domain events\ndecisions · trace"];

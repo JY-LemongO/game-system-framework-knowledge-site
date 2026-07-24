@@ -5,15 +5,20 @@
 ## 구현 범위
 
 - Command/Event envelope와 namespaced identity
-- 정수·basis-point 산술과 keyed deterministic RNG
+- 정확한 기약 유리수 중간값, safe-integer 피해 투영, basis-point 산술과 keyed deterministic RNG
 - 순수한 Fireball resolve와 optimistic precondition
 - HP/Shield/비용/쿨다운의 all-or-nothing commit
 - post-commit domain event outbox
-- bounded deterministic ReactionQueue
-- Burn 적용, fixed tick, tick-before-expire, catch-up budget
+- bounded deterministic ReactionQueue와 committed `DamageCommitted`→reaction 전체 provenance binding
+- commit·clock 재진입 차단, trace payload 동결 snapshot, trace observer의 queue enqueue 차단
+- exact-v2 공개 입력의 단일 canonical clone, `__proto__` 보존, sparse/accessor 등 비-JSON container 거부
+- Burn 적용, 적용 Skill과 실행 Status의 SourceRef 분리, 직전 status event 기반 causation, fixed tick, tick-before-expire, catch-up budget
+- restore·status add·status patch 전 구간의 applied/next tick 단조성 검증
 - context fingerprint 기반 Stat query cache
 - 순차 N−2 schema migration registry와 audit hash
 - replay hash, trace hash, golden fixture
+
+`createCommandEnvelope`과 `createDomainEventEnvelope`은 생략 가능한 기본값을 채우는 convenience builder다. 외부 wire object는 모든 canonical 필드를 요구하고 unknown field를 거부하는 `parseCommandEnvelope`과 `parseDomainEventEnvelope`을 통과해야 한다.
 
 ## 실행
 
@@ -32,4 +37,4 @@ npm run qa
 
 ## 의도적인 제한
 
-이 커널은 계약 검증용 단일 프로세스·메모리 구현이다. 데이터베이스 transaction, durable outbox, 네트워크 prediction/reconciliation, 멀티 타깃 AoE, authoritative server adapter, 엔진 resource/animation adapter는 다음 생산 구현 단계의 포트로 남겨 두었다.
+이 커널은 계약 검증용 단일 프로세스·메모리 구현이다. `enqueueReactions`는 순수 projection helper이고, authoritative `applyStatusReaction`이 같은 `StateStore` outbox의 원인 event membership·전체 payload 결속·event-derived 최소 depth를 강제한다. 이 handler는 `ReactionQueue.drain`이 동기 dispatch 중인 동일 reaction object에 부여하는 내부 권한도 요구하므로 직접 호출로 wave 상한을 우회할 수 없다. 생성자에 주는 기존 state/outbox는 신뢰된 restore snapshot이라는 전제이므로, 외부 wire·저장소 event의 인증과 aggregate 소속 검증은 제품 admission adapter의 책임이다. 데이터베이스 transaction, durable outbox, 네트워크 prediction/reconciliation, 멀티 타깃 AoE, authoritative server adapter, 엔진 resource/animation adapter는 다음 생산 구현 단계의 포트로 남겨 두었다.

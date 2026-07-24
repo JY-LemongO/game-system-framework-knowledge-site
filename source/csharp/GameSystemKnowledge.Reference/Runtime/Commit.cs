@@ -19,6 +19,8 @@ public sealed class StateMutation
         long newValue,
         string description)
     {
+        EntityId.ThrowIfInvalid(resourceId, nameof(resourceId));
+
         if (newValue < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(newValue));
@@ -46,7 +48,29 @@ public sealed class StateMutation
 public abstract record DomainEvent(
     EntityId EventId,
     EntityId CommandId,
-    SourceRef Source);
+    SourceRef Source)
+{
+    internal virtual void ValidateContract()
+    {
+        EntityId.ThrowIfInvalid(EventId, nameof(EventId));
+        EntityId.ThrowIfInvalid(CommandId, nameof(CommandId));
+        SourceRef.ThrowIfInvalid(Source, nameof(Source));
+    }
+
+    internal virtual void ValidatePostState(
+        IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
+    {
+    }
+
+    internal virtual void ValidateStateTransition(
+        IReadOnlyDictionary<EntityId, VersionedResourceState> preState,
+        IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
+    {
+        ArgumentNullException.ThrowIfNull(preState);
+        ArgumentNullException.ThrowIfNull(postState);
+        ValidatePostState(postState);
+    }
+}
 
 public sealed record SkillCommitted(
     EntityId EventId,
@@ -54,8 +78,88 @@ public sealed record SkillCommitted(
     EntityId CasterId,
     EntityId SkillId,
     EntityId? TargetId,
-    SourceRef Source)
-    : DomainEvent(EventId, CommandId, Source);
+    SourceRef Source,
+    EntityId ManaResourceId,
+    long ManaSpent,
+    EntityId CooldownResourceId,
+    long CooldownReadyTick)
+    : DomainEvent(EventId, CommandId, Source)
+{
+    internal override void ValidateContract()
+    {
+        base.ValidateContract();
+        EntityId.ThrowIfInvalid(CasterId, nameof(CasterId));
+        EntityId.ThrowIfInvalid(SkillId, nameof(SkillId));
+        if (TargetId.HasValue)
+        {
+            EntityId.ThrowIfInvalid(TargetId.Value, nameof(TargetId));
+        }
+
+        if (Source.Kind != SourceKind.SkillExecution ||
+            Source.DefinitionId != SkillId ||
+            Source.InstanceId != CommandId)
+        {
+            throw new ArgumentException(
+                "SkillCommitted.Source must identify this skill execution.");
+        }
+
+        EntityId.ThrowIfInvalid(ManaResourceId, nameof(ManaResourceId));
+        EntityId.ThrowIfInvalid(CooldownResourceId, nameof(CooldownResourceId));
+        if (ManaResourceId == CooldownResourceId)
+        {
+            throw new ArgumentException(
+                "Mana and cooldown facts must identify distinct resources.");
+        }
+
+        if (ManaSpent < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(ManaSpent));
+        }
+
+        if (CooldownReadyTick < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(CooldownReadyTick));
+        }
+    }
+
+    internal override void ValidateStateTransition(
+        IReadOnlyDictionary<EntityId, VersionedResourceState> preState,
+        IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
+    {
+        base.ValidateStateTransition(preState, postState);
+
+        if (!preState.TryGetValue(ManaResourceId, out var manaBefore) ||
+            !postState.TryGetValue(ManaResourceId, out var manaAfter))
+        {
+            throw new InvalidOperationException(
+                "SkillCommitted must reference a committed mana resource.");
+        }
+
+        if (manaBefore.Value < ManaSpent ||
+            manaAfter.Value != manaBefore.Value - ManaSpent ||
+            manaBefore.Version == long.MaxValue ||
+            manaAfter.Version != manaBefore.Version + 1)
+        {
+            throw new InvalidOperationException(
+                "SkillCommitted.ManaSpent must match the committed mana transition.");
+        }
+
+        if (!preState.TryGetValue(CooldownResourceId, out var cooldownBefore) ||
+            !postState.TryGetValue(CooldownResourceId, out var cooldownAfter))
+        {
+            throw new InvalidOperationException(
+                "SkillCommitted must reference a committed cooldown resource.");
+        }
+
+        if (cooldownAfter.Value != CooldownReadyTick ||
+            cooldownBefore.Version == long.MaxValue ||
+            cooldownAfter.Version != cooldownBefore.Version + 1)
+        {
+            throw new InvalidOperationException(
+                "SkillCommitted.CooldownReadyTick must match the committed cooldown transition.");
+        }
+    }
+}
 
 public sealed record DamageCommitted(
     EntityId EventId,
@@ -64,12 +168,141 @@ public sealed record DamageCommitted(
     EntityId DefenderId,
     SourceRef Source,
     DamageResult Result,
-    long TargetHpAfter)
-    : DomainEvent(EventId, CommandId, Source);
+    EntityId TargetHpResourceId,
+    long TargetHpAfter,
+    EntityId TargetShieldResourceId,
+    long TargetShieldAfter)
+    : DomainEvent(EventId, CommandId, Source)
+{
+    internal override void ValidateContract()
+    {
+        base.ValidateContract();
+        EntityId.ThrowIfInvalid(AttackerId, nameof(AttackerId));
+        EntityId.ThrowIfInvalid(DefenderId, nameof(DefenderId));
+        EntityId.ThrowIfInvalid(TargetHpResourceId, nameof(TargetHpResourceId));
+        EntityId.ThrowIfInvalid(TargetShieldResourceId, nameof(TargetShieldResourceId));
+        ArgumentNullException.ThrowIfNull(Result);
 
-public sealed record CommittedOutboxEvent(
-    long Sequence,
-    DomainEvent Event);
+        if (TargetHpResourceId == TargetShieldResourceId)
+        {
+            throw new ArgumentException(
+                "DamageCommitted must identify distinct HP and shield resources.");
+        }
+
+        if (Source.Kind == SourceKind.SkillExecution &&
+            Source.InstanceId != CommandId)
+        {
+            throw new ArgumentException(
+                "A skill-sourced DamageCommitted fact must identify this command execution.");
+        }
+    }
+
+    internal override void ValidatePostState(
+        IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
+    {
+        ArgumentNullException.ThrowIfNull(postState);
+        EntityId.ThrowIfInvalid(TargetHpResourceId, nameof(TargetHpResourceId));
+        EntityId.ThrowIfInvalid(TargetShieldResourceId, nameof(TargetShieldResourceId));
+
+        if (TargetHpAfter < 0 || TargetShieldAfter < 0)
+        {
+            throw new InvalidOperationException(
+                "A committed damage event cannot report negative target resources.");
+        }
+
+        if (!postState.TryGetValue(TargetHpResourceId, out var targetHp) ||
+            targetHp.Value != TargetHpAfter)
+        {
+            throw new InvalidOperationException(
+                "DamageCommitted.TargetHpAfter must match the committed target HP resource.");
+        }
+
+        if (!postState.TryGetValue(TargetShieldResourceId, out var targetShield) ||
+            targetShield.Value != TargetShieldAfter)
+        {
+            throw new InvalidOperationException(
+                "DamageCommitted.TargetShieldAfter must match the committed target shield resource.");
+        }
+    }
+
+    internal override void ValidateStateTransition(
+        IReadOnlyDictionary<EntityId, VersionedResourceState> preState,
+        IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
+    {
+        base.ValidateStateTransition(preState, postState);
+
+        if (!preState.TryGetValue(TargetHpResourceId, out var hpBefore) ||
+            !postState.TryGetValue(TargetHpResourceId, out var hpAfter) ||
+            !preState.TryGetValue(TargetShieldResourceId, out var shieldBefore) ||
+            !postState.TryGetValue(TargetShieldResourceId, out var shieldAfter))
+        {
+            throw new InvalidOperationException(
+                "DamageCommitted must reference committed HP and shield resources.");
+        }
+
+        ValidateDamageResourceTransition(
+            hpBefore,
+            hpAfter,
+            Result.FinalHpDamage,
+            "FinalHpDamage");
+        ValidateDamageResourceTransition(
+            shieldBefore,
+            shieldAfter,
+            Result.ShieldAbsorbed,
+            "ShieldAbsorbed");
+    }
+
+    private static void ValidateDamageResourceTransition(
+        VersionedResourceState before,
+        VersionedResourceState after,
+        int reportedDecrease,
+        string factName)
+    {
+        if (before.Value - after.Value != reportedDecrease)
+        {
+            throw new InvalidOperationException(
+                $"DamageCommitted.{factName} must match the committed resource decrease.");
+        }
+
+        if (reportedDecrease == 0)
+        {
+            if (after.Version != before.Version)
+            {
+                throw new InvalidOperationException(
+                    $"A zero {factName} must not advance the resource version.");
+            }
+
+            return;
+        }
+
+        if (before.Version == long.MaxValue ||
+            after.Version != before.Version + 1)
+        {
+            throw new InvalidOperationException(
+                $"A positive {factName} must advance the resource version exactly once.");
+        }
+    }
+}
+
+public sealed record CommittedOutboxEvent
+{
+    public CommittedOutboxEvent(long sequence, DomainEvent @event)
+    {
+        if (sequence <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sequence));
+        }
+
+        ArgumentNullException.ThrowIfNull(@event);
+        @event.ValidateContract();
+        Sequence = sequence;
+        Event = @event;
+    }
+
+    public long Sequence { get; }
+
+    public DomainEvent Event { get; }
+}
 
 public sealed class CommitPlan
 {
@@ -79,11 +312,33 @@ public sealed class CommitPlan
         IEnumerable<StateMutation> mutations,
         IEnumerable<DomainEvent>? outboxEvents = null)
     {
+        EntityId.ThrowIfInvalid(commandId, nameof(commandId));
+
         var preconditionCopy = preconditions?.ToArray() ??
             throw new ArgumentNullException(nameof(preconditions));
         var mutationCopy = mutations?.ToArray() ??
             throw new ArgumentNullException(nameof(mutations));
         var outboxCopy = (outboxEvents ?? Enumerable.Empty<DomainEvent>()).ToArray();
+
+        if (preconditionCopy.Any(item => !item.ResourceId.IsValid))
+        {
+            throw new ArgumentException(
+                "Commit preconditions must contain initialized resource IDs.",
+                nameof(preconditions));
+        }
+
+        if (mutationCopy.Any(item => item is null))
+        {
+            throw new ArgumentException(
+                "Commit mutations cannot contain null values.",
+                nameof(mutations));
+        }
+
+        foreach (var @event in outboxCopy)
+        {
+            ArgumentNullException.ThrowIfNull(@event, nameof(outboxEvents));
+            @event.ValidateContract();
+        }
 
         if (mutationCopy.Length == 0)
         {
@@ -119,7 +374,7 @@ public sealed class CommitPlan
             .Select(item => item.ResourceId)
             .ToHashSet();
 
-        if (!preconditionResources.SetEquals(mutationResources))
+        if (!mutationResources.IsSubsetOf(preconditionResources))
         {
             throw new ArgumentException(
                 "Every mutated resource must have exactly one version precondition.");
@@ -168,10 +423,59 @@ public enum CommitStatus
     PreconditionFailed
 }
 
-public sealed record CommitReceipt(
-    CommitStatus Status,
-    EntityId CommandId,
-    IReadOnlyList<CommittedOutboxEvent> OutboxEvents);
+public sealed record CommitReceipt
+{
+    private CommitReceipt(
+        CommitStatus status,
+        EntityId commandId,
+        IEnumerable<CommittedOutboxEvent> outboxEvents)
+    {
+        if (!Enum.IsDefined(status))
+        {
+            throw new ArgumentOutOfRangeException(nameof(status));
+        }
+
+        EntityId.ThrowIfInvalid(commandId, nameof(commandId));
+
+        var outboxCopy = outboxEvents?.ToArray() ??
+            throw new ArgumentNullException(nameof(outboxEvents));
+        if (status != CommitStatus.Committed && outboxCopy.Length != 0)
+        {
+            throw new ArgumentException(
+                "A non-committed receipt cannot expose outbox events.",
+                nameof(outboxEvents));
+        }
+
+        Status = status;
+        CommandId = commandId;
+        OutboxEvents = Array.AsReadOnly(outboxCopy);
+    }
+
+    public CommitStatus Status { get; }
+
+    public EntityId CommandId { get; }
+
+    public ReadOnlyCollection<CommittedOutboxEvent> OutboxEvents { get; }
+
+    public static CommitReceipt Committed(
+        EntityId commandId,
+        IEnumerable<CommittedOutboxEvent> outboxEvents) =>
+        new(CommitStatus.Committed, commandId, outboxEvents);
+
+    public static CommitReceipt Empty(
+        CommitStatus status,
+        EntityId commandId)
+    {
+        if (status == CommitStatus.Committed)
+        {
+            throw new ArgumentException(
+                "Committed receipts must use the Committed factory.",
+                nameof(status));
+        }
+
+        return new(status, commandId, Array.Empty<CommittedOutboxEvent>());
+    }
+}
 
 public interface IRuntimeCommitter
 {
@@ -191,6 +495,13 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
     {
         var stateCopy = (initialState ?? Enumerable.Empty<VersionedResourceState>())
             .ToArray();
+        if (stateCopy.Any(item => !item.ResourceId.IsValid))
+        {
+            throw new ArgumentException(
+                "Initial resource states must contain initialized resource IDs.",
+                nameof(initialState));
+        }
+
         if (stateCopy.Any(item => item.Value < 0 || item.Version < 0))
         {
             throw new ArgumentOutOfRangeException(
@@ -229,17 +540,31 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
             foreach (var mutation in plan.Mutations)
             {
                 var current = GetStateUnsafe(mutation.ResourceId);
+                if (current.Version == long.MaxValue)
+                {
+                    throw new OverflowException(
+                        $"Resource version cannot advance beyond Int64.MaxValue: {mutation.ResourceId}.");
+                }
+
                 nextState[mutation.ResourceId] = new VersionedResourceState(
                     mutation.ResourceId,
                     mutation.NewValue,
-                    current.Version + 1);
+                    checked(current.Version + 1));
+            }
+
+            // 상태에서 파생된 이벤트 사실은 같은 커밋의 사후 상태와 일치할 때만 발행한다.
+            foreach (var @event in plan.OutboxEvents)
+            {
+                @event.ValidateStateTransition(_state, nextState);
             }
 
             var committedEvents = plan.OutboxEvents
                 .Select((item, index) => new CommittedOutboxEvent(
-                    _nextOutboxSequence + index,
+                    checked(_nextOutboxSequence + index),
                     item))
                 .ToArray();
+            var nextOutboxSequence = checked(
+                _nextOutboxSequence + committedEvents.LongLength);
             var nextOutbox = new List<CommittedOutboxEvent>(_outbox);
             nextOutbox.AddRange(committedEvents);
             var nextCommittedCommands = new HashSet<EntityId>(_committedCommands)
@@ -250,10 +575,9 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
             _state = nextState;
             _outbox = nextOutbox;
             _committedCommands = nextCommittedCommands;
-            _nextOutboxSequence += committedEvents.Length;
+            _nextOutboxSequence = nextOutboxSequence;
 
-            return new CommitReceipt(
-                CommitStatus.Committed,
+            return CommitReceipt.Committed(
                 plan.CommandId,
                 Array.AsReadOnly(committedEvents));
         }
@@ -261,6 +585,8 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
 
     public long GetValue(EntityId resourceId)
     {
+        EntityId.ThrowIfInvalid(resourceId, nameof(resourceId));
+
         lock (_gate)
         {
             return GetStateUnsafe(resourceId).Value;
@@ -269,6 +595,8 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
 
     public long GetVersion(EntityId resourceId)
     {
+        EntityId.ThrowIfInvalid(resourceId, nameof(resourceId));
+
         lock (_gate)
         {
             return GetStateUnsafe(resourceId).Version;
@@ -286,7 +614,7 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
     private static CommitReceipt EmptyReceipt(
         CommitStatus status,
         EntityId commandId) =>
-        new(status, commandId, Array.Empty<CommittedOutboxEvent>());
+        CommitReceipt.Empty(status, commandId);
 
     private VersionedResourceState GetStateUnsafe(EntityId resourceId) =>
         _state.TryGetValue(resourceId, out var state)
@@ -310,6 +638,7 @@ public sealed class DeterministicBoundedReactionQueue : IReactionQueue
     private int _activeMaxBudget;
     private int _activeAcceptedCount;
     private int _activeAcceptedBudget;
+    private int _activeDispatchDepth = -1;
     private Exception? _activeFailure;
 
     public DeterministicBoundedReactionQueue(
@@ -372,11 +701,31 @@ public sealed class DeterministicBoundedReactionQueue : IReactionQueue
                 return;
             }
 
+            var acceptedCommand = command;
+            if (_isDraining)
+            {
+                if (_activeDispatchDepth < 0)
+                {
+                    throw CreateLimitExceptionUnsafe(
+                        "A child reaction can be enqueued only while a parent is being dispatched.");
+                }
+
+                if (_activeDispatchDepth == int.MaxValue)
+                {
+                    throw CreateLimitExceptionUnsafe(
+                        "Reaction depth cannot advance beyond Int32.MaxValue.");
+                }
+
+                // Child depth belongs to the queue's causal traversal. A handler
+                // cannot bypass MaxDepth by submitting a forged lower value.
+                acceptedCommand = command.WithDepth(_activeDispatchDepth + 1);
+            }
+
             var maxDepth = _isDraining ? _activeMaxDepth : _maxDepth;
-            if (command.Depth > maxDepth)
+            if (acceptedCommand.Depth > maxDepth)
             {
                 throw CreateLimitExceptionUnsafe(
-                    $"Reaction depth {command.Depth} exceeds {maxDepth}.");
+                    $"Reaction depth {acceptedCommand.Depth} exceeds {maxDepth}.");
             }
 
             var acceptedCount = _isDraining
@@ -397,19 +746,19 @@ public sealed class DeterministicBoundedReactionQueue : IReactionQueue
             var maxBudget = _isDraining
                 ? _activeMaxBudget
                 : _maxBudget;
-            if ((long)acceptedBudget + command.BudgetCost > maxBudget)
+            if ((long)acceptedBudget + acceptedCommand.BudgetCost > maxBudget)
             {
                 throw CreateLimitExceptionUnsafe(
                     $"Reaction budget limit {maxBudget} would be exceeded.");
             }
 
-            _pending.Add(command);
-            _knownIdempotencyKeys.Add(command.IdempotencyKey);
-            _pendingBudget += command.BudgetCost;
+            _pending.Add(acceptedCommand);
+            _knownIdempotencyKeys.Add(acceptedCommand.IdempotencyKey);
+            _pendingBudget += acceptedCommand.BudgetCost;
             if (_isDraining)
             {
                 _activeAcceptedCount++;
-                _activeAcceptedBudget += command.BudgetCost;
+                _activeAcceptedBudget += acceptedCommand.BudgetCost;
             }
         }
     }
@@ -448,7 +797,15 @@ public sealed class DeterministicBoundedReactionQueue : IReactionQueue
 
                     _pending.Remove(next);
                     _pendingBudget -= next.BudgetCost;
-                    _dispatch(next);
+                    _activeDispatchDepth = next.Depth;
+                    try
+                    {
+                        _dispatch(next);
+                    }
+                    finally
+                    {
+                        _activeDispatchDepth = -1;
+                    }
                     drainedCount++;
 
                     if (_activeFailure is not null)
@@ -535,6 +892,7 @@ public sealed class DeterministicBoundedReactionQueue : IReactionQueue
         _activeMaxBudget = 0;
         _activeAcceptedCount = 0;
         _activeAcceptedBudget = 0;
+        _activeDispatchDepth = -1;
         _activeFailure = null;
     }
 }

@@ -1,81 +1,120 @@
-
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.70, nodesep=0.50];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
-  rankdir=LR;
-  splines=ortho;
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.86, nodesep=0.58, newrank=true, compound=true, splines=polyline];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09", width=2.05, height=0.55];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+  rankdir=TB;
 
-  node [width=2.15, height=0.55];
   subgraph cluster_contract {
-    label="공통 계약: 모든 시스템이 공유하는 언어"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
-    EntityRegistry [label="EntityRegistry
-EntityId / EntityRef", fillcolor="#eaf0ff", color="#8292f7"];
-    TagService [label="TagService
-TagSet / Tag Query", fillcolor="#f3eefc", color="#ab8fe0"];
-    SourceTracker [label="SourceTracker
-SourceRef / definition / instance", fillcolor="#fff7e6", color="#e0ad4e"];
-    ContextFactory [label="GameContextFactory
-actor · target · seed · time", fillcolor="#eefbf6", color="#61b99a"];
+    label="공통 계약 · identity and context"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
+    EntityRegistry [label="EntityRegistry\nEntityId / EntityRef", fillcolor="#eaf0ff", color="#8292f7"];
+    TagService [label="TagService\nTagSet / Tag Query", fillcolor="#f3eefc", color="#ab8fe0"];
+    SourceTracker [label="SourceTracker\nSourceRef / definition / instance", fillcolor="#fff7e6", color="#e0ad4e"];
+    ContextFactory [label="GameContextFactory\nactor · target · seed · time", fillcolor="#eefbf6", color="#61b99a"];
   }
-  subgraph cluster_runtime {
-    label="런타임 서비스: 실행·재현·추적"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
-    EventBus [label="EventBus
-committed facts only", fillcolor="#fff0f3", color="#e07b91"];
-    RuntimeCommitter [label="RuntimeCommitter
-versions · invariants
-state + outbox atomic", fillcolor="#eefbf6", color="#61b99a"];
-    DurableOutbox [label="Durable Outbox
-committed event records", fillcolor="#e9fbff", color="#54b7cf"];
-    ReactionQueue [label="ReactionQueue
-priority · stable key
-depth / budget", fillcolor="#f3eefc", color="#ab8fe0"];
-    TimeService [label="TimeService
-tick / duration / cooldown", fillcolor="#e9fbff", color="#54b7cf"];
-    RandomService [label="RandomStream
-seeded deterministic random", fillcolor="#f0f3f9", color="#99a8bd"];
-    DataRegistry [label="DataRegistry
-Definition lookup", fillcolor="#f7f9fc", color="#bac7db"];
-    DebugTrace [label="DebugTrace
-correlationId / breakdown", fillcolor="#f0f3f9", color="#99a8bd"];
+
+  subgraph cluster_services {
+    label="런타임 서비스 · deterministic inputs, commit, dispatch"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
+    DataRegistry [label="DataRegistry\nDefinition lookup", fillcolor="#f7f9fc", color="#bac7db"];
+    TimeService [label="TimeService\ntick / duration / cooldown", fillcolor="#e9fbff", color="#54b7cf"];
+    RandomService [label="RandomStream\nseeded deterministic random", fillcolor="#f0f3f9", color="#99a8bd"];
+    RuntimeCommitter [label="RuntimeCommitter\nversions · invariants\nstate + outbox atomic", fillcolor="#eefbf6", color="#61b99a"];
+    DurableOutbox [label="Durable Outbox\ncommitted event records", fillcolor="#e9fbff", color="#54b7cf"];
+    EventBus [label="EventBus\ncommitted facts only", fillcolor="#fff0f3", color="#e07b91"];
+    ReactionQueue [label="ReactionQueue\npriority · stable key\ndepth / budget", fillcolor="#f3eefc", color="#ab8fe0"];
+    DebugTrace [label="DebugTrace\ncorrelationId / breakdown", fillcolor="#f0f3f9", color="#99a8bd"];
   }
+
   subgraph cluster_consumers {
     label="소비 시스템"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
-    Stat [label="Stat System
-값 계산", fillcolor="#eaf0ff", color="#8292f7"];
-    Effect [label="Effect System
-결과 실행", fillcolor="#fff0f3", color="#e07b91"];
-    Skill [label="Skill / Action
-행동 실행", fillcolor="#fff7e6", color="#e0ad4e"];
-    Combat [label="Combat
-피해 해석", fillcolor="#eefbf6", color="#61b99a"];
-    Status [label="Status
-지속 상태", fillcolor="#f3eefc", color="#ab8fe0"];
-    Equipment [label="Equipment
-Modifier source", fillcolor="#f7f9fc", color="#bac7db"];
+    Stat [label="Stat System\n값 계산", fillcolor="#eaf0ff", color="#8292f7"];
+    Effect [label="Effect System\n결과 실행", fillcolor="#fff0f3", color="#e07b91"];
+    Skill [label="Skill / Action\n행동 실행", fillcolor="#fff7e6", color="#e0ad4e"];
+    Status [label="Status\n지속 상태", fillcolor="#f3eefc", color="#ab8fe0"];
+    Combat [label="Combat\n피해 해석", fillcolor="#eefbf6", color="#61b99a"];
+    Equipment [label="Equipment\nModifier source", fillcolor="#f7f9fc", color="#bac7db"];
   }
-  EntityRegistry -> ContextFactory [label="actor/target resolve"];
-  TagService -> ContextFactory [label="tags"];
-  SourceTracker -> ContextFactory [label="source"];
-  ContextFactory -> RuntimeCommitter [label="identity / correlation"];
-  TimeService -> Skill [label="cooldown"];
-  TimeService -> Status [label="duration/tick"];
-  RandomService -> Skill [label="request seed"];
-  RandomService -> Combat [label="hit/crit"];
-  DataRegistry -> Stat [label="definitions"];
-  DataRegistry -> Effect [label="definitions"];
-  DataRegistry -> Skill [label="definitions"];
-  Skill -> RuntimeCommitter [label="cost/cooldown plan"];
-  Effect -> RuntimeCommitter [label="effect plan"];
-  Combat -> RuntimeCommitter [label="DamageResult plan"];
-  Status -> RuntimeCommitter [label="status/tick plan"];
+
+  subgraph cluster_input_lanes {
+    label="Deterministic input lanes"; style="rounded,dashed"; color="#d8dee9"; fontcolor="#607086"; fontsize=16;
+    node [width=1.65, height=0.46, fontsize=11, fillcolor="#ffffff", color="#bac7db"];
+    StatDefinitionsLane [label="Stat definitions"];
+    EffectDefinitionsLane [label="Effect definitions"];
+    SkillDefinitionsLane [label="Skill definitions"];
+    SkillCooldownLane [label="cooldown clock"];
+    StatusTimeLane [label="duration / tick clock"];
+    SkillSeedLane [label="request seed"];
+    CombatRollLane [label="hit / critical roll"];
+  }
+
+  subgraph cluster_commit_lanes {
+    label="Commit plan lanes"; style="rounded,dashed"; color="#cfe8de"; fontcolor="#4f7a68"; fontsize=16;
+    ContextLane [label="Context identity\nactor · target · correlation", fillcolor="#eefbf6", color="#61b99a"];
+    EffectPlan [label="Effect commit plan\nmutations · planned outbox", fillcolor="#eefbf6", color="#61b99a"];
+    SkillPlan [label="Skill commit plan\ncost · cooldown", fillcolor="#eefbf6", color="#61b99a"];
+    StatusPlan [label="Status commit plan\nduration · tick", fillcolor="#eefbf6", color="#61b99a"];
+    CombatPlan [label="Combat commit plan\nDamageResult", fillcolor="#eefbf6", color="#61b99a"];
+  }
+
+  subgraph cluster_observation_lanes {
+    label="Observation lanes"; style="rounded,dashed"; color="#d8dee9"; fontcolor="#607086"; fontsize=16;
+    StatObservation [label="Stat breakdown", fillcolor="#f7f9fc", color="#99a8bd"];
+    EffectObservation [label="Effect execution log", fillcolor="#f7f9fc", color="#99a8bd"];
+    CombatObservation [label="Combat damage log", fillcolor="#f7f9fc", color="#99a8bd"];
+  }
+
+  { rank=same; EntityRegistry; TagService; SourceTracker; }
+  { rank=same; ContextFactory; DataRegistry; TimeService; RandomService; }
+  { rank=same; StatDefinitionsLane; EffectDefinitionsLane; SkillDefinitionsLane; SkillCooldownLane; StatusTimeLane; SkillSeedLane; CombatRollLane; }
+  { rank=same; Stat; Effect; Skill; Status; Combat; Equipment; }
+  { rank=same; ContextLane; EffectPlan; SkillPlan; StatusPlan; CombatPlan; }
+  { rank=same; RuntimeCommitter; }
+  { rank=same; StatObservation; EffectObservation; DurableOutbox; CombatObservation; }
+  { rank=same; EventBus; }
+  { rank=same; ReactionQueue; DebugTrace; }
+
+  SourceTracker -> TagService -> EntityRegistry [style=invis, weight=50];
+  RandomService -> TimeService -> DataRegistry -> ContextFactory [style=invis, weight=50];
+  CombatRollLane -> SkillSeedLane -> StatusTimeLane -> SkillCooldownLane -> SkillDefinitionsLane -> EffectDefinitionsLane -> StatDefinitionsLane [style=invis, weight=50];
+  Equipment -> Combat -> Status -> Skill -> Effect -> Stat [style=invis, weight=50];
+  CombatPlan -> StatusPlan -> SkillPlan -> EffectPlan -> ContextLane [style=invis, weight=50];
+  CombatObservation -> DurableOutbox -> EffectObservation -> StatObservation [style=invis, weight=50];
+  DebugTrace -> ReactionQueue [style=invis, weight=50];
+
+  EntityRegistry -> ContextFactory [label="actor / target identity"];
+  TagService -> ContextFactory [label="context tags"];
+  SourceTracker -> ContextFactory [label="SourceRef provenance"];
+
+  DataRegistry -> StatDefinitionsLane -> Stat;
+  DataRegistry -> EffectDefinitionsLane -> Effect;
+  DataRegistry -> SkillDefinitionsLane -> Skill;
+  TimeService -> SkillCooldownLane -> Skill;
+  TimeService -> StatusTimeLane -> Status;
+  RandomService -> SkillSeedLane -> Skill;
+  RandomService -> CombatRollLane -> Combat;
+
+  ContextFactory -> ContextLane;
+  Effect -> EffectPlan;
+  Skill -> SkillPlan;
+  Status -> StatusPlan;
+  Combat -> CombatPlan;
+  ContextLane -> RuntimeCommitter;
+  EffectPlan -> RuntimeCommitter;
+  SkillPlan -> RuntimeCommitter;
+  StatusPlan -> RuntimeCommitter;
+  CombatPlan -> RuntimeCommitter;
+
   RuntimeCommitter -> DurableOutbox [label="same transaction"];
   DurableOutbox -> EventBus [label="dispatch committed facts"];
   EventBus -> ReactionQueue [label="state-changing reactions"];
-  ReactionQueue -> Effect [label="new command"];
-  ReactionQueue -> Status [label="new command"];
-  EventBus -> DebugTrace [label="observation"];
-  Stat -> DebugTrace [label="breakdown"];
-  Effect -> DebugTrace [label="effect log"];
-  Combat -> DebugTrace [label="damage log"];
+
+  ReactionQueue -> Effect [constraint=false, minlen=5, tailport=w, headport=w, style=dashed, color="#8d6cc7", fontcolor="#7251aa", label="new Effect command"];
+  ReactionQueue -> Status [constraint=false, minlen=5, tailport=e, headport=e, style=dashed, color="#8d6cc7", fontcolor="#7251aa", label="new ApplyStatus command"];
+
+  Stat -> StatObservation;
+  Effect -> EffectObservation;
+  Combat -> CombatObservation;
+  StatObservation -> DebugTrace;
+  EffectObservation -> DebugTrace;
+  CombatObservation -> DebugTrace;
+  EventBus -> DebugTrace [label="committed facts observation"];
 }

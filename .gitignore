@@ -11,6 +11,7 @@ venv/
 node_modules/
 playwright-report/
 test-results/
+/.artifacts/
 /.tmp-diagram-tools/
 /.tmp-diagram-raster/
 

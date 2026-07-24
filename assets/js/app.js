@@ -711,6 +711,8 @@
     if (!dialog || !canvas || !modalImage) return;
 
     let scale = 1;
+    let fitScale = 1;
+    let isFitMode = true;
     let x = 0;
     let y = 0;
     let dragging = false;
@@ -720,12 +722,26 @@
       modalImage.style.left = `calc(50% + ${x}px)`;
       modalImage.style.top = `calc(50% + ${y}px)`;
       modalImage.style.transform = `translate(-50%, -50%) scale(${scale})`;
-      canvas.classList.toggle('is-zoomed', scale > 1.01);
-      if (resetButton) resetButton.textContent = `${Math.round(scale * 100)}%`;
+      canvas.classList.toggle('is-zoomed', scale > fitScale * 1.01);
+      if (resetButton) {
+        const atFit = Math.abs(scale - fitScale) < Math.max(.002, fitScale * .02);
+        resetButton.textContent = `${Math.round(scale * 100)}%`;
+        resetButton.setAttribute('aria-label', atFit ? '원본 크기 100%로 보기' : '화면에 맞춤');
+        resetButton.title = atFit ? '원본 크기 100%로 보기' : '화면에 맞춤';
+      }
+    }
+
+    function calculateFitScale() {
+      if (!modalImage.naturalWidth || !modalImage.naturalHeight) return 1;
+      const availableWidth = Math.max(1, canvas.clientWidth - 48);
+      const availableHeight = Math.max(1, canvas.clientHeight - 48);
+      return Math.min(1, availableWidth / modalImage.naturalWidth, availableHeight / modalImage.naturalHeight);
     }
 
     function reset() {
-      scale = 1;
+      fitScale = calculateFitScale();
+      scale = fitScale;
+      isFitMode = true;
       x = 0;
       y = 0;
       dragging = false;
@@ -734,24 +750,34 @@
 
     function setScale(next, originX = canvas.clientWidth / 2, originY = canvas.clientHeight / 2) {
       const previous = scale;
-      scale = Math.max(0.5, Math.min(5, next));
+      const minimum = Math.max(.01, fitScale * .5);
+      scale = Math.max(minimum, Math.min(8, next));
       if (scale === previous) return;
+      isFitMode = false;
       const rect = canvas.getBoundingClientRect();
       const localX = originX - rect.left - rect.width / 2;
       const localY = originY - rect.top - rect.height / 2;
       const ratio = scale / previous;
       x = localX - (localX - x) * ratio;
       y = localY - (localY - y) * ratio;
-      if (scale <= 1) { x = 0; y = 0; }
+      if (scale <= fitScale * 1.001) { x = 0; y = 0; }
       applyTransform();
+    }
+
+    function toggleFitNative() {
+      const atFit = Math.abs(scale - fitScale) < Math.max(.002, fitScale * .02);
+      if (atFit || isFitMode) setScale(1);
+      else reset();
     }
 
     function metadataFor(image) {
       const container = image.closest('.diagram, .thumb') || image.parentElement;
       const heading = container?.querySelector('.dh strong, h3, h2');
       const sourceLink = container?.querySelector('.da a[href$=".svg"], .da a[href$=".png"], a[href$=".svg"], a[href$=".png"]');
+      const headingCopy = heading?.cloneNode(true);
+      headingCopy?.querySelector('.heading-anchor')?.remove();
       return {
-        title: heading?.textContent.trim() || image.alt || 'Diagram',
+        title: headingCopy?.textContent.trim() || image.alt || 'Diagram',
         src: image.currentSrc || image.getAttribute('src'),
         original: sourceLink?.href || image.currentSrc || image.src
       };
@@ -760,15 +786,39 @@
     function open(image) {
       const meta = metadataFor(image);
       if (!meta.src) return;
-      reset();
-      modalImage.src = meta.src;
       modalImage.alt = image.alt || meta.title;
       if (title) title.textContent = meta.title;
       if (original) original.href = meta.original;
       openDialog(dialog, image);
+      modalImage.src = meta.src;
+      if (modalImage.complete && modalImage.naturalWidth) reset();
+    }
+
+    function prepareGalleryPreview(image) {
+      const card = image.closest('.thumb');
+      if (!card || image.parentElement?.classList.contains('diagram-preview')) return;
+      const preview = document.createElement('div');
+      preview.className = 'diagram-preview';
+      image.before(preview);
+      preview.append(image);
+      const classify = () => {
+        if (!image.naturalWidth || !image.naturalHeight) return;
+        const ratio = image.naturalWidth / image.naturalHeight;
+        preview.dataset.aspect = ratio > 2.2 ? 'wide' : ratio < .75 ? 'tall' : 'balanced';
+        preview.style.setProperty('--preview-width', `${Math.min(image.naturalWidth, 1600)}px`);
+        preview.style.setProperty('--preview-height', `${Math.min(image.naturalHeight, 900)}px`);
+        requestAnimationFrame(() => {
+          const isWide = preview.dataset.aspect === 'wide';
+          preview.scrollLeft = isWide ? Math.max(0, (preview.scrollWidth - preview.clientWidth) / 2) : 0;
+          preview.scrollTop = isWide ? Math.max(0, (preview.scrollHeight - preview.clientHeight) / 2) : 0;
+        });
+      };
+      image.addEventListener('load', classify);
+      if (image.complete) classify();
     }
 
     $$('img.zoomable, img[data-zoom]').forEach(image => {
+      prepareGalleryPreview(image);
       image.tabIndex = image.tabIndex >= 0 ? image.tabIndex : 0;
       image.setAttribute('role', 'button');
       image.setAttribute('aria-label', `${image.alt || '다이어그램'} 크게 보기`);
@@ -781,16 +831,17 @@
       });
     });
 
-    zoomIn?.addEventListener('click', () => setScale(scale + 0.25));
-    zoomOut?.addEventListener('click', () => setScale(scale - 0.25));
-    resetButton?.addEventListener('click', reset);
+    modalImage.addEventListener('load', reset);
+    zoomIn?.addEventListener('click', () => setScale(scale * 1.35));
+    zoomOut?.addEventListener('click', () => setScale(scale / 1.35));
+    resetButton?.addEventListener('click', toggleFitNative);
     canvas.addEventListener('wheel', event => {
       event.preventDefault();
-      setScale(scale + (event.deltaY < 0 ? 0.18 : -0.18), event.clientX, event.clientY);
+      setScale(scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15), event.clientX, event.clientY);
     }, { passive: false });
 
     canvas.addEventListener('pointerdown', event => {
-      if (scale <= 1 || event.button !== 0) return;
+      if (scale <= fitScale * 1.01 || event.button !== 0) return;
       dragging = true;
       pointerStart = { pointerX: event.clientX, pointerY: event.clientY, x, y };
       canvas.setPointerCapture(event.pointerId);
@@ -810,17 +861,24 @@
     }
     canvas.addEventListener('pointerup', endDrag);
     canvas.addEventListener('pointercancel', endDrag);
-    canvas.addEventListener('dblclick', event => setScale(scale > 1 ? 1 : 2, event.clientX, event.clientY));
+    canvas.addEventListener('dblclick', toggleFitNative);
     modalImage.addEventListener('dragstart', event => event.preventDefault());
     dialog.addEventListener('close', () => {
       modalImage.removeAttribute('src');
-      reset();
+      scale = 1;
+      fitScale = 1;
+      isFitMode = true;
+      x = 0;
+      y = 0;
+      applyTransform();
     });
     dialog.addEventListener('keydown', event => {
-      if (event.key === '+' || event.key === '=') setScale(scale + 0.25);
-      if (event.key === '-') setScale(scale - 0.25);
+      if (event.key === '+' || event.key === '=') setScale(scale * 1.35);
+      if (event.key === '-') setScale(scale / 1.35);
       if (event.key === '0') reset();
+      if (event.key === '1') setScale(1);
     });
+    window.addEventListener('resize', () => { if (dialog.open && isFitMode) reset(); });
   }
 
   function initialiseCalculator() {
@@ -830,8 +888,11 @@
       const fields = [
         ['base', 'Base', 100],
         ['flat', 'Flat Add', 20],
-        ['inc', 'Increase %', 30],
+        ['inc', 'PercentAdd %', 30],
         ['more', 'More %', 20],
+        ['less', 'Less %', 0],
+        ['override', 'Override (optional)', ''],
+        ['min', 'Min Clamp', 0],
         ['clamp', 'Max Clamp', 9999]
       ];
       fields.forEach(([key, labelText, value]) => {
@@ -856,7 +917,7 @@
       box.appendChild(result);
       const note = document.createElement('p');
       note.className = 'calc-note';
-      note.textContent = 'min(clamp, (base + flat) × (1 + increase/100) × (1 + more/100))';
+      note.textContent = 'Round(Clamp(Override ?? (base + flat) × (1 + percentAdd/100) × (1 + more/100) × (1 - less/100)), 2)';
       box.appendChild(note);
     }
 
@@ -864,10 +925,17 @@
     function calculate() {
       const values = {};
       $$('input[data-calc-key]', box).forEach(input => {
-        values[input.dataset.calcKey] = Number.parseFloat(input.value) || 0;
+        const parsed = Number.parseFloat(input.value);
+        values[input.dataset.calcKey] = Number.isFinite(parsed) ? parsed : null;
       });
-      const raw = (values.base + values.flat) * (1 + values.inc / 100) * (1 + values.more / 100);
-      const finalValue = Math.min(values.clamp, raw);
+      // 입력 percent point를 ratio로 바꾼 뒤 문서의 stage 순서를 그대로 따른다.
+      const calculated = ((values.base ?? 0) + (values.flat ?? 0))
+        * (1 + (values.inc ?? 0) / 100)
+        * (1 + (values.more ?? 0) / 100)
+        * (1 - (values.less ?? 0) / 100);
+      const overridden = values.override ?? calculated;
+      const clamped = Math.min(values.clamp ?? Number.POSITIVE_INFINITY, Math.max(values.min ?? Number.NEGATIVE_INFINITY, overridden));
+      const finalValue = Math.round((clamped + Number.EPSILON) * 100) / 100;
       if (result) result.textContent = `Final Value = ${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 2 }).format(finalValue)}`;
     }
     box.addEventListener('input', calculate);
@@ -1516,6 +1584,218 @@
     runMigrationProbe();
   }
 
+  function initialiseCapstoneAssessor() {
+    const root = $('[data-capstone-lab]');
+    const C = window.GSFCapstone;
+    if (!root || !C) return;
+
+    const editor = $('[data-capstone-editor]', root);
+    const assessButton = $('[data-capstone-assess]', root);
+    const resetButton = $('[data-capstone-reset]', root);
+    const score = $('[data-capstone-score]', root);
+    const meter = $('[data-capstone-meter]', root);
+    const status = $('[data-capstone-status]', root);
+    const criticalCount = $('[data-capstone-critical-count]', root);
+    const draftStatus = $('[data-capstone-draft-status]', root);
+    const feedback = $('[data-capstone-feedback]', root);
+    const evidence = $('[data-capstone-evidence]', root);
+    const storageKey = `gsf-capstone-draft-${C.CHALLENGE_ID}`;
+    const starter = JSON.stringify(C.createStarterSubmission(), null, 2);
+    const storageAvailable = safeStorage.available();
+    const storedDraft = safeStorage.get(storageKey);
+    let loadableDraft = null;
+    let discardedInvalidDraft = false;
+    if (storedDraft !== null) {
+      try {
+        const parsedDraft = JSON.parse(storedDraft);
+        if (storedDraft.length <= C.MAX_SUBMISSION_CHARS && C.assessCombatCapstone(parsedDraft).schemaValid) {
+          loadableDraft = storedDraft;
+        } else {
+          discardedInvalidDraft = true;
+          safeStorage.remove(storageKey);
+        }
+      } catch {
+        discardedInvalidDraft = true;
+        safeStorage.remove(storageKey);
+      }
+    }
+    let saveTimer = 0;
+
+    function setGate(name, passed, pending = false) {
+      const node = $(`[data-capstone-gate="${name}"]`, root);
+      if (!node) return;
+      node.textContent = pending ? '대기' : passed ? 'PASS' : 'FAIL';
+      if (pending) delete node.dataset.state;
+      else node.dataset.state = passed ? 'pass' : 'fail';
+    }
+
+    function resetAssessment(message = '아직 채점하지 않았습니다.') {
+      if (score) score.textContent = '—';
+      if (meter) {
+        meter.value = 0;
+        meter.textContent = '0 / 100';
+      }
+      if (status) {
+        status.textContent = message;
+        delete status.dataset.state;
+      }
+      if (criticalCount) {
+        criticalCount.textContent = '—';
+        delete criticalCount.dataset.state;
+      }
+      for (const name of ['normal', 'edge', 'failure']) setGate(name, false, true);
+      if (evidence) evidence.textContent = '{}';
+      if (feedback) {
+        const item = document.createElement('li');
+        item.textContent = '설계를 채점하면 배점과 빠진 계약이 여기에 표시됩니다.';
+        feedback.replaceChildren(item);
+      }
+    }
+
+    function renderSchemaError(message, details = []) {
+      if (score) score.textContent = '0';
+      if (meter) {
+        meter.value = 0;
+        meter.textContent = '0 / 100';
+      }
+      if (status) {
+        status.textContent = message;
+        status.dataset.state = 'fail';
+      }
+      if (criticalCount) {
+        criticalCount.textContent = '1';
+        criticalCount.dataset.state = 'fail';
+      }
+      for (const name of ['normal', 'edge', 'failure']) setGate(name, false);
+      if (evidence) evidence.textContent = JSON.stringify({ schemaValid: false, errors: details.slice(0, 3) }, null, 2);
+      if (!feedback) return;
+      const item = document.createElement('li');
+      const title = document.createElement('strong');
+      const copy = document.createElement('small');
+      title.textContent = '제출 형식 확인';
+      copy.textContent = details.length ? details.slice(0, 3).join(' ') : message;
+      item.dataset.state = 'fail';
+      item.append(title, copy);
+      feedback.replaceChildren(item);
+    }
+
+    function renderAssessment(result) {
+      if (!result.schemaValid) {
+        renderSchemaError('SCHEMA FAIL · 고정 JSON 계약을 확인하세요.', result.schemaErrors);
+        return;
+      }
+      const passedGates = Object.values(result.gates).filter(Boolean).length;
+      const passedDimensions = result.criteria.filter(criterion => criterion.pass).length;
+      if (score) score.textContent = String(result.score);
+      if (meter) {
+        meter.value = result.score;
+        meter.textContent = `${result.score} / 100`;
+      }
+      if (status) {
+        status.textContent = result.passed
+          ? `PASS · ${result.score}/100 · dimension 6/6 · gate 3/3 · critical 0`
+          : `NOT YET · ${result.score}/100 · dimension ${passedDimensions}/6 · gate ${passedGates}/3 · critical ${result.criticalViolations.length}`;
+        status.dataset.state = result.passed ? 'pass' : 'fail';
+      }
+      if (criticalCount) {
+        criticalCount.textContent = String(result.criticalViolations.length);
+        criticalCount.dataset.state = result.criticalViolations.length === 0 ? 'pass' : 'fail';
+      }
+      for (const name of ['normal', 'edge', 'failure']) setGate(name, result.gates[name]);
+      if (evidence) {
+        const visibleEvidence = Object.fromEntries(Object.entries(result.probes).map(([name, probe]) => [name, {
+          passed: probe.passed,
+          failedChecks: probe.checks.filter(check => !check.pass).map(check => check.id),
+          evidence: probe.evidence
+        }]));
+        evidence.textContent = JSON.stringify(visibleEvidence, null, 2);
+      }
+      if (!feedback) return;
+
+      // 사용자 문자열은 HTML로 해석하지 않고 항목별 안전한 text node로만 그린다.
+      const items = result.criteria.map(criterion => {
+        const item = document.createElement('li');
+        const head = document.createElement('div');
+        const title = document.createElement('strong');
+        const points = document.createElement('b');
+        const detail = document.createElement('small');
+        const failures = criterion.checks.filter(check => !check.pass);
+        title.textContent = criterion.label;
+        points.textContent = `${criterion.score} / ${criterion.maxScore} · min ${criterion.minimumScore}`;
+        detail.textContent = failures.length === 0
+          ? '모든 rubric check를 충족했습니다.'
+          : `${criterion.pass ? '차원 최소점 충족 · 추가 보완' : '차원 최소점 미달 · 보완'}: ${failures.map(check => check.label).join(' · ')}`;
+        item.dataset.state = failures.length === 0 ? 'pass' : 'fail';
+        head.append(title, points);
+        item.append(head, detail);
+        return item;
+      });
+      if (result.criticalViolations.length) {
+        const item = document.createElement('li');
+        const head = document.createElement('div');
+        const title = document.createElement('strong');
+        const points = document.createElement('b');
+        const detail = document.createElement('small');
+        title.textContent = 'Critical gate';
+        points.textContent = `${result.criticalViolations.length} violation`;
+        detail.textContent = result.criticalViolations.map(item => item.label).join(' · ');
+        item.dataset.state = 'fail';
+        head.append(title, points);
+        item.append(head, detail);
+        items.unshift(item);
+      }
+      feedback.replaceChildren(...items);
+    }
+
+    function saveDraft() {
+      if (!storageAvailable) {
+        if (draftStatus) draftStatus.textContent = '이 환경에서는 draft를 저장할 수 없지만 채점은 계속할 수 있습니다.';
+        return false;
+      }
+      const saved = safeStorage.set(storageKey, editor.value);
+      if (draftStatus) draftStatus.textContent = saved ? '이 브라우저에 draft를 저장했습니다.' : 'draft를 저장하지 못했습니다.';
+      return saved;
+    }
+
+    editor.value = loadableDraft ?? starter;
+    if (draftStatus) {
+      draftStatus.textContent = discardedInvalidDraft
+        ? '이전 계약과 맞지 않는 draft를 지우고 최신 Starter를 불러왔습니다.'
+        : loadableDraft !== null
+        ? '이 브라우저에 저장된 draft를 불러왔습니다.'
+        : storageAvailable ? 'Starter를 불러왔습니다. 변경 내용은 이 브라우저에만 저장됩니다.' : 'Starter를 불러왔습니다. 이 환경에서는 draft를 저장할 수 없습니다.';
+    }
+
+    // 입력 중 저장 횟수를 줄이되 마지막 draft는 짧은 지연 뒤 반영한다.
+    editor.addEventListener('input', () => {
+      window.clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(saveDraft, 180);
+    });
+    assessButton?.addEventListener('click', () => {
+      window.clearTimeout(saveTimer);
+      saveDraft();
+      if (editor.value.length > C.MAX_SUBMISSION_CHARS) {
+        renderSchemaError(`SIZE FAIL · ${C.MAX_SUBMISSION_CHARS.toLocaleString('ko-KR')}자 이하로 줄이세요.`);
+        return;
+      }
+      try {
+        renderAssessment(C.assessCombatCapstone(JSON.parse(editor.value)));
+      } catch (error) {
+        renderSchemaError('JSON PARSE FAIL · 문법을 확인하세요.', [String(error.message || error)]);
+      }
+    });
+    resetButton?.addEventListener('click', () => {
+      window.clearTimeout(saveTimer);
+      editor.value = starter;
+      safeStorage.remove(storageKey);
+      if (draftStatus) draftStatus.textContent = '저장된 draft를 지우고 Starter로 초기화했습니다.';
+      resetAssessment('Starter로 초기화했습니다. 아직 채점하지 않았습니다.');
+      editor.focus();
+    });
+
+    resetAssessment();
+  }
+
   initialiseDialogs();
   initialiseTheme();
   initialiseFocusMode();
@@ -1536,4 +1816,5 @@
   initialiseCurrentNavigation();
   initialiseLearningProgress();
   initialiseRuntimeReference();
+  initialiseCapstoneAssessor();
 })();

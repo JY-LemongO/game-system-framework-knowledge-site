@@ -10,11 +10,20 @@ public sealed class ReactionCommand
         EntityId handlerId,
         EntityId targetId,
         SourceRef source,
+        EntityId causationId,
         int priority,
         EntityId stableOrderKey,
         int depth,
         int budgetCost)
     {
+        EntityId.ThrowIfInvalid(reactionId, nameof(reactionId));
+        EntityId.ThrowIfInvalid(idempotencyKey, nameof(idempotencyKey));
+        EntityId.ThrowIfInvalid(handlerId, nameof(handlerId));
+        EntityId.ThrowIfInvalid(targetId, nameof(targetId));
+        SourceRef.ThrowIfInvalid(source, nameof(source));
+        EntityId.ThrowIfInvalid(causationId, nameof(causationId));
+        EntityId.ThrowIfInvalid(stableOrderKey, nameof(stableOrderKey));
+
         if (depth < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(depth));
@@ -30,6 +39,7 @@ public sealed class ReactionCommand
         HandlerId = handlerId;
         TargetId = targetId;
         Source = source;
+        CausationId = causationId;
         Priority = priority;
         StableOrderKey = stableOrderKey;
         Depth = depth;
@@ -46,6 +56,8 @@ public sealed class ReactionCommand
 
     public SourceRef Source { get; }
 
+    public EntityId CausationId { get; }
+
     public int Priority { get; }
 
     public EntityId StableOrderKey { get; }
@@ -53,6 +65,19 @@ public sealed class ReactionCommand
     public int Depth { get; }
 
     public int BudgetCost { get; }
+
+    public ReactionCommand WithDepth(int depth) =>
+        new(
+            ReactionId,
+            IdempotencyKey,
+            HandlerId,
+            TargetId,
+            Source,
+            CausationId,
+            Priority,
+            StableOrderKey,
+            depth,
+            BudgetCost);
 }
 
 public sealed class ReactionBudget
@@ -72,7 +97,7 @@ public sealed class ReactionBudget
             throw new ArgumentOutOfRangeException(nameof(maxDepth));
         }
 
-        if (maxBudget < 0)
+        if (maxBudget <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(maxBudget));
         }
@@ -111,6 +136,13 @@ public sealed class ReactionRule
         bool requiresHit,
         bool requiresTargetAlive)
     {
+        EntityId.ThrowIfInvalid(ruleId, nameof(ruleId));
+        EntityId.ThrowIfInvalid(triggerEventTypeId, nameof(triggerEventTypeId));
+        EntityId.ThrowIfInvalid(reactionId, nameof(reactionId));
+        EntityId.ThrowIfInvalid(idempotencyKey, nameof(idempotencyKey));
+        EntityId.ThrowIfInvalid(handlerId, nameof(handlerId));
+        EntityId.ThrowIfInvalid(stableOrderKey, nameof(stableOrderKey));
+
         if (depth < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(depth));
@@ -161,19 +193,121 @@ public sealed record EffectContext(
     EntityId CasterId,
     EntityId? InitialTargetId,
     SourceRef Source,
-    int RandomSeed);
+    uint RandomSeed)
+{
+    private EntityId _casterId = ValidEntityId(CasterId, nameof(CasterId));
+    private EntityId? _initialTargetId = ValidOptionalEntityId(
+        InitialTargetId,
+        nameof(InitialTargetId));
+    private SourceRef _source = ValidSource(Source, nameof(Source));
 
-public abstract record EffectOperation(EntityId OperationId);
+    public EntityId CasterId
+    {
+        get => _casterId;
+        init => _casterId = ValidEntityId(value, nameof(CasterId));
+    }
 
-public sealed record DamageEffectOperation(
-    EntityId OperationId,
-    DamageRequest Request)
-    : EffectOperation(OperationId);
+    public EntityId? InitialTargetId
+    {
+        get => _initialTargetId;
+        init => _initialTargetId = ValidOptionalEntityId(
+            value,
+            nameof(InitialTargetId));
+    }
 
-public sealed record ApplyStatusEffectOperation(
-    EntityId OperationId,
-    ApplyStatusRequest Request)
-    : EffectOperation(OperationId);
+    public SourceRef Source
+    {
+        get => _source;
+        init => _source = ValidSource(value, nameof(Source));
+    }
+
+    private static EntityId ValidEntityId(
+        EntityId entityId,
+        string parameterName)
+    {
+        EntityId.ThrowIfInvalid(entityId, parameterName);
+        return entityId;
+    }
+
+    private static EntityId? ValidOptionalEntityId(
+        EntityId? entityId,
+        string parameterName)
+    {
+        if (entityId.HasValue)
+        {
+            EntityId.ThrowIfInvalid(entityId.Value, parameterName);
+        }
+
+        return entityId;
+    }
+
+    private static SourceRef ValidSource(
+        SourceRef source,
+        string parameterName)
+    {
+        SourceRef.ThrowIfInvalid(source, parameterName);
+        return source;
+    }
+}
+
+public abstract record EffectOperation(EntityId OperationId)
+{
+    private EntityId _operationId = ValidOperationId(
+        OperationId,
+        nameof(OperationId));
+
+    public EntityId OperationId
+    {
+        get => _operationId;
+        init => _operationId = ValidOperationId(value, nameof(OperationId));
+    }
+
+    private static EntityId ValidOperationId(
+        EntityId operationId,
+        string parameterName)
+    {
+        EntityId.ThrowIfInvalid(operationId, parameterName);
+        return operationId;
+    }
+}
+
+public sealed record DamageEffectOperation : EffectOperation
+{
+    private DamageRequest _request;
+
+    public DamageEffectOperation(
+        EntityId operationId,
+        DamageRequest request)
+        : base(operationId)
+    {
+        _request = request ?? throw new ArgumentNullException(nameof(request));
+    }
+
+    public DamageRequest Request
+    {
+        get => _request;
+        init => _request = value ?? throw new ArgumentNullException(nameof(value));
+    }
+}
+
+public sealed record ApplyStatusEffectOperation : EffectOperation
+{
+    private ApplyStatusRequest _request;
+
+    public ApplyStatusEffectOperation(
+        EntityId operationId,
+        ApplyStatusRequest request)
+        : base(operationId)
+    {
+        _request = request ?? throw new ArgumentNullException(nameof(request));
+    }
+
+    public ApplyStatusRequest Request
+    {
+        get => _request;
+        init => _request = value ?? throw new ArgumentNullException(nameof(value));
+    }
+}
 
 /// <summary>
 /// Controls only when reactions begin relative to the primary commit.
@@ -184,6 +318,42 @@ public enum EffectExecutionPolicy
     CommitThenReact
 }
 
+internal static class EffectIdentityValidation
+{
+    internal static void EnsureUniqueIds(
+        IEnumerable<EntityId> ids,
+        string parameterName,
+        string kind)
+    {
+        var seen = new HashSet<EntityId>();
+        if (ids.Any(id => !seen.Add(id)))
+        {
+            throw new ArgumentException(
+                $"An effect collection can mention each {kind} ID only once.",
+                parameterName);
+        }
+    }
+
+    internal static void EnsureUniqueReactions(
+        IReadOnlyCollection<ReactionRule> reactions,
+        string parameterName)
+    {
+        // 같은 bundle 안의 reaction은 실행 identity와 멱등 identity가 모두 유일해야 한다.
+        EnsureUniqueIds(
+            reactions.Select(reaction => reaction.RuleId),
+            parameterName,
+            "reaction rule");
+        EnsureUniqueIds(
+            reactions.Select(reaction => reaction.ReactionId),
+            parameterName,
+            "reaction");
+        EnsureUniqueIds(
+            reactions.Select(reaction => reaction.IdempotencyKey),
+            parameterName,
+            "reaction idempotency key");
+    }
+}
+
 public sealed class EffectBundle
 {
     public EffectBundle(
@@ -192,6 +362,13 @@ public sealed class EffectBundle
         IEnumerable<ReactionRule>? reactions = null,
         EffectExecutionPolicy policy = EffectExecutionPolicy.CommitThenReact)
     {
+        EntityId.ThrowIfInvalid(bundleId, nameof(bundleId));
+
+        if (!Enum.IsDefined(policy))
+        {
+            throw new ArgumentOutOfRangeException(nameof(policy));
+        }
+
         var effectCopy = effects?.ToArray() ??
             throw new ArgumentNullException(nameof(effects));
         if (effectCopy.Length == 0)
@@ -201,7 +378,28 @@ public sealed class EffectBundle
                 nameof(effects));
         }
 
+        foreach (var effect in effectCopy)
+        {
+            ArgumentNullException.ThrowIfNull(effect, nameof(effects));
+            EntityId.ThrowIfInvalid(effect.OperationId, nameof(effects));
+        }
+
+        EffectIdentityValidation.EnsureUniqueIds(
+            effectCopy.Select(effect => effect.OperationId),
+            nameof(effects),
+            "operation");
+
         var reactionCopy = (reactions ?? Enumerable.Empty<ReactionRule>()).ToArray();
+        if (reactionCopy.Any(reaction => reaction is null))
+        {
+            throw new ArgumentException(
+                "Effect bundle reactions cannot contain null values.",
+                nameof(reactions));
+        }
+
+        EffectIdentityValidation.EnsureUniqueReactions(
+            reactionCopy,
+            nameof(reactions));
 
         BundleId = bundleId;
         Effects = Array.AsReadOnly(effectCopy);
@@ -229,6 +427,8 @@ public sealed class EffectBundlePlan
         IEnumerable<EffectOperation> primaryOperations,
         IEnumerable<ReactionRule>? reactions = null)
     {
+        EntityId.ThrowIfInvalid(bundleId, nameof(bundleId));
+
         var operationCopy = primaryOperations?.ToArray() ??
             throw new ArgumentNullException(nameof(primaryOperations));
         if (operationCopy.Length == 0)
@@ -238,10 +438,32 @@ public sealed class EffectBundlePlan
                 nameof(primaryOperations));
         }
 
+        foreach (var operation in operationCopy)
+        {
+            ArgumentNullException.ThrowIfNull(operation, nameof(primaryOperations));
+            EntityId.ThrowIfInvalid(operation.OperationId, nameof(primaryOperations));
+        }
+
+        EffectIdentityValidation.EnsureUniqueIds(
+            operationCopy.Select(operation => operation.OperationId),
+            nameof(primaryOperations),
+            "operation");
+
+        var reactionCopy = (reactions ?? Enumerable.Empty<ReactionRule>()).ToArray();
+        if (reactionCopy.Any(reaction => reaction is null))
+        {
+            throw new ArgumentException(
+                "Effect plan reactions cannot contain null values.",
+                nameof(reactions));
+        }
+
+        EffectIdentityValidation.EnsureUniqueReactions(
+            reactionCopy,
+            nameof(reactions));
+
         BundleId = bundleId;
         PrimaryOperations = Array.AsReadOnly(operationCopy);
-        Reactions = Array.AsReadOnly(
-            (reactions ?? Enumerable.Empty<ReactionRule>()).ToArray());
+        Reactions = Array.AsReadOnly(reactionCopy);
     }
 
     public EntityId BundleId { get; }
@@ -260,15 +482,71 @@ public interface IEffectPlanner
 
 public abstract record EffectResult(bool Succeeded);
 
-public sealed record EffectOperationResult(bool Succeeded, EntityId OperationId)
-    : EffectResult(Succeeded);
+public sealed record EffectOperationResult(
+    bool Succeeded,
+    EntityId OperationId)
+    : EffectResult(Succeeded)
+{
+    private EntityId _operationId = ValidOperationId(
+        OperationId,
+        nameof(OperationId));
 
-public sealed record EffectBundleResult(
-    bool Committed,
-    EntityId BundleId,
-    int AppliedEffectCount,
-    int QueuedReactionCount)
-    : EffectResult(Committed);
+    public EntityId OperationId
+    {
+        get => _operationId;
+        init => _operationId = ValidOperationId(value, nameof(OperationId));
+    }
+
+    private static EntityId ValidOperationId(
+        EntityId operationId,
+        string parameterName)
+    {
+        EntityId.ThrowIfInvalid(operationId, parameterName);
+        return operationId;
+    }
+}
+
+public sealed record EffectBundleResult : EffectResult
+{
+    public EffectBundleResult(
+        bool committed,
+        EntityId bundleId,
+        int appliedEffectCount,
+        int queuedReactionCount)
+        : base(committed)
+    {
+        EntityId.ThrowIfInvalid(bundleId, nameof(bundleId));
+
+        if (appliedEffectCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(appliedEffectCount));
+        }
+
+        if (queuedReactionCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(queuedReactionCount));
+        }
+
+        if (!committed && (appliedEffectCount != 0 || queuedReactionCount != 0))
+        {
+            throw new ArgumentException(
+                "An uncommitted bundle cannot report applied effects or queued reactions.");
+        }
+
+        Committed = committed;
+        BundleId = bundleId;
+        AppliedEffectCount = appliedEffectCount;
+        QueuedReactionCount = queuedReactionCount;
+    }
+
+    public bool Committed { get; }
+
+    public EntityId BundleId { get; }
+
+    public int AppliedEffectCount { get; }
+
+    public int QueuedReactionCount { get; }
+}
 
 public interface IEffectExecutor
 {

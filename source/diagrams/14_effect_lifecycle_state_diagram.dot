@@ -1,42 +1,68 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.65, nodesep=0.48];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
-  rankdir=LR;
-  splines=ortho;
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.30, ranksep=0.82, nodesep=0.85, newrank=true, outputorder=edgesfirst, splines=polyline, label="Conceptual product lifecycle · executable reference handoffs are named explicitly", labelloc=t, fontsize=16];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", fontsize=9, arrowsize=0.8, penwidth=1.3];
+  rankdir=TB;
   node [shape=box, style="rounded,filled", width=1.9, height=0.5];
 
-  Defined [label="Defined\nstatic data", fillcolor="#fff7e6", color="#e0ad4e"];
-  Registered [label="Registered\nloaded and validated", fillcolor="#eaf0ff", color="#8292f7"];
-  Requested [label="Requested\npublic Operation | Bundle + Context", fillcolor="#eaf0ff", color="#8292f7"];
-  Validating [label="Validating\nconditions", fillcolor="#f3eefc", color="#ab8fe0"];
-  ResolvingTargets [label="Resolving Targets\nfilter + stable sort", fillcolor="#f3eefc", color="#ab8fe0"];
-  Planning [label="Planning (internal)\nrequests + pure results", fillcolor="#eefbf6", color="#61b99a"];
-  Prepared [label="Prepared (public composition contract)\nEffectBundlePlan: operations + reactions", fillcolor="#e9fbff", color="#54b7cf"];
+  Defined [label="Defined (product registry)\ntarget-independent specification", fillcolor="#fff7e6", color="#e0ad4e"];
+  Registered [label="Registered (product adapter)\nloaded + normalized + validated", fillcolor="#eaf0ff", color="#8292f7"];
+  Requested [label="Requested\nReferenceEffectSpecification\n+ EffectContext", fillcolor="#eaf0ff", color="#8292f7"];
+  SnapshotReady [label="Snapshot Ready (spatial adapter)\neligibility + integer metrics\nimmutable CandidateSnapshot", fillcolor="#f3eefc", color="#ab8fe0"];
+  Validating [label="Validating\nspec/context/snapshot structure", fillcolor="#f3eefc", color="#ab8fe0"];
+  ResolvingTargets [label="Resolving Targets (executable)\none-shot bind + total order + MaxTargets\nno eligibility recheck", fillcolor="#f3eefc", color="#ab8fe0"];
+  Resolved [label="Resolved (executable)\ntarget-bound ResolvedEffectOperation", fillcolor="#eefbf6", color="#61b99a"];
+  Planning [label="Planning (domain owner + adapter)\npure EffectOperationOutcome\n+ optional CommitPlanFragment", fillcolor="#eefbf6", color="#61b99a"];
+  Prepared [shape=diamond, label="Composition status?", fillcolor="#fff7e6", color="#e0ad4e"];
+  Ready [label="Ready\nCommitPlan exists", fillcolor="#e9fbff", color="#54b7cf"];
+  NotApplicable [label="NotApplicable\nmissing explicit / empty snapshot\nstable reason", fillcolor="#f0f3f9", color="#99a8bd"];
+  NoCommit [label="NoChanges\nno commit · no outbox", fillcolor="#f0f3f9", color="#99a8bd"];
   Committing [label="Atomic Commit\nstate + outbox", fillcolor="#fff7e6", color="#e0ad4e"];
   Committed [label="Committed\nEffectResult + facts", fillcolor="#eefbf6", color="#61b99a"];
   ReactionQueued [label="Reaction Queued\nnew bounded command", fillcolor="#f3eefc", color="#ab8fe0"];
-  Scheduled [label="Scheduled\ndelay / periodic due time", fillcolor="#f0f3f9", color="#99a8bd"];
-  WaitingTrigger [label="Waiting Trigger\ncommitted fact predicate", fillcolor="#f0f3f9", color="#99a8bd"];
-  Cancelled [label="Cancelled\nbefore Prepare", fillcolor="#fff0f3", color="#e07b91"];
-  Failed [label="Failed\nvalidation / target / commit", fillcolor="#fff0f3", color="#e07b91"];
+  Scheduled [label="Scheduled (product extension)\ndelay / periodic due time", fillcolor="#f0f3f9", color="#99a8bd"];
+  WaitingTrigger [label="Waiting Trigger (product extension)\ncommitted fact predicate", fillcolor="#f0f3f9", color="#99a8bd"];
+  Cancelled [label="Cancelled (product extension)\nbefore composition", fillcolor="#fff0f3", color="#e07b91"];
+  Failed [label="Failed\nconfiguration / Rejected outcome / commit", fillcolor="#fff0f3", color="#e07b91"];
   Logged [label="Observed\nDebugTrace / UI / log", fillcolor="#f3eefc", color="#ab8fe0"];
 
-  Defined -> Registered [label="load"];
-  Registered -> Requested [label="skill / status / reaction"];
-  Requested -> Validating -> ResolvingTargets -> Planning -> Prepared -> Committing -> Committed;
-  Validating -> Failed [label="condition fail"];
-  ResolvingTargets -> Failed [label="no target"];
-  Committing -> Failed [label="version / invariant fail"];
-  Requested -> Cancelled [label="cancel"];
-  Validating -> Cancelled [label="cancel"];
-  Requested -> Scheduled [label="delay / periodic"];
-  Scheduled -> Requested [label="due"];
-  Registered -> WaitingTrigger [label="reaction definition"];
-  WaitingTrigger -> ReactionQueued [label="committed fact matches"];
-  ReactionQueued -> Requested [label="dequeue command"];
-  Committed -> ReactionQueued [label="commit_then_react"];
-  Committed -> Logged;
-  Failed -> Logged;
-  Cancelled -> Logged;
+  { rank=same; Registered; WaitingTrigger; }
+  { rank=same; Requested; Scheduled; }
+  { rank=same; SnapshotReady; Scheduled; }
+  { rank=same; Validating; Cancelled; }
+  { rank=same; Ready; NoCommit; Failed; }
+  { rank=same; Committing; Failed; }
+  { rank=same; Committed; ReactionQueued; }
+
+  Defined:s -> Registered:n [label="load validated definition" color="#8A6D3B"];
+  Registered:s -> Requested:n [label="create specification request" color="#5B6F8F"];
+  Requested:s -> SnapshotReady:n [label="candidate mode" color="#5B6F8F"];
+  Requested:e -> Validating:w [label="Self / Explicit" color="#5B6F8F" constraint=false];
+  SnapshotReady:s -> Validating:n;
+  Validating:s -> ResolvingTargets:n;
+  ResolvingTargets:s -> Resolved:n;
+  Resolved:s -> Planning:n;
+  Planning:s -> Prepared:n;
+  ResolvingTargets:e -> NotApplicable:w [label="missing explicit / empty snapshot" color="#8292A8" style=dashed];
+  NotApplicable:s -> Prepared:e [label="map to outcome" color="#8292A8" style=dashed];
+  Prepared:s -> Ready:n [label="Ready"];
+  Ready:s -> Committing:n [label="CommitPlan only"];
+  Prepared:e -> NoCommit:w [label="NoChanges" color="#8292A8"];
+  Prepared:w -> Failed:e [label="Rejected · no commit" color="#C45C6D" style=dashed];
+  Committing:s -> Committed:n [label="atomic commit succeeded" color="#3D8B6D"];
+  Validating:e -> Failed:nw [label="invalid specification / rule" color="#C45C6D" style=dashed];
+  ResolvingTargets:e -> Failed:w [label="invalid snapshot contract" color="#C45C6D" style=dashed];
+  Committing:e -> Failed:w [label="version / invariant rejected" color="#C45C6D" style=dashed];
+  Requested:e -> Cancelled:n [label="cancel before validation" color="#C45C6D" style=dashed];
+  Validating:e -> Cancelled:w [label="cancel during validation" color="#C45C6D" constraint=false style=dashed];
+  Requested:ne -> Scheduled:nw [label="product scheduling" color="#5B6F8F"];
+  Scheduled:sw -> Requested:se [label="due: enqueue request" color="#5B6F8F" constraint=false style=dashed];
+  Registered:e -> WaitingTrigger:w [label="register reaction predicate" color="#7257A6"];
+  WaitingTrigger:s -> ReactionQueued:n [label="committed fact matched" color="#7257A6"];
+  ReactionQueued:nw -> Requested:sw [label="dequeue reaction command" color="#7257A6" constraint=false];
+  Committed:e -> ReactionQueued:w [label="commit_then_react" color="#7257A6"];
+  Committed:s -> Logged:n [color="#8292A8" style=dotted];
+  NoCommit:s -> Logged:n [label="observe no-op" color="#8292A8" style=dotted];
+  Failed:s -> Logged:n [color="#8292A8" style=dotted];
+  Cancelled:s -> Logged:n [color="#8292A8" style=dotted];
 }

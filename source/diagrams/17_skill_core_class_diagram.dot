@@ -1,10 +1,9 @@
 
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.70, nodesep=0.50];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
-  rankdir=LR;
-  splines=ortho;
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.84, nodesep=0.60, newrank=true, compound=true, splines=polyline];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+  rankdir=TB;
 
   SkillDefinition [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e0ad4e">
@@ -29,7 +28,7 @@ digraph G {
   SkillRequest [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a">
 <TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">&lt;&lt;public contract&gt;&gt; SkillRequest</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ CasterId</TD></TR><TR><TD ALIGN="LEFT">+ SkillId</TD></TR><TR><TD ALIGN="LEFT">+ TargetId?</TD></TR><TR><TD ALIGN="LEFT">+ RequestedTick</TD></TR><TR><TD ALIGN="LEFT">+ RootSeed</TD></TR>
+<TR><TD ALIGN="LEFT">+ CommandId</TD></TR><TR><TD ALIGN="LEFT">+ CasterId</TD></TR><TR><TD ALIGN="LEFT">+ SkillId</TD></TR><TR><TD ALIGN="LEFT">+ TargetId?</TD></TR><TR><TD ALIGN="LEFT">+ RequestedTick</TD></TR><TR><TD ALIGN="LEFT">+ RootSeed</TD></TR>
 </TABLE>>];
   SkillValidator [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0">
@@ -76,22 +75,46 @@ digraph G {
 <TR><TD BGCOLOR="#f0f3f9"><B><FONT POINT-SIZE="16">&lt;&lt;public contract&gt;&gt; SkillResult</FONT></B></TD></TR>
 <TR><TD ALIGN="LEFT">+ Succeeded</TD></TR><TR><TD ALIGN="LEFT">+ FailureReason?</TD></TR><TR><TD ALIGN="LEFT">+ Effects: IReadOnlyList&lt;EffectResult&gt;</TD></TR>
 </TABLE>>];
-  SkillBook -> SkillRuntime [label="owns 0..*"];
-  SkillDefinition -> CostPolicy [label="has"];
-  SkillDefinition -> CooldownPolicy [label="has"];
-  SkillDefinition -> TargetingSpec [label="has"];
-  SkillDefinition -> ActionTimeline [label="has"];
-  SkillDefinition -> EffectBundle [label="executes"];
-  SkillRequest -> SkillValidator [label="Validate"];
-  SkillRequest -> Coordinator [label="request data"];
-  SkillValidator -> SkillDecision [label="returns"];
+
+  subgraph cluster_request_lane {
+    label="Request · decision · public result"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
+    SkillRequest; SkillValidator; SkillDecision; Coordinator; SkillResult;
+    { rank=same; SkillRequest; SkillValidator; SkillDecision; Coordinator; SkillResult; }
+  }
+
+  subgraph cluster_definition_lane {
+    label="SkillDefinition-owned authoring contracts"; style="rounded,dashed"; color="#eadfbe"; fontcolor="#806b35"; fontsize=18;
+    SkillDefinition; CostPolicy; CooldownPolicy; TargetingSpec; ActionTimeline; EffectBundle;
+    { rank=same; CostPolicy; CooldownPolicy; TargetingSpec; ActionTimeline; EffectBundle; }
+  }
+
+  subgraph cluster_runtime_lane {
+    label="Project runtime state · one execution"; style="rounded,dashed"; color="#d5e7ef"; fontcolor="#497488"; fontsize=18;
+    SkillBook; SkillRuntime; SkillExecution;
+    { rank=same; SkillBook; SkillRuntime; SkillExecution; }
+  }
+
+  SkillRequest -> SkillValidator [label="Validate request"];
+  SkillValidator -> SkillDecision [label="SkillDecision"];
   SkillDecision -> Coordinator [label="accepted request"];
+  Coordinator -> SkillResult [label="public SkillResult"];
+
+  SkillDefinition -> CostPolicy [color="#b28a2f"];
+  SkillDefinition -> CooldownPolicy [color="#b28a2f"];
+  SkillDefinition -> TargetingSpec [color="#b28a2f"];
+  SkillDefinition -> ActionTimeline [color="#b28a2f"];
+  SkillDefinition -> EffectBundle [color="#b28a2f"];
+
+  SkillValidator -> CostPolicy [constraint=false, style=dashed, color="#8d6cc7", penwidth=1.1];
+  SkillValidator -> CooldownPolicy [constraint=false, style=dashed, color="#8d6cc7", penwidth=1.1];
+  SkillValidator -> TargetingSpec [constraint=false, style=dashed, color="#8d6cc7", penwidth=1.1];
+
+  SkillBook -> SkillRuntime [label="owns runtime state"];
   Coordinator -> SkillRuntime [label="read snapshot / plan mutation"];
-  Coordinator -> SkillExecution [label="creates"];
-  SkillValidator -> CostPolicy [label="cost"];
-  SkillValidator -> CooldownPolicy [label="cooldown"];
-  SkillValidator -> TargetingSpec [label="target"];
-  SkillExecution -> ActionTimeline [label="advances"];
-  Coordinator -> EffectBundle [label="passes to public IEffectPlanner.Prepare"];
-  Coordinator -> SkillResult [label="returns"];
+  Coordinator -> SkillExecution [label="creates execution"];
+  SkillExecution -> ActionTimeline [constraint=false, style=dashed, color="#3f8fa7", fontcolor="#317487", label="advances timeline"];
+  Coordinator -> EffectBundle [constraint=false, style=dashed, color="#3f8fa7", fontcolor="#317487", label="IEffectPlanner.Prepare input"];
+
+  SkillDecision -> SkillDefinition [style=invis, weight=80];
+  EffectBundle -> SkillRuntime [style=invis, weight=80];
 }

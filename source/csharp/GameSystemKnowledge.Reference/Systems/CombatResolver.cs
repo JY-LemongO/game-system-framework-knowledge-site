@@ -23,16 +23,20 @@ public sealed class CombatResolver : ICombatResolver
                 overkill: 0);
         }
 
-        var formulaDamage = RoundDamage(
+        var formulaDamage =
             request.BaseValue +
-            (context.ScalingStatValue * request.CoefficientBps / 10_000m));
+            (context.ScalingStatValue * request.CoefficientBps / 10_000m);
         // RawDamage is the value entering mitigation. Critical amplification
-        // is therefore part of raw damage, not a hidden stage after it.
-        var rawDamage = context.Critical
-            ? RoundDamage(formulaDamage * context.CriticalMultiplierBps / 10_000m)
+        // is therefore part of raw damage, not a hidden stage after it. The
+        // integer RawDamage field is a reporting/downstream snapshot projection;
+        // this primary mitigation keeps using the exact decimal subtotal so it
+        // cannot feed an early rounded value back into the same calculation.
+        var exactRawDamage = context.Critical
+            ? formulaDamage * context.CriticalMultiplierBps / 10_000m
             : formulaDamage;
+        var rawDamage = RoundDamage(exactRawDamage);
         var resolvedDamage = RoundDamage(
-            rawDamage * (10_000 - context.ResistanceBps) / 10_000m);
+            exactRawDamage * (10_000 - context.ResistanceBps) / 10_000m);
         var shieldAbsorbed = Math.Min(context.AvailableShield, resolvedDamage);
         var postShieldDamage = resolvedDamage - shieldAbsorbed;
         var finalHpDamage = Math.Min(context.AvailableTargetHp, postShieldDamage);

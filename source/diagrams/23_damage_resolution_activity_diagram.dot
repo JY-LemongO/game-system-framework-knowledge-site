@@ -1,33 +1,33 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.70, nodesep=0.50];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.72, nodesep=0.62];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.20,0.12"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
   rankdir=TB; splines=polyline;
 
   start [shape=circle, width=.28, label="", fillcolor="#182033", color="#182033"];
-  validate [label="Validate Target\ncan receive damage? alive? hittable?"];
-  hit [label="Resolve HitOutcome\nHit · Miss · Blocked · Immune · Rejected"];
+  validate [label="Validate Target\ncan receive damage?\nalive? hittable?"];
+  hit [label="Resolve HitOutcome\nHit · Miss · Blocked\nImmune · Rejected"];
   damaging [shape=diamond, label="Hit?"];
-  blockedVariant [shape=note, label="Optional project variant\nHit or Blocked?\nBlockPolicy may keep Blocked damaging", fillcolor="#fff7e6", color="#e0ad4e"];
+  blockedVariant [shape=note, label="Policy extension\nOptional project variant\nHit or Blocked?\nBlockPolicy may keep\nBlocked damaging", fillcolor="#fff7e6", color="#e0ad4e"];
   base [label="Calculate Base Damage\nbase + scalingStat × coefficient"];
   off [label="Apply Offensive Modifiers\nsource tags, damage bonus\nformula subtotal"];
-  crit [label="Resolve Critical → RawDamage\nchance, multiplier, crit resist\npost-critical · pre-mitigation"];
-  def [label="Apply Defensive Modifiers\narmor, defense, guard, reduction"];
-  resist [label="Apply Resistance / Penetration\nresistance cap, pierce, weakness"];
+  crit [label="Resolve Critical → RawDamage\nchance · multiplier · crit resist\npost-critical · pre-mitigation"];
+  def [label="Apply Defensive Modifiers\narmor · defense\nguard · reduction"];
+  resist [label="Apply Resistance / Penetration\nresistance cap · pierce\nweakness"];
   round [label="Validate Clamp / Round Policy\nstage-boundary rounding recorded\nHP / overkill clamps verified"];
-  shield [label="Calculate ShieldAbsorbed\nmin(AvailableShield, ResolvedDamage)\nPostShieldDamage = ResolvedDamage - ShieldAbsorbed"];
-  hpCap [label="Cap FinalHpDamage by available HP\nFinalHpDamage = min(AvailableTargetHp, PostShieldDamage)"];
-  overkill [label="Assign remainder to Overkill\nOverkill = PostShieldDamage - FinalHpDamage"];
-  result [label="Build DamageResult\nOutcome · Critical · RawDamage\nResolvedDamage · ShieldAbsorbed · FinalHpDamage · Overkill\nResolvedDamage = ShieldAbsorbed + FinalHpDamage + Overkill"];
+  shield [label="Calculate ShieldAbsorbed\nmin(AvailableShield,\nResolvedDamage)\nPostShieldDamage = ResolvedDamage\n- ShieldAbsorbed"];
+  hpCap [label="Cap FinalHpDamage by available HP\nFinalHpDamage = min(AvailableTargetHp,\nPostShieldDamage)"];
+  overkill [label="Assign remainder to Overkill\nOverkill = PostShieldDamage\n- FinalHpDamage"];
+  result [label="Build DamageResult\nOutcome · Critical · RawDamage\nResolvedDamage · ShieldAbsorbed\nFinalHpDamage · Overkill\nResolvedDamage = ShieldAbsorbed\n+ FinalHpDamage + Overkill"];
   nonHit [label="Other branch\nBuild non-damaging DamageResult\nMiss · Immune · Rejected\nBlocked also returns zero in compact C#\nall damage fields = 0"];
   trace [label="Build CombatLog / DebugTrace\nformula steps · stat reads · RNG decisions"];
   boundary [shape=note, label="Pure resolve ends here\nno HP/Shield mutation · no event", fillcolor="#eefbf6", color="#61b99a"];
   end [shape=doublecircle, width=.32, label="", fillcolor="#ffffff", color="#182033"];
 
   start -> validate -> hit -> damaging;
-  damaging -> blockedVariant [style=dashed, label="policy extension"];
-  damaging:se -> nonHit:n;
-  damaging:sw -> base:n;
+  damaging -> blockedVariant [style=dashed, arrowhead=none, constraint=false];
+  damaging:se -> nonHit:n [label="no"];
+  damaging:sw -> base:n [label="yes"];
   base -> off -> crit -> def -> resist -> shield -> hpCap -> overkill -> round -> result -> trace -> boundary -> end;
   nonHit -> trace;
 }

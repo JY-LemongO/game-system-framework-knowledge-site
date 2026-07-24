@@ -1,8 +1,8 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.70, nodesep=0.50];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
-  rankdir=LR; splines=ortho;
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.84, nodesep=0.86, ordering=out];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.18,0.12"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+  rankdir=TB; splines=polyline;
   Requested [shape=circle, label="Requested", fillcolor="#eefbf6"];
   Rejected [label="Rejected
 Invalid / Immune"];
@@ -10,22 +10,26 @@ Invalid / Immune"];
 create StatusInstance"];
   Active [label="Active
 modifiers registered"];
-  Ticking [label="Ticking
-periodic effects"];
-  Refreshed [label="Refreshed
-Duration / Stack changed"];
+  Ticking [label="Tick due → Ticking\nperiodic effects\nreturn Active if still active"];
+  Refreshed [label="Reapply → Refreshed\nDuration / Stack changed\nreturn Active after refresh"];
   Expired [label="Expired"];
   Dispelled [label="Dispelled / Cleanse"];
   Removed [shape=doublecircle, label="Removed
 remove modifiers
 cancel ticks"];
-  Requested -> Rejected [label="immune / invalid"];
+  { rank=same; Requested; Rejected; }
+  { rank=same; Refreshed; Ticking; }
+  { rank=same; Expired; Dispelled; }
+
+  Requested:e -> Rejected:w [label="immune / invalid"];
   Requested -> Applied [label="valid"];
   Applied -> Active [label="register modifiers"];
-  Active -> Ticking [label="tick due"];
-  Ticking -> Active [label="still active"];
-  Active -> Refreshed [label="reapply"];
-  Refreshed -> Active;
+
+  Active:e -> Ticking:n [color="#54b7cf"];
+  Ticking:e -> Active:e [color="#54b7cf", style=dashed, constraint=false];
+  Active:w -> Refreshed:n [color="#ab8fe0"];
+  Refreshed:w -> Active:w [color="#ab8fe0", style=dashed, constraint=false];
+
   Active -> Expired [label="duration <= 0"];
   Active -> Dispelled [label="cleanse"];
   Expired -> Removed;

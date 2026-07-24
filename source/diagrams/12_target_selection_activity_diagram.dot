@@ -1,45 +1,50 @@
 
 digraph G {
 
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.65, nodesep=0.48];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.72, nodesep=0.72];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
 
   rankdir=TB;
-  splines=ortho;
+  splines=polyline;
   node [shape=box, style="rounded,filled", width=2.7, height=0.48];
   start [shape=circle, label="", width=0.22, fillcolor="#182033", color="#182033"];
-  Build [label="EffectContext 준비
-CasterId · InitialTargetId
-Source · RandomSeed", fillcolor="#eaf0ff", color="#8292f7"];
-  Selector [shape=diamond, label="selectorType?", fillcolor="#fff7e6", color="#e0ad4e", width=1.55, height=0.8];
-  Self [label="Self / Owner
-자기 자신 선택", fillcolor="#f7f9fc"];
-  Single [label="Single Target
-명시 대상 검증", fillcolor="#f7f9fc"];
-  Area [label="Area / Cone / Line
-공간 후보 수집", fillcolor="#f7f9fc"];
-  Chain [label="Chain / Random
-반복 선택·중복 정책", fillcolor="#f7f9fc"];
-  Candidate [label="CandidateSet 생성
-거리·팀·시야·충돌 기준", fillcolor="#eaf0ff", color="#8292f7"];
-  Filter [label="TargetCondition 필터
-alive, enemy, boss, status, tag", fillcolor="#f3eefc", color="#ab8fe0"];
-  SortLimit [label="정렬/제한
-nearest, lowestHP, maxTargets", fillcolor="#f3eefc", color="#ab8fe0"];
-  Empty [shape=diamond, label="empty?", fillcolor="#fff7e6", color="#e0ad4e", width=1.2, height=0.7];
-  Fail [label="NoValidTarget
-실패 또는 skip", fillcolor="#fff0f3", color="#e07b91"];
-  Return [label="TargetSet 반환
-child context 생성", fillcolor="#eefbf6", color="#61b99a"];
+  Build [label="Effect specification · context · rules
+Self · ExplicitTarget · CandidateSnapshot", fillcolor="#eaf0ff", color="#8292f7"];
+  Adapter [label="공간 adapter (domain 밖)
+eligibility 판정 · 정수 metric 값 계산", fillcolor="#f3eefc", color="#ab8fe0"];
+  SnapshotBoundary [label="domain 값 생성 경계
+EffectTargetCandidate: metric guard
+CanonicalTargetSnapshot: null/duplicate guard
++ canonical total order", fillcolor="#e9fbff", color="#54b7cf"];
+  Selector [shape=diamond, label="target mode?", fillcolor="#fff7e6", color="#e0ad4e", width=1.55, height=0.8];
+  Self [label="Self
+CasterId에 bind", fillcolor="#f7f9fc"];
+  Explicit [label="ExplicitTarget
+InitialTargetId 존재 확인 후 bind
+eligibility 재검증 안 함", fillcolor="#f7f9fc"];
+  Candidate [label="CandidateSnapshot mode
+resolver requires one canonical snapshot
+eligibility 재검증 안 함", fillcolor="#f7f9fc"];
+  { rank=same; Self; Explicit; Candidate; }
+  Limit [label="resolver keeps canonical order
+and applies MaxTargets", fillcolor="#f3eefc", color="#ab8fe0"];
+  Empty [shape=diamond, label="target missing
+or empty?", fillcolor="#fff7e6", color="#e0ad4e", width=1.5, height=0.8];
+  Fail [label="NotApplicable
+stable reason", fillcolor="#fff0f3", color="#e07b91"];
+  Return [label="ResolvedEffectOperation
+대상을 다시 고르지 않음", fillcolor="#eefbf6", color="#61b99a"];
   end [shape=doublecircle, label="", width=0.28, fillcolor="#ffffff", color="#182033"];
   start -> Build -> Selector;
+  Adapter -> SnapshotBoundary [style=dashed, label="constructor inputs"];
+  SnapshotBoundary -> Candidate [style=dashed, label="frozen input"];
   Selector -> Self [label="Self"];
-  Selector -> Single [label="Single"];
-  Selector -> Area [label="Area"];
-  Selector -> Chain [label="Chain"];
-  Self -> Candidate; Single -> Candidate; Area -> Candidate; Chain -> Candidate;
-  Candidate -> Filter -> SortLimit -> Empty;
+  Selector -> Explicit [label="Explicit"];
+  Selector -> Candidate [label="Snapshot"];
+  Self -> Empty;
+  Explicit -> Empty;
+  Candidate -> Limit -> Empty;
   Empty -> Fail [label="yes"];
   Empty -> Return [label="no"];
   Fail -> end; Return -> end;

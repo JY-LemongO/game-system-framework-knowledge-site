@@ -1,7 +1,7 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.34, ranksep=0.74, nodesep=0.48, splines=ortho];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#b8c5d8", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.18,0.13"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", arrowsize=0.75, penwidth=1.35];
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.34, ranksep=0.78, nodesep=0.62, splines=polyline];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#b8c5d8", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.18,0.13"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", arrowsize=0.75, penwidth=1.35];
   rankdir=LR;
 
   Input [shape=component, fillcolor="#f7f8fb", label="Input Adapters\nPlayer · AI · Network"];
@@ -12,13 +12,23 @@ digraph G {
   Contracts [fillcolor="#eefbf6", label="Contract Boundary\nCommandEnvelope · DomainEvent\nVersioned Document"];
   Kernel [shape=component, fillcolor="#eaf0ff", penwidth=2.0, label="Runtime Kernel\nResolve · Commit · Reaction\nStatus Tick · Cache · Migration"];
   Replay [shape=note, fillcolor="#fff7e6", label="Replay Fixture\nInput + Versions + Seed\nExpected Hash"];
+  PersistWrite [label="atomic state / outbox", fillcolor="#ffffff", color="#8292a8", penwidth=1.0, fontsize=10, margin="0.12,0.07"];
+  SnapshotRead [label="snapshot / versions", fillcolor="#ffffff", color="#8292a8", penwidth=1.0, fontsize=10, margin="0.12,0.07"];
+  ReplayInput [label="deterministic test", fillcolor="#ffffff", color="#8292a8", penwidth=1.0, fontsize=10, margin="0.12,0.07"];
+  ReplayTrace [label="trace + hash", fillcolor="#ffffff", color="#8292a8", penwidth=1.0, fontsize=10, margin="0.12,0.07"];
 
   Input -> Contracts [label="command"];
   Contracts -> Kernel [label="validated intent"];
-  Kernel -> Storage [label="atomic state / outbox"];
-  Storage -> Kernel [style=dashed, label="snapshot / versions"];
+  { rank=same; PersistWrite; SnapshotRead; }
+  { rank=same; ReplayInput; ReplayTrace; }
+
+  Kernel -> PersistWrite -> Storage;
+  Storage -> SnapshotRead [style=dashed, constraint=false];
+  SnapshotRead -> Kernel [style=dashed, constraint=false];
   Kernel -> Engine [label="committed result"];
   Kernel -> Telemetry [label="observation events"];
-  Replay -> Kernel [label="deterministic test"];
-  Kernel -> Replay [style=dashed, label="trace + hash"];
+  Replay -> ReplayInput [constraint=false];
+  ReplayInput -> Kernel [constraint=false];
+  Kernel -> ReplayTrace [style=dashed];
+  ReplayTrace -> Replay [style=dashed];
 }

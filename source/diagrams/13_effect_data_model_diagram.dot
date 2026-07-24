@@ -1,12 +1,11 @@
 
 digraph G {
 
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.65, nodesep=0.48];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.30, ranksep=1.0, nodesep=0.68, newrank=true, outputorder=edgesfirst, splines=polyline];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", fontsize=9, arrowsize=0.8, penwidth=1.3];
 
   rankdir=LR;
-  splines=ortho;
   node [shape=record, style="rounded,filled", fillcolor="#ffffff"];
   EffectDefinitionData [label="{EffectDefinitionData|effectId PK\ltype\ltargetSelectorId FK\lvalueExpressionId FK?\lconditionIds[]\lexecutorKey\ltags[]\l}", fillcolor="#fff7e6", color="#e0ad4e"];
   EffectBundleData [label="{EffectBundleData|bundleId PK\lprimaryEffectIds[]\lreactionIds[]\lexecutionPolicy=commit_then_react\lstopPolicy\l}", fillcolor="#fff7e6", color="#e0ad4e"];
@@ -19,14 +18,17 @@ digraph G {
   EffectExecutionLog [label="{EffectExecutionLog|executionId PK\lrequestId\lsourceId\ltargetIds[]\leffectIds[]\lresultItems[]\lseed\ltimestamp\l}", fillcolor="#f3eefc", color="#ab8fe0"];
   ScheduledEffectState [label="{ScheduledEffectState|scheduleId PK\leffectId FK\lsourceId\lremainingTime\lrepeatCount\lcontextSnapshot\l}", fillcolor="#f3eefc", color="#ab8fe0"];
 
-  EffectBundleData -> EffectDefinitionData [label="contains"];
-  EffectDefinitionData -> TargetSelectorData;
-  EffectDefinitionData -> ValueExpressionData;
-  EffectDefinitionData -> EffectConditionData;
-  SkillDefinitionData -> EffectBundleData [label="cast"];
-  StatusDefinitionData -> EffectBundleData [label="apply/tick/expire"];
-  EffectBundleData -> EventReactionData [label="post-commit reactions"];
-  EventReactionData -> EffectBundleData [label="new command"];
-  EffectExecutionLog -> EffectDefinitionData [label="records"];
-  ScheduledEffectState -> EffectDefinitionData [label="future"];
+  { rank=same; SkillDefinitionData; StatusDefinitionData; }
+  { rank=same; EffectExecutionLog; ScheduledEffectState; }
+
+  EffectBundleData:e -> EffectDefinitionData:w [label="contains effect definitions" color="#8A6D3B"];
+  EffectDefinitionData:e -> TargetSelectorData:w [color="#8A6D3B"];
+  EffectDefinitionData:e -> ValueExpressionData:w [color="#8A6D3B"];
+  EffectDefinitionData:se -> EffectConditionData:w [color="#8A6D3B"];
+  SkillDefinitionData:e -> EffectBundleData:nw [label="skill cast bundle" color="#5B6F8F"];
+  StatusDefinitionData:e -> EffectBundleData:sw [label="status apply/tick/expire bundles" color="#5B6F8F"];
+  EffectBundleData:ne -> EventReactionData:nw [label="defines post-commit reactions" color="#7257A6"];
+  EventReactionData:sw -> EffectBundleData:se [label="enqueue new Effect command" color="#7257A6" constraint=false style=dashed];
+  EffectExecutionLog:e -> EffectDefinitionData:sw [label="records execution evidence" color="#8292A8" style=dotted];
+  ScheduledEffectState:e -> EffectDefinitionData:s [label="resolves scheduled definition" color="#8292A8" style=dashed];
 }

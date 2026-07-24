@@ -1,7 +1,7 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.34, ranksep=0.55, nodesep=0.45, splines=ortho];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#b8c5d8", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.17,0.12"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", arrowsize=0.75, penwidth=1.35];
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.34, ranksep=0.62, nodesep=0.52, splines=polyline];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#b8c5d8", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.17,0.12"];
+  edge [fontname="Noto Sans KR", color="#59687e", arrowsize=0.75, penwidth=1.35];
   rankdir=TB;
 
   Command [fillcolor="#f3eefc", label="1. CommandEnvelope\nidentity · tick · versions"];
@@ -24,5 +24,5 @@ digraph G {
   Validate -> Commit [label="yes"];
   Validate -> Rollback [label="no"];
   Commit -> Outbox -> Queue -> Status;
-  Status -> Outbox [style=dashed, label="new committed facts"];
+  Status:w -> Outbox:w [style=dashed, label="new committed facts", color="#7c3aed", fontcolor="#6d28d9", constraint=false];
 }

@@ -1,7 +1,9 @@
-export const RUNTIME_VERSION: '3.3.0-reference';
-export const CONTRACT_SCHEMA_VERSION: 1;
-export const REPLAY_FORMAT_VERSION: 1;
+export const RUNTIME_VERSION: '4.0.1-reference';
+export const CONTRACT_SCHEMA_VERSION: 2;
+export const REPLAY_FORMAT_VERSION: 2;
 export const RNG_ALGORITHM_VERSION: string;
+export const RNG_KEY_SCHEMA_VERSION: string;
+export const CLOCK_DOMAIN: 'simulation_tick';
 export const NUMERIC_POLICY_VERSION: string;
 export const BASIS_POINTS: 10000;
 
@@ -30,7 +32,7 @@ export class DomainError extends Error {
 }
 
 export interface CommandEnvelope<T extends JsonValue = JsonValue> {
-  readonly schemaVersion: number;
+  readonly schemaVersion: typeof CONTRACT_SCHEMA_VERSION;
   readonly commandId: NamespacedId;
   readonly actorId: NamespacedId;
   readonly requestedTick: number;
@@ -40,13 +42,32 @@ export interface CommandEnvelope<T extends JsonValue = JsonValue> {
   readonly payload: T;
 }
 export interface DomainEventEnvelope<T extends JsonValue = JsonValue> {
-  readonly schemaVersion: number;
+  readonly schemaVersion: typeof CONTRACT_SCHEMA_VERSION;
   readonly eventId: NamespacedId;
   readonly type: string;
   readonly correlationId: NamespacedId;
   readonly causationId: NamespacedId;
   readonly occurredTick: number;
   readonly payload: T;
+}
+export interface CommandEnvelopeInput<T extends JsonValue = JsonValue> {
+  readonly schemaVersion?: typeof CONTRACT_SCHEMA_VERSION;
+  readonly commandId: NamespacedId;
+  readonly actorId: NamespacedId;
+  readonly requestedTick: number;
+  readonly correlationId: NamespacedId;
+  readonly causationId?: NamespacedId | null;
+  readonly dataVersion?: string;
+  readonly payload?: T;
+}
+export interface DomainEventEnvelopeInput<T extends JsonValue = JsonValue> {
+  readonly schemaVersion?: typeof CONTRACT_SCHEMA_VERSION;
+  readonly eventId: NamespacedId;
+  readonly type: string;
+  readonly correlationId: NamespacedId;
+  readonly causationId: NamespacedId;
+  readonly occurredTick: number;
+  readonly payload?: T;
 }
 
 export interface ResourceSet { hp: number; maxHp: number; mana: number; maxMana: number; shield: number; maxShield: number }
@@ -55,19 +76,26 @@ export interface RuntimeEntity {
   version: number;
   resources: ResourceSet;
   stats: Record<string, number>;
-  cooldowns: Record<NamespacedId, number>;
-  statuses: Record<NamespacedId, StatusInstance>;
+  cooldowns: Record<string, number>;
+  statuses: Record<string, StatusInstance>;
 }
-export interface RuntimeState { tick: number; entities: Record<NamespacedId, RuntimeEntity> }
+export interface RuntimeState { tick: number; entities: Record<string, RuntimeEntity> }
+export type RuntimeSnapshot = {
+  readonly tick: number;
+  readonly entities: Readonly<Record<string, Readonly<RuntimeEntity>>>;
+};
 export interface StatusInstance {
   instanceId: NamespacedId;
   definitionId: NamespacedId;
   actorId: NamespacedId;
+  applicationSourceId: NamespacedId;
+  applicationSourceRef: SourceRef;
+  applicationCausationId: NamespacedId;
   sourceId: NamespacedId;
   sourceRef: SourceRef;
   targetId: NamespacedId;
   correlationId: NamespacedId;
-  causationId: NamespacedId;
+  lastTransitionEventId: NamespacedId;
   dataVersion: string;
   appliedTick: number;
   nextTickAt: number;
@@ -75,6 +103,45 @@ export interface StatusInstance {
   intervalTicks: number;
   rawTickDamage: number;
   maxCatchUpTicks: number;
+}
+
+export interface VersionPrecondition {
+  readonly entityId: NamespacedId;
+  readonly expectedVersion: number;
+}
+export type CommitOperation =
+  | { readonly order: number; readonly kind: 'resource.delta'; readonly entityId: NamespacedId; readonly resource: string; readonly delta: number; readonly key: string }
+  | { readonly order: number; readonly kind: 'cooldown.set'; readonly entityId: NamespacedId; readonly definitionId: NamespacedId; readonly readyTick: number; readonly key: string }
+  | { readonly order: number; readonly kind: 'status.add'; readonly entityId: NamespacedId; readonly status: StatusInstance; readonly key: string }
+  | { readonly order: number; readonly kind: 'status.patch'; readonly entityId: NamespacedId; readonly instanceId: NamespacedId; readonly patch: { readonly nextTickAt: number; readonly lastTransitionEventId: NamespacedId }; readonly key: string }
+  | { readonly order: number; readonly kind: 'status.remove'; readonly entityId: NamespacedId; readonly instanceId: NamespacedId; readonly key: string };
+export interface EventBlueprint {
+  readonly type: RuntimeEventType;
+  readonly payload: JsonValue;
+}
+export type RuntimeEventType =
+  | 'SkillCommitted'
+  | 'DamageCommitted'
+  | 'DamageMissed'
+  | 'StatusApplied'
+  | 'StatusTicked'
+  | 'StatusExpired'
+  | 'EntityDefeated'
+  | 'ExternalStateChanged'
+  | 'ExternalCooldownChanged';
+export interface CommitPlan {
+  readonly schemaVersion: typeof CONTRACT_SCHEMA_VERSION;
+  readonly planId: NamespacedId;
+  readonly commandId: NamespacedId;
+  readonly commitTick: number;
+  readonly preconditions: ReadonlyArray<VersionPrecondition>;
+  readonly operations: ReadonlyArray<CommitOperation>;
+  readonly eventBlueprints: ReadonlyArray<EventBlueprint>;
+}
+export interface CommitReceipt {
+  readonly planId: NamespacedId;
+  readonly state: RuntimeState;
+  readonly events: ReadonlyArray<DomainEventEnvelope>;
 }
 
 export interface ScenarioInput {
@@ -91,15 +158,21 @@ export interface ScenarioInput {
 }
 export type ScenarioInputPatch = DeepPartial<ScenarioInput>;
 
-export interface DamageOutcome {
+export type ExactDamageScalar = {
+  readonly numerator: string;
+  readonly denominator: string;
+};
+
+export type DamageOutcome = {
   actorId: NamespacedId;
   sourceId: NamespacedId;
   sourceRef: SourceRef;
   targetId: NamespacedId;
   skillDefinitionId: NamespacedId;
   damageType: 'fire';
-  hitOutcome: 'Hit' | 'Miss' | 'Blocked' | 'Immune' | 'Rejected';
+  hitOutcome: 'Hit' | 'Miss';
   critical: boolean;
+  exactRawDamage: ExactDamageScalar;
   rawDamage: number;
   resistanceBps: number;
   resolvedDamage: number;
@@ -107,16 +180,87 @@ export interface DamageOutcome {
   finalHpDamage: number;
   overkill: number;
   targetHpAfter: number;
-  burn: { definitionId: NamespacedId; rawTickDamage: number; durationTicks: number; intervalTicks: number; applyWhenTargetAlive: boolean };
-}
+  targetShieldAfter: number;
+  burn: {
+    definitionId: NamespacedId;
+    rawTickDamage: number;
+    durationTicks: number;
+    intervalTicks: number;
+    maxCatchUpTicks: number;
+    dataVersion: string;
+    applyWhenTargetAlive: boolean;
+  };
+};
 
-export interface CommittedDamageOutcome {
+export type PeriodicDamageOutcome = CommittedDamageOutcome & {
+  damageType: 'fire';
+  hitOutcome: 'Hit';
+  statusInstanceId: NamespacedId;
+  statusDefinitionId: NamespacedId;
+  periodic: true;
+  tickAt: number;
+  triggerEventId: NamespacedId;
+};
+
+export type PrimaryDamageCommittedOutcome =
+  Omit<DamageOutcome, 'hitOutcome'> & { readonly hitOutcome: 'Hit' };
+export type DamageMissedOutcome =
+  Omit<DamageOutcome, 'hitOutcome' | 'critical'> & {
+    readonly hitOutcome: 'Miss';
+    readonly critical: false;
+  };
+
+export type SkillCommittedPayload = Readonly<{
+  actorId: NamespacedId;
+  sourceId: NamespacedId;
+  sourceRef: SourceRef;
+  targetId: NamespacedId;
+  skillDefinitionId: NamespacedId;
+  manaSpent: number;
+  cooldownReadyTick: number;
+}>;
+export type SkillCommittedEvent =
+  DomainEventEnvelope<SkillCommittedPayload> &
+  { readonly type: 'SkillCommitted' };
+
+export type DamageCommittedEvent =
+  DomainEventEnvelope<PrimaryDamageCommittedOutcome | PeriodicDamageOutcome> &
+  { readonly type: 'DamageCommitted' };
+export type DamageMissedEvent =
+  DomainEventEnvelope<DamageMissedOutcome> &
+  { readonly type: 'DamageMissed' };
+
+export type DamageCalculatedTracePayload =
+  | Readonly<{
+      phase: 'primary';
+      formulaVersion: string;
+      baseDamage: number;
+      scalingDamageProjection: number;
+      scalingDamageExact: ExactDamageScalar;
+      formulaDamageProjection: number;
+      formulaDamageExact: ExactDamageScalar;
+      criticalMultiplierBps: number;
+      rawDamage: number;
+      rawDamageExact: ExactDamageScalar;
+      resistanceBps: number;
+      resolvedDamage: number;
+    }>
+  | Readonly<{
+      phase: 'periodic';
+      statusInstanceId: NamespacedId;
+      rawDamage: number;
+      resistanceBps: number;
+      resolvedDamage: number;
+    }>;
+
+export type CommittedDamageOutcome = {
   actorId: NamespacedId;
   sourceId: NamespacedId;
   sourceRef: SourceRef;
   targetId: NamespacedId;
   damageType: string;
   hitOutcome: 'Hit' | 'Miss' | 'Blocked' | 'Immune' | 'Rejected';
+  exactRawDamage: ExactDamageScalar;
   rawDamage: number;
   resistanceBps: number;
   resolvedDamage: number;
@@ -124,7 +268,13 @@ export interface CommittedDamageOutcome {
   finalHpDamage: number;
   overkill: number;
   targetHpAfter: number;
-}
+  targetShieldAfter: number;
+};
+
+export type FireballCommandPayload = {
+  targetId: NamespacedId;
+  skillDefinitionId: NamespacedId;
+};
 
 export class KeyedRandom {
   constructor(rootSeed: number);
@@ -138,13 +288,13 @@ export class TraceRecorder {
   hash(): string;
 }
 export class StateStore {
-  constructor(initialState: RuntimeState & { processedCommands?: string[]; outbox?: DomainEventEnvelope[] });
+  constructor(initialState: RuntimeState & { processedCommands?: ReadonlyArray<NamespacedId>; outbox?: ReadonlyArray<DomainEventEnvelope> });
   readonly tick: number;
-  readonly outbox: DomainEventEnvelope[];
+  readonly outbox: ReadonlyArray<Readonly<DomainEventEnvelope>>;
   getEntity(entityId: NamespacedId): Readonly<RuntimeEntity>;
-  snapshot(entityIds: NamespacedId[]): Readonly<{ tick: number; entities: Record<NamespacedId, RuntimeEntity> }>;
+  snapshot(entityIds: NamespacedId[]): Readonly<RuntimeSnapshot>;
   exportState(): Readonly<RuntimeState>;
-  commit(command: CommandEnvelope, plan: JsonValue, trace?: TraceRecorder | null): Readonly<Record<string, JsonValue>>;
+  commit(command: CommandEnvelope, plan: CommitPlan, trace?: TraceRecorder | null): Readonly<CommitReceipt>;
 }
 
 export interface Reaction {
@@ -157,15 +307,69 @@ export interface Reaction {
   budgetCost?: number;
   payload?: JsonValue;
 }
-export class ReactionQueue {
-  constructor(options?: { maxDepth?: number; maxReactions?: number; maxBudget?: number });
-  enqueue(reaction: Reaction): boolean;
-  drain(handler: (reaction: Readonly<Required<Reaction>>) => JsonValue, trace?: TraceRecorder | null, tick?: number): Readonly<Record<string, JsonValue>>;
+export type ApplyStatusReactionPayload = {
+  actorId: NamespacedId;
+  sourceId: NamespacedId;
+  sourceRef: SourceRef;
+  targetId: NamespacedId;
+  definitionId: NamespacedId;
+  rawTickDamage: number;
+  durationTicks: number;
+  intervalTicks: number;
+  maxCatchUpTicks: number;
+  correlationId: NamespacedId;
+  causationId: NamespacedId;
+  dataVersion: string;
+};
+export type ApplyStatusReaction = Omit<
+  Reaction,
+  'idempotencyKey' | 'kind' | 'priority' | 'stableOrderKey' | 'depth' |
+    'budgetCost' | 'payload'
+> & {
+  reactionId: NamespacedId;
+  idempotencyKey: NamespacedId;
+  kind: 'apply-status';
+  priority: number;
+  stableOrderKey: string;
+  depth: number;
+  budgetCost: number;
+  payload: ApplyStatusReactionPayload;
+};
+export interface ReactionBudget {
+  maxDepth?: number;
+  maxReactions?: number;
+  maxBudget?: number;
 }
+export class ReactionQueue<TReaction extends Reaction = Reaction> {
+  constructor(options?: ReactionBudget);
+  readonly maxDepth: number;
+  readonly maxReactions: number;
+  readonly maxBudget: number;
+  readonly pending: ReadonlyArray<Readonly<Required<TReaction>>>;
+  enqueue(reaction: TReaction): boolean;
+  drain<TResult>(handler: (reaction: Readonly<Required<TReaction>>) => TResult, trace?: TraceRecorder | null, tick?: number, budget?: ReactionBudget | null): Readonly<ReactionDrainResult<TReaction, TResult>>;
+}
+export type ReactionDrainResult<TReaction extends Reaction, TResult> = {
+  readonly executed: ReadonlyArray<Readonly<{
+    reaction: Readonly<Required<TReaction>>;
+    result: TResult;
+  }>>;
+  readonly rejected: ReadonlyArray<never>;
+  readonly budgetUsed: number;
+  readonly exhausted: false;
+};
 
+export type ContextFingerprintEntry =
+  | { readonly presence: 'missing' }
+  | { readonly presence: 'present'; readonly value: JsonValue };
+export interface ContextFingerprint {
+  readonly dependencies: ReadonlyArray<string>;
+  readonly values: Readonly<Record<string, ContextFingerprintEntry>>;
+  readonly hash: string;
+}
 export class ContextualStatCache {
   constructor(options?: { maxEntries?: number });
-  evaluate<T extends JsonValue>(query: { entityId: NamespacedId; statId: NamespacedId; ownerVersion: number; dependencies?: string[]; context?: Record<string, JsonValue>; compute: () => T }): Readonly<{ cacheHit: boolean; cacheKey: string; fingerprint: JsonValue; value: T }>;
+  evaluate<T extends JsonValue>(query: { entityId: NamespacedId; statId: NamespacedId; ownerVersion: number; dependencies?: string[]; context?: Record<string, JsonValue>; compute: () => T }): Readonly<{ cacheHit: boolean; cacheKey: string; fingerprint: ContextFingerprint; value: T }>;
   invalidateEntity(entityId: NamespacedId): number;
   clear(): number;
   stats(): Readonly<{ size: number; maxEntries: number; hits: number; misses: number; evictions: number }>;
@@ -177,24 +381,39 @@ export class SchemaMigrationRegistry {
   migrate(document: Record<string, JsonValue> & { schemaVersion: number }, targetVersion?: number): Readonly<{ sourceVersion: number; targetVersion: number; document: Record<string, JsonValue>; appliedMigrations: ReadonlyArray<Record<string, JsonValue>> }>;
 }
 
-export function canonicalStringify(value: JsonValue): string;
-export function hashHex(value: JsonValue | string): string;
-export function hash32(...parts: JsonValue[]): number;
+export function canonicalStringify(value: unknown): string;
+export function hashHex(value: unknown): string;
+export function hash32(...parts: unknown[]): number;
 export function multiplyBps(value: number, basisPoints: number): number;
 export function createSourceRef(value: SourceRef): Readonly<SourceRef>;
-export function createContextFingerprint(context?: Record<string, JsonValue>, dependencies?: string[]): Readonly<Record<string, JsonValue>>;
-export function createCommandEnvelope<T extends JsonValue>(value: Omit<CommandEnvelope<T>, 'schemaVersion'> & { schemaVersion?: number }): Readonly<CommandEnvelope<T>>;
-export function createDomainEventEnvelope<T extends JsonValue>(value: Omit<DomainEventEnvelope<T>, 'schemaVersion'> & { schemaVersion?: number }): Readonly<DomainEventEnvelope<T>>;
+export function createContextFingerprint(context?: Record<string, JsonValue>, dependencies?: string[]): Readonly<ContextFingerprint>;
+export function createCommandEnvelope<T extends JsonValue>(value: CommandEnvelopeInput<T> & { readonly payload: T }): Readonly<CommandEnvelope<T>>;
+export function createCommandEnvelope(value: CommandEnvelopeInput<JsonValue> & { readonly payload?: undefined }): Readonly<CommandEnvelope<Record<string, never>>>;
+export function createCommandEnvelope(value: CommandEnvelopeInput<JsonValue>): Readonly<CommandEnvelope<JsonValue>>;
+export function createDomainEventEnvelope<T extends JsonValue>(value: DomainEventEnvelopeInput<T> & { readonly payload: T }): Readonly<DomainEventEnvelope<T>>;
+export function createDomainEventEnvelope(value: DomainEventEnvelopeInput<JsonValue> & { readonly payload?: undefined }): Readonly<DomainEventEnvelope<Record<string, never>>>;
+export function createDomainEventEnvelope(value: DomainEventEnvelopeInput<JsonValue>): Readonly<DomainEventEnvelope<JsonValue>>;
+export function parseCommandEnvelope(value: unknown): Readonly<CommandEnvelope<JsonValue>>;
+export function parseDomainEventEnvelope(value: unknown): Readonly<DomainEventEnvelope<JsonValue>>;
 export function defaultScenarioInput(): ScenarioInput;
 export function normalizeScenarioInput(input?: ScenarioInputPatch): Readonly<ScenarioInput>;
 export function createInitialState(input: ScenarioInput): Readonly<RuntimeState>;
-export function createFireballCommand(input: ScenarioInput): Readonly<CommandEnvelope>;
-export function resolveDamageAgainstTarget(args: { actorId: NamespacedId; sourceId: NamespacedId; sourceRef: SourceRef; target: RuntimeEntity; damageType: string; rawDamage: number; hitOutcome?: DamageOutcome['hitOutcome'] }): Readonly<CommittedDamageOutcome>;
-export function resolveFireball(args: { snapshot: JsonValue; command: CommandEnvelope; input: ScenarioInput; rng: KeyedRandom; trace?: TraceRecorder | null }): Readonly<{ decisions: JsonValue; outcome: DamageOutcome; plan: JsonValue }>;
-export function enqueueReactions(events: ReadonlyArray<DomainEventEnvelope>, input: ScenarioInput, queue: ReactionQueue, trace?: TraceRecorder | null): void;
-export function applyStatusReaction(store: StateStore, reaction: Readonly<Required<Reaction>>, trace?: TraceRecorder | null): Readonly<Record<string, any>>;
+export function createFireballCommand(input: ScenarioInput): Readonly<CommandEnvelope<FireballCommandPayload>>;
+export function resolveDamageAgainstTarget(args: { actorId: NamespacedId; sourceId: NamespacedId; sourceRef: SourceRef; target: Readonly<RuntimeEntity>; damageType: string; rawDamage: number; exactRawDamage?: ExactDamageScalar; hitOutcome?: CommittedDamageOutcome['hitOutcome'] }): Readonly<CommittedDamageOutcome>;
+export function resolveFireball(args: { snapshot: RuntimeSnapshot; command: CommandEnvelope<FireballCommandPayload>; input: ScenarioInput; rng: KeyedRandom; trace?: TraceRecorder | null }): Readonly<{ decisions: JsonValue; outcome: DamageOutcome; plan: CommitPlan }>;
+export function enqueueReactions(events: ReadonlyArray<DomainEventEnvelope>, queue: ReactionQueue, trace?: TraceRecorder | null): void;
+export interface ReactionNotApplicableResult {
+  readonly outcome: 'NotApplicable';
+  readonly reason: 'TARGET_NOT_ALIVE';
+  readonly reactionId: NamespacedId;
+  readonly targetId: NamespacedId;
+  readonly stateChanged: false;
+  readonly events: ReadonlyArray<never>;
+}
+/** Must be invoked synchronously with the reaction object supplied to a ReactionQueue.drain handler. */
+export function applyStatusReaction(store: StateStore, reaction: Readonly<ApplyStatusReaction>, trace?: TraceRecorder | null): Readonly<CommitReceipt> | Readonly<ReactionNotApplicableResult>;
 export function advanceStatuses(store: StateStore, targetTick: number, trace?: TraceRecorder | null): Readonly<{ targetTick: number; commits: ReadonlyArray<Record<string, JsonValue>>; tickCount: number; catchUpLimited: boolean }>;
-export function executeImpact(input: ScenarioInput, trace?: TraceRecorder | null): { store: StateStore; command: Readonly<CommandEnvelope>; resolution: Readonly<{ decisions: JsonValue; outcome: DamageOutcome; plan: JsonValue }>; commit: Readonly<Record<string, any>> };
+export function executeImpact(input: ScenarioInput, trace?: TraceRecorder | null): { store: StateStore; command: Readonly<CommandEnvelope<FireballCommandPayload>>; resolution: Readonly<{ decisions: JsonValue; outcome: DamageOutcome; plan: CommitPlan }>; commit: Readonly<CommitReceipt> };
 export function runFireballScenario(input?: ScenarioInputPatch): Readonly<Record<string, any>>;
 export function verifyReplay(input?: ScenarioInputPatch): Readonly<{ match: boolean; traceMatch: boolean; finalStateMatch: boolean; first: any; second: any }>;
 export function demonstrateDuplicateCommand(input?: ScenarioInputPatch): Readonly<Record<string, any>>;

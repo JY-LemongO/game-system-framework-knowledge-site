@@ -9,7 +9,17 @@ public sealed class DictionaryStatQuery : IStatQuery
     public DictionaryStatQuery(
         IReadOnlyDictionary<(EntityId OwnerId, EntityId StatId), decimal> values)
     {
-        _values = values ?? throw new ArgumentNullException(nameof(values));
+        var valueCopy = values?.ToArray() ??
+            throw new ArgumentNullException(nameof(values));
+        if (valueCopy.Any(item =>
+                !item.Key.OwnerId.IsValid || !item.Key.StatId.IsValid))
+        {
+            throw new ArgumentException(
+                "Stat query keys must contain initialized owner and stat IDs.",
+                nameof(values));
+        }
+
+        _values = valueCopy.ToDictionary(item => item.Key, item => item.Value);
     }
 
     public decimal GetValue(
@@ -17,6 +27,8 @@ public sealed class DictionaryStatQuery : IStatQuery
         EntityId statId,
         StatContext context)
     {
+        EntityId.ThrowIfInvalid(ownerId, nameof(ownerId));
+        EntityId.ThrowIfInvalid(statId, nameof(statId));
         ArgumentNullException.ThrowIfNull(context);
         if (ownerId != context.OwnerId)
         {

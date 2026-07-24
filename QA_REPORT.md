@@ -4,8 +4,11 @@
 - 판본: `3.2.0-reference`
 - 스냅샷 실행일: 2026-07-10
 - 당시 결과: **PASS**
+- 증빙 상태: **Historical** — 현재 release gate에 사용하지 않음
+- 기록 커밋: `869f0a15c15ce251e8305f668e5bb6359990ee1c`
+- 원본 결과: [`source/qa/history/3.2.0-reference/869f0a15c15ce251e8305f668e5bb6359990ee1c.json`](source/qa/history/3.2.0-reference/869f0a15c15ce251e8305f668e5bb6359990ee1c.json)
 
-> 이 문서는 `3.2.0-reference` 당시의 검증 스냅샷이다. 현재 인수인계 기준과 최신 검증 수치는 `DEVELOPMENT_WORKFLOW.md`를 따르며, 현재 상태는 `npm run qa`로 다시 확인한다.
+> 이 문서는 `3.2.0-reference` 당시의 검증 스냅샷이다. 현재 상태는 대상 커밋의 `Repository QA` 결과 또는 로컬 `npm run qa`로 확인하며, 이 문서의 PASS를 현재 커밋의 증빙으로 사용하지 않는다.
 
 ---
 

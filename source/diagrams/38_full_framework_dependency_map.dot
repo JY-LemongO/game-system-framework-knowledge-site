@@ -1,7 +1,7 @@
 digraph G {
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.30, ranksep=0.68, nodesep=0.58, splines=polyline, newrank=true, outputorder=edgesfirst];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.5, fillcolor="#ffffff", fontcolor="#182033", margin="0.16,0.11"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.4];
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", margin=0.12, pad=0.30, ranksep=0.54, nodesep=0.68, splines=polyline, newrank=true, outputorder=edgesfirst];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.5, fillcolor="#ffffff", fontcolor="#182033", margin="0.16,0.11"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.4];
   rankdir=TB;
 
   Core [shape=component, fillcolor="#eefbf6", label="Core Runtime Foundation\nshared identity · event · time\ncontracts used by every system"];
@@ -18,6 +18,12 @@ digraph G {
   CoreConsumers [shape=box, fillcolor="#f7f9fc", label="Skill · Effect · Stat · Combat · Status · RuntimeCommitter\nread shared contracts"];
   Legend [shape=note, fillcolor="#ffffff", label="Line meaning\nsolid arrow: command / plan / committed fact\ndashed arrow: read-only dependency / query\ndotted line: case-study participation\nquery arrow: consumer → provider"];
   Fireball [shape=note, fillcolor="#ffffff", label="Fireball Vertical Slice\nSkill · Effect · Combat · Commit\nReaction · Status participate"];
+  PrepareBundle [group="main", label="prepare bundle", fillcolor="#ffffff", color="#8292a8", fontcolor="#46566e", penwidth=1.0, fontsize=10, margin="0.12,0.07"];
+  DamageRequestMessage [group="main", label="DamageRequest", fillcolor="#ffffff", color="#8292a8", fontcolor="#46566e", penwidth=1.0, fontsize=10, margin="0.12,0.07"];
+  DamageResultPlan [group="main", label="DamageResult + plans", fillcolor="#ffffff", color="#8292a8", fontcolor="#46566e", penwidth=1.0, fontsize=10, margin="0.12,0.07"];
+  CommittedFacts [group="main", label="committed facts", fillcolor="#ffffff", color="#8292a8", fontcolor="#46566e", penwidth=1.0, fontsize=10, margin="0.12,0.07"];
+  ApplyStatusCommand [group="main", label="ApplyStatus command", fillcolor="#ffffff", color="#8292a8", fontcolor="#46566e", penwidth=1.0, fontsize=10, margin="0.12,0.07"];
+  SharedContractDependency [label="shared contract\ndependency", fillcolor="#ffffff", color="#8292a8", fontcolor="#46566e", penwidth=1.0, fontsize=10, margin="0.12,0.07"];
 
   { rank=same; Combat; Stat; }
   { rank=same; Commit; Observation; }
@@ -25,11 +31,11 @@ digraph G {
 
   // The central execution path reads from top to bottom.
   Fireball -> Skill [style=dotted, color="#a78b53", dir=none];
-  Skill -> Effect [label="prepare bundle"];
-  Effect -> Combat [label="DamageRequest"];
-  Combat -> Commit [label="DamageResult + plans"];
-  Commit -> Reaction [label="committed facts"];
-  Reaction -> Status [label="ApplyStatus command"];
+  Skill -> PrepareBundle -> Effect;
+  Effect -> DamageRequestMessage -> Combat;
+  Combat -> DamageResultPlan -> Commit;
+  Commit -> CommittedFacts -> Reaction;
+  Reaction -> ApplyStatusCommand -> Status;
 
   // Side ports carry secondary dependencies without crossing the main labels.
   Effect:e -> Stat:n [style=dashed, color="#8292a8", constraint=false];
@@ -41,6 +47,7 @@ digraph G {
   Periodic:w -> Effect:w [constraint=false];
 
   Status -> CoreConsumers [style=invis, weight=8];
-  CoreConsumers -> Core [style=dashed, color="#8292a8", label="shared contract dependency"];
+  CoreConsumers -> SharedContractDependency [style=dashed, color="#8292a8"];
+  SharedContractDependency -> Core [style=dashed, color="#8292a8"];
   Core -> Legend [style=invis, weight=8];
 }

@@ -1,13 +1,16 @@
 {
   "name": "game-system-knowledge",
-  "version": "3.3.0-reference",
+  "version": "4.0.0-reference",
   "private": true,
   "description": "Offline learning site and executable lab for game system architecture",
   "scripts": {
-    "test": "node source/runtime/tests/runtime-kernel.test.cjs",
+    "version:check": "python source/tools/check_release_integrity.py",
+    "test": "node source/runtime/tests/runtime-kernel.test.cjs && node source/runtime/tests/capstone-assessor.test.cjs",
     "csharp:verify": "dotnet run --project source/csharp/GameSystemKnowledge.Reference.Verification/GameSystemKnowledge.Reference.Verification.csproj --configuration Release",
     "demo": "node source/runtime/run-demo.cjs",
     "migration-demo": "node source/runtime/run-migration-demo.cjs",
+    "diagrams": "python source/tools/render_diagrams.py",
+    "diagrams:check": "python source/tools/render_diagrams.py --check",
     "python:deps": "python -m pip install -r requirements-dev.txt",
     "serve": "python -m http.server 8000 --bind 127.0.0.1",
     "site-shell": "python source/tools/sync_site_shell.py",
@@ -17,7 +20,7 @@
     "manifest:check": "python source/tools/build_manifest.py --check",
     "validate": "python source/tools/validate_site.py",
     "smoke": "python source/tools/browser_smoke.py",
-    "qa": "npm run test && npm run csharp:verify && npm run site-shell:check && npm run search-index && npm run validate && npm run manifest:check && npm run smoke",
+    "qa": "python source/tools/run_qa.py",
     "preview": "python source/tools/capture_previews.py"
   },
   "engines": {

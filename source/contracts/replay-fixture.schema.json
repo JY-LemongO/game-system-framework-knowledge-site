@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["fixtureVersion", "name", "runtimeVersion", "input", "expected"],
   "properties": {
-    "fixtureVersion": { "type": "integer", "const": 1 },
+    "fixtureVersion": { "type": "integer", "const": 2 },
     "name": { "type": "string", "minLength": 1 },
     "runtimeVersion": { "type": "string", "minLength": 1 },
     "input": { "type": "object" },
@@ -19,7 +19,13 @@
         "replayHash": { "$ref": "#/$defs/hash64" },
         "traceHash": { "$ref": "#/$defs/hash64" },
         "finalState": { "type": "object" },
-        "outcome": { "type": "object" },
+        "outcome": {
+          "type": "object",
+          "required": ["exactRawDamage"],
+          "properties": {
+            "exactRawDamage": { "$ref": "#/$defs/exactDamageScalar" }
+          }
+        },
         "eventTypes": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "traceCount": { "type": "integer", "minimum": 1 },
         "invariants": {
@@ -36,6 +42,15 @@
     }
   },
   "$defs": {
-    "hash64": { "type": "string", "pattern": "^[0-9a-f]{16}$" }
+    "hash64": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+    "exactDamageScalar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numerator", "denominator"],
+      "properties": {
+        "numerator": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,127})$" },
+        "denominator": { "type": "string", "pattern": "^[1-9][0-9]{0,127}$" }
+      }
+    }
   }
 }

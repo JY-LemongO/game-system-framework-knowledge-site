@@ -8,7 +8,8 @@ from browser_launch import launch_chromium
 
 ROOT = Path(__file__).resolve().parents[2]
 pages = json.loads((ROOT/'source/site-map.json').read_text(encoding='utf-8'))
-GOLDEN = json.loads((ROOT/'source/runtime/fixtures/fireball-golden-v1.json').read_text(encoding='utf-8'))
+GOLDEN = json.loads((ROOT/'source/runtime/fixtures/fireball-golden-v2.json').read_text(encoding='utf-8'))
+CAPSTONE_PASSING = json.loads((ROOT/'source/runtime/tests/fixtures/capstone-passing-submission-v1.json').read_text(encoding='utf-8'))
 RUNTIME_PAGE = next((item for item in pages if item['file'] == 'modules/runtime-reference.html'), None)
 RUNTIME_FILE = RUNTIME_PAGE['file'] if RUNTIME_PAGE else None
 LEARNING_PAGES = sorted(
@@ -30,9 +31,12 @@ CSS=(ROOT/'assets/css/site.css').read_text(encoding='utf-8')
 SCRIPT_MAP={
     'search-index.js':(ROOT/'assets/js/search-index.js').read_text(encoding='utf-8'),
     'runtime-kernel.js':(ROOT/'assets/js/runtime-kernel.js').read_text(encoding='utf-8'),
+    'capstone-assessor.js':(ROOT/'assets/js/capstone-assessor.js').read_text(encoding='utf-8'),
     'app.js':(ROOT/'assets/js/app.js').read_text(encoding='utf-8'),
 }
 PIXEL='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700"%3E%3Crect width="1200" height="700" fill="%23f3f4f6"/%3E%3C/svg%3E'
+WIDE_PIXEL='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="5000" height="700" viewBox="0 0 5000 700"%3E%3Crect width="5000" height="700" fill="%23f3f4f6"/%3E%3C/svg%3E'
+TALL_PIXEL='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="1900" viewBox="0 0 800 1900"%3E%3Crect width="800" height="1900" fill="%23f3f4f6"/%3E%3C/svg%3E'
 COMPONENT_LAYOUT_AUDIT=r"""
 () => {
   const px = (value) => Number.parseFloat(value) || 0;
@@ -130,7 +134,13 @@ def inline_page(file):
         else:
             script.decompose()
     for image in soup.select('img[src]'):
-        image['src']=PIXEL
+        source_name=Path(urlparse(image.get('src','')).path).name
+        if source_name in ('09_effect_component_diagram.svg', '39_runtime_ports_and_adapters.svg'):
+            image['src']=WIDE_PIXEL
+        elif source_name == '40_resolve_commit_reaction_sequence.svg':
+            image['src']=TALL_PIXEL
+        else:
+            image['src']=PIXEL
     return '<!DOCTYPE html>\n'+str(soup)
 
 def check(condition, label):
@@ -287,6 +297,23 @@ with sync_playwright() as p:
     check(nojs_page.locator('.system-card').count()==6,'learning-progress:nojs-learning-links-visible')
     nojs_context.close()
 
+    legacy_draft_context=browser.new_context(viewport={'width':390,'height':844})
+    legacy_draft_context.route('http://gsf.test/**', fulfill_learning_site)
+    legacy_draft_page=legacy_draft_context.new_page(); legacy_draft_errors=[]
+    legacy_draft_page.on('pageerror', lambda exc: legacy_draft_errors.append(str(exc)))
+    legacy_draft_page.goto('http://gsf.test/index.html', wait_until='load')
+    legacy_draft_page.evaluate("draft => localStorage.setItem('gsf-capstone-draft-chain-lightning-shock.v1', JSON.stringify(draft))", {
+        'schemaVersion':1, 'challengeId':'chain-lightning-shock.v1',
+        'resolve':{'mutatesState':False},
+    })
+    legacy_draft_page.goto('http://gsf.test/modules/runtime-reference.html', wait_until='load')
+    legacy_draft_submission=json.loads(legacy_draft_page.locator('[data-capstone-editor]').input_value())
+    check(legacy_draft_submission['resolve']['maxTargets'] is None and legacy_draft_submission['reaction']['retryPolicy'] is None,'capstone:legacy-draft-replaced-with-current-starter')
+    check('이전 계약과 맞지 않는 draft를 지우고 최신 Starter' in legacy_draft_page.locator('[data-capstone-draft-status]').inner_text(),'capstone:legacy-draft-replacement-reported')
+    check(legacy_draft_page.evaluate("localStorage.getItem('gsf-capstone-draft-chain-lightning-shock.v1')") is None,'capstone:legacy-draft-storage-cleared')
+    check(not legacy_draft_errors,'capstone:legacy-draft-no-page-errors' + (f' ({legacy_draft_errors})' if legacy_draft_errors else ''))
+    legacy_draft_context.close()
+
     if not RUNTIME_FILE:
         raise RuntimeError('site-map does not declare modules/runtime-reference.html')
     context=browser.new_context(viewport={'width':1440,'height':1000})
@@ -301,6 +328,94 @@ with sync_playwright() as p:
     check(initial_plan['outcome'].get('hitOutcome')=='Hit' and 'hit' not in initial_plan['outcome'],'runtime:plan-uses-hit-outcome')
     check(page.locator('[data-runtime-cache-status]').inner_text()=='PASS','runtime:cache-pass')
     check(page.locator('[data-runtime-migration-status]').inner_text()=='PASS','runtime:migration-pass')
+    capstone_editor=page.locator('[data-capstone-editor]')
+    check(capstone_editor.count()==1,'capstone:single-json-editor')
+    starter_submission=json.loads(capstone_editor.input_value())
+    check(starter_submission.get('challengeId')=='chain-lightning-shock.v1','capstone:starter-challenge-id')
+    check(page.locator('[data-capstone-status]').inner_text()=='아직 채점하지 않았습니다.','capstone:initial-unassessed-state')
+    page.locator('[data-capstone-assess]').click()
+    check(page.locator('[data-capstone-score]').inner_text()=='0','capstone:starter-zero-score')
+    check(page.locator('[data-capstone-status]').inner_text().startswith('NOT YET'),'capstone:starter-not-yet')
+    check(all(page.locator(f'[data-capstone-gate="{name}"]').inner_text()=='FAIL' for name in ('normal','edge','failure')),'capstone:starter-three-gates-fail')
+    check(int(page.locator('[data-capstone-critical-count]').inner_text())>0,'capstone:starter-critical-feedback')
+    check(page.evaluate("typeof GSFCapstone.createReferenceSubmission === 'undefined'"),'capstone:no-public-completed-answer-api')
+    array_shape_results=page.evaluate("""submission => {
+      const copy = () => JSON.parse(JSON.stringify(submission));
+      const sparse = copy();
+      sparse.status.tickOffsets = new Array(2);
+      sparse.status.tickOffsets[1] = 4;
+      const extra = copy();
+      extra.status.tickOffsets.extra = 'not-json-array-data';
+      let tickGetterCalls = 0;
+      const tickAccessor = copy();
+      Object.defineProperty(tickAccessor.status.tickOffsets, '0', {
+        enumerable: true,
+        configurable: true,
+        get() { tickGetterCalls += 1; return 2; }
+      });
+      let tokenGetterCalls = 0;
+      const tokenAccessor = copy();
+      Object.defineProperty(tokenAccessor.resolve.targetOrder, '0', {
+        enumerable: true,
+        configurable: true,
+        get() { tokenGetterCalls += 1; return 'distanceBucket:asc'; }
+      });
+      const symbolExtra = copy();
+      symbolExtra.resolve.targetOrder[Symbol('extra')] = 'not-json-array-data';
+      return {
+        sparseRejected: !GSFCapstone.assessCombatCapstone(sparse).schemaValid,
+        extraRejected: !GSFCapstone.assessCombatCapstone(extra).schemaValid,
+        tickAccessorRejected: !GSFCapstone.assessCombatCapstone(tickAccessor).schemaValid && tickGetterCalls === 0,
+        tokenAccessorRejected: !GSFCapstone.assessCombatCapstone(tokenAccessor).schemaValid && tokenGetterCalls === 0,
+        symbolRejected: !GSFCapstone.assessCombatCapstone(symbolExtra).schemaValid
+      };
+    }""", CAPSTONE_PASSING)
+    check(array_shape_results['sparseRejected'],'capstone:direct-api-rejects-sparse-array')
+    check(array_shape_results['extraRejected'],'capstone:direct-api-rejects-extra-array-property')
+    check(array_shape_results['tickAccessorRejected'],'capstone:direct-api-rejects-tick-accessor-without-reading')
+    check(array_shape_results['tokenAccessorRejected'],'capstone:direct-api-rejects-token-accessor-without-reading')
+    check(array_shape_results['symbolRejected'],'capstone:direct-api-rejects-symbol-array-property')
+    capstone_editor.fill(json.dumps(CAPSTONE_PASSING,ensure_ascii=False,indent=2))
+    page.locator('[data-capstone-assess]').click()
+    check(page.locator('[data-capstone-score]').inner_text()=='100','capstone:reference-score-100')
+    check(page.locator('[data-capstone-status]').inner_text().startswith('PASS'),'capstone:reference-pass')
+    check(page.locator('[data-capstone-meter]').evaluate('el => el.value')==100,'capstone:meter-reflects-score')
+    check(all(page.locator(f'[data-capstone-gate="{name}"]').inner_text()=='PASS' for name in ('normal','edge','failure')),'capstone:reference-three-gates-pass')
+    check(page.locator('[data-capstone-critical-count]').inner_text()=='0','capstone:reference-zero-critical')
+    check(page.locator('[data-capstone-feedback] li[data-state="pass"]').count()==6,'capstone:six-rubric-dimensions-pass')
+    capstone_evidence=json.loads(page.locator('[data-capstone-evidence]').inner_text())
+    check(all(capstone_evidence[name]['passed'] for name in ('normal','edge','failure')),'capstone:computed-probe-evidence-pass')
+    check(capstone_evidence['edge']['evidence']['firstPermutationHash']==capstone_evidence['edge']['evidence']['secondPermutationHash'],'capstone:permutation-hashes-match')
+    stale_evidence=capstone_evidence['failure']['evidence']['staleCommit']
+    check(stale_evidence['beforeStateHash']==stale_evidence['afterStateHash'] and stale_evidence['beforeOutboxHash']==stale_evidence['afterOutboxHash'],'capstone:stale-probe-hashes-unchanged')
+    check('저장할 수 없지만 채점은 계속할 수 있습니다' in page.locator('[data-capstone-draft-status]').inner_text(),'capstone:blocked-storage-keeps-assessment-available')
+    invalid_candidate=json.loads(json.dumps(CAPSTONE_PASSING))
+    invalid_candidate['ownership']['orchestrationOwner']='Bogus'
+    capstone_editor.fill(json.dumps(invalid_candidate,ensure_ascii=False,indent=2))
+    page.locator('[data-capstone-assess]').click()
+    check(page.locator('[data-capstone-status]').inner_text().startswith('SCHEMA FAIL'),'capstone:enum-outside-public-schema-rejected')
+    check(json.loads(page.locator('[data-capstone-evidence]').inner_text())['schemaValid'] is False,'capstone:schema-error-evidence-visible')
+    capstone_editor.fill('{')
+    page.locator('[data-capstone-assess]').click()
+    check(page.locator('[data-capstone-status]').inner_text().startswith('JSON PARSE FAIL'),'capstone:malformed-json-feedback')
+    page.locator('[data-capstone-reset]').click()
+    reset_submission=json.loads(capstone_editor.input_value())
+    check(reset_submission.get('challengeId')=='chain-lightning-shock.v1' and reset_submission['resolve']['mutatesState'] is None,'capstone:reset-restores-starter')
+    check('Starter로 초기화했습니다' in page.locator('[data-capstone-draft-status]').inner_text(),'capstone:reset-reports-draft-clear')
+    mobile_capstone=context.new_page(); mobile_capstone.set_viewport_size({'width':390,'height':844})
+    mobile_capstone.set_content(inline_page(RUNTIME_FILE), wait_until='load')
+    mobile_capstone.wait_for_function("document.querySelector('[data-runtime-replay-status]')?.textContent === 'MATCH'")
+    mobile_editor=mobile_capstone.locator('[data-capstone-editor]')
+    mobile_editor.fill(json.dumps(CAPSTONE_PASSING,ensure_ascii=False,indent=2))
+    mobile_capstone.locator('[data-capstone-assess]').click()
+    check(mobile_capstone.locator('[data-capstone-status]').inner_text().startswith('PASS'),'capstone:mobile-reference-pass')
+    check(all(mobile_capstone.locator(f'[data-capstone-gate="{name}"]').inner_text()=='PASS' for name in ('normal','edge','failure')),'capstone:mobile-three-gates-pass')
+    mobile_overflow=mobile_capstone.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth')
+    check(mobile_overflow <= 1,'capstone:mobile-no-horizontal-overflow')
+    check(json.loads(mobile_capstone.locator('[data-capstone-evidence]').inner_text())['failure']['passed'],'capstone:mobile-computed-evidence-visible')
+    mobile_capstone.locator('[data-capstone-reset]').click()
+    check(json.loads(mobile_editor.input_value())['resolve']['maxTargets'] is None,'capstone:mobile-reset-restores-expanded-starter')
+    mobile_capstone.close()
     golden_run=page.evaluate('(input) => GSFRuntime.runFireballScenario(input)', GOLDEN['input'])
     expected=GOLDEN['expected']
     check(golden_run['replayHash']==expected['replayHash'],'runtime:golden-replay-hash')
@@ -350,13 +465,40 @@ with sync_playwright() as p:
     check(runtime_results.count()>=1,'global-search:runtime-title-result')
     check(bool(page.locator('#command-result-status').inner_text()),'global-search:result-count-status')
     page.keyboard.press('Escape')
+    page.wait_for_function("document.querySelector('#command-input')?.getAttribute('aria-expanded') === 'false'")
     check(page.locator('#command-input').get_attribute('aria-expanded')=='false','global-search:collapsed-state')
     page.evaluate('window.__printCalled=false; window.print=()=>{window.__printCalled=true}')
     page.locator('[data-print-page]').first.click()
     check(page.evaluate('window.__printCalled'),'print:data-print-page-listener')
     page.locator('img.zoomable').first.click()
     check(page.locator('[data-diagram-modal]').evaluate('el => el.open'),'diagram:modal-open')
+    page.wait_for_function("document.querySelector('[data-zoom-reset]')?.textContent !== '100%'")
+    fit_label=page.locator('[data-zoom-reset]').inner_text()
+    check(fit_label.endswith('%') and int(fit_label[:-1]) < 100,'diagram:fit-scale-is-real-percentage')
+    page.locator('[data-zoom-reset]').click()
+    check(page.locator('[data-zoom-reset]').inner_text()=='100%','diagram:one-click-native-scale')
     page.keyboard.press('Escape')
+
+    gallery=context.new_page()
+    gallery.set_content(inline_page('modules/diagram-gallery.html'),wait_until='load')
+    gallery.wait_for_timeout(120)
+    check(gallery.locator('.gallery .thumb').count()==34,'diagram-gallery:all-assets-listed')
+    check(gallery.locator('.gallery .diagram-preview').count()==34,'diagram-gallery:scroll-previews-ready')
+    wide=gallery.locator('img[alt="Effect 컴포넌트"]')
+    check(wide.count()==1,'diagram-gallery:wide-diagram-present')
+    wide.scroll_into_view_if_needed()
+    gallery.wait_for_function("document.querySelector('img[alt=\"Effect 컴포넌트\"]')?.parentElement?.dataset.aspect === 'wide'")
+    wide_preview=wide.locator('xpath=..')
+    check(wide_preview.get_attribute('data-aspect')=='wide','diagram-gallery:wide-preview-classified')
+    check(wide_preview.evaluate('el => el.scrollWidth > el.clientWidth'),'diagram-gallery:wide-preview-scrollable')
+    wide.click()
+    gallery.wait_for_function("document.querySelector('[data-zoom-reset]')?.textContent !== '100%'")
+    wide_fit=gallery.locator('[data-zoom-reset]').inner_text()
+    check(wide_fit.endswith('%') and int(wide_fit[:-1]) < 50,'diagram-gallery:wide-fit-scale-reported')
+    gallery.locator('[data-zoom-reset]').click()
+    check(gallery.locator('[data-zoom-reset]').inner_text()=='100%','diagram-gallery:wide-native-scale')
+    gallery.keyboard.press('Escape')
+    gallery.close()
     context.close(); browser.close()
 
 report={'status':'pass' if not errors else 'fail','checks':len(checks),'passed':sum(1 for item in checks if item['pass']),'errors':errors}

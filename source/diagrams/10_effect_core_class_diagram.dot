@@ -1,12 +1,11 @@
 
 digraph G {
 
-  graph [fontname="Noto Sans CJK KR", bgcolor="#ffffff", margin=0.12, pad=0.25, ranksep=0.65, nodesep=0.48];
-  node [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
-  edge [fontname="Noto Sans CJK KR", color="#59687e", fontcolor="#46566e", arrowsize=0.8, penwidth=1.3];
+  graph [fontname="Noto Sans KR", bgcolor="#ffffff", compound=true, margin=0.12, pad=0.30, ranksep=1.0, nodesep=0.68, newrank=true, outputorder=edgesfirst, splines=polyline];
+  node [fontname="Noto Sans KR", shape=box, style="rounded,filled", color="#bac7db", penwidth=1.4, fillcolor="#ffffff", fontcolor="#182033", margin="0.14,0.09"];
+  edge [fontname="Noto Sans KR", color="#59687e", fontcolor="#46566e", fontsize=9, arrowsize=0.8, penwidth=1.3];
 
-  rankdir=LR;
-  splines=ortho;
+  rankdir=TB;
   EffectDefinition [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#e07b91">
 <TR><TD BGCOLOR="#fff0f3"><B><FONT POINT-SIZE="16">&lt;&lt;content data&gt;&gt; EffectDefinition</FONT></B></TD></TR>
@@ -78,23 +77,41 @@ digraph G {
 <TR><TD BGCOLOR="#e9fbff"><B><FONT POINT-SIZE="16">&lt;&lt;public contract&gt;&gt; EffectBundlePlan</FONT></B></TD></TR>
 <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="12">+ BundleId: EntityId</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="12">+ PrimaryOperations: EffectOperation[]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="12">+ Reactions: ReactionRule[]</FONT></TD></TR>
 </TABLE>>];
-  EffectBundle -> EffectOperation [label="contains 1..*", arrowhead=diamond];
-  EffectDefinition -> TargetSelector [label="uses"];
-  EffectDefinition -> ValueExpression [label="optional"];
-  EffectDefinition -> EffectCondition [label="0..*"];
-  EffectDefinition -> DefinitionNormalizer [label="internal normalize"];
-  DefinitionNormalizer -> EffectOperation [label="creates"];
-  EffectOperation -> IEffectExecutor [label="public input"];
-  EffectBundle -> IEffectExecutor [label="public input"];
-  EffectBundle -> IEffectPlanner [label="public input"];
-  EffectContext -> IEffectExecutor [label="context"];
-  EffectContext -> IEffectPlanner [label="context"];
-  EffectPipeline -> IEffectExecutor [label="implements", arrowhead=empty];
-  EffectPipeline -> IEffectPlanner [label="implements", arrowhead=empty];
-  EffectPipeline -> IEffectOperationExecutor [label="dispatch"];
-  DamageEffectExecutor -> IEffectOperationExecutor [label="implements", arrowhead=empty];
-  ApplyStatusExecutor -> IEffectOperationExecutor [label="implements", arrowhead=empty];
-  ModifyResourceExecutor -> IEffectOperationExecutor [label="implements", arrowhead=empty];
-  EffectPipeline -> EffectResult [label="returns"];
-  IEffectPlanner -> EffectBundlePlan [label="prepares"];
+  subgraph cluster_definition_model {
+    label="Definition Model"; color="#E7D59A"; fontname="Noto Sans KR"; style="rounded,dashed";
+    EffectDefinition; TargetSelector; ValueExpression; EffectCondition; DefinitionNormalizer;
+    { rank=same; TargetSelector; ValueExpression; EffectCondition; }
+  }
+  subgraph cluster_public_contracts {
+    label="Public Runtime Contracts"; color="#B7DCE5"; fontname="Noto Sans KR"; style="rounded,dashed";
+    EffectOperation; EffectBundle; EffectContext; IEffectExecutor; IEffectPlanner; EffectBundlePlan; EffectResult;
+    { rank=same; EffectOperation; EffectBundle; EffectContext; }
+    { rank=same; IEffectExecutor; IEffectPlanner; }
+    { rank=same; EffectBundlePlan; EffectResult; }
+  }
+  subgraph cluster_runtime_implementation {
+    label="Runtime Implementation"; color="#C9B9E8"; fontname="Noto Sans KR"; style="rounded,dashed";
+    EffectPipeline; IEffectOperationExecutor; DamageEffectExecutor; ApplyStatusExecutor; ModifyResourceExecutor;
+    { rank=same; DamageEffectExecutor; ApplyStatusExecutor; ModifyResourceExecutor; }
+  }
+  Legend [shape=note, label="Relationship guide\nsolid arrow: data / runtime input\ndashed hollow arrow: interface implementation\npurple arrow: operation dispatch", fontname="Noto Sans KR", fillcolor="#ffffff", color="#99a8bd"];
+  EffectBundle:e -> EffectOperation:w [label="contains operations (1..*)" dir=both arrowtail=diamond arrowhead=none color="#8A6D3B"];
+  EffectDefinition:s -> TargetSelector:n [label="selects targets" color="#7257A6"];
+  EffectDefinition:sw -> ValueExpression:n [label="evaluates optional value" color="#7257A6"];
+  EffectDefinition:se -> EffectCondition:n [label="guards with conditions (0..*)" color="#7257A6"];
+  EffectDefinition:s -> DefinitionNormalizer:n [label="normalize definition" color="#5B6F8F"];
+  DefinitionNormalizer:s -> EffectOperation:n [label="creates runtime EffectOperation" color="#5B6F8F"];
+  EffectOperation:s -> IEffectExecutor:nw [color="#3D8B6D"];
+  EffectBundle:s -> IEffectExecutor:ne [color="#3D8B6D"];
+  EffectBundle:s -> IEffectPlanner:nw [color="#397B8C"];
+  EffectContext:sw -> IEffectExecutor:ne [color="#8292A8" style=dashed];
+  EffectContext:se -> IEffectPlanner:ne [color="#8292A8" style=dashed];
+  EffectPipeline:nw -> IEffectExecutor:s [arrowhead=empty color="#3D8B6D" constraint=false style=dashed];
+  EffectPipeline:ne -> IEffectPlanner:s [arrowhead=empty color="#397B8C" constraint=false style=dashed];
+  EffectPipeline:s -> IEffectOperationExecutor:n [color="#7257A6"];
+  DamageEffectExecutor:s -> IEffectOperationExecutor:nw [arrowhead=empty color="#3D8B6D" style=dashed];
+  ApplyStatusExecutor:s -> IEffectOperationExecutor:n [arrowhead=empty color="#3D8B6D" style=dashed];
+  ModifyResourceExecutor:s -> IEffectOperationExecutor:ne [arrowhead=empty color="#3D8B6D" style=dashed];
+  EffectPipeline:e -> EffectResult:s [color="#8292A8" constraint=false style=dashed];
+  IEffectPlanner:s -> EffectBundlePlan:n [label="prepares EffectBundlePlan" color="#397B8C"];
 }
