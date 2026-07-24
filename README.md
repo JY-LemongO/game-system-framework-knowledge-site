@@ -3,6 +3,10 @@
   <strong>Preview</strong> · <a href="https://jy-lemongo.github.io/GameSystemKnowledge/preview/">https://jy-lemongo.github.io/GameSystemKnowledge/preview/</a>
 </p>
 
+<p align="center">
+  <strong>Preview release</strong> · Site <code>4.0.0-reference</code> · Runtime <code>4.0.1-reference</code> · Runtime contract schema <code>v2</code> · Replay format <code>v2</code>
+</p>
+
 <h1 align="center">Game System Framework · System Atlas</h1>
 
 <p align="center">
@@ -25,8 +29,8 @@
 </p>
 
 <p align="center">
-  <a href="https://jy-lemongo.github.io/GameSystemKnowledge/modules/runtime-reference.html">
-    <img src="PREVIEW/runtime-reference-desktop.png" alt="System Atlas Runtime Contract Lab 화면" width="100%" />
+  <a href="https://jy-lemongo.github.io/GameSystemKnowledge/preview/modules/runtime-reference.html">
+    <img src="PREVIEW/runtime-reference-desktop.png" alt="System Atlas 4.0 Runtime Contract Lab Preview 화면" width="100%" />
   </a>
 </p>
 
