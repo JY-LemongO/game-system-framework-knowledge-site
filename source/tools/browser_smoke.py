@@ -8,7 +8,7 @@ from browser_launch import launch_chromium
 
 ROOT = Path(__file__).resolve().parents[2]
 pages = json.loads((ROOT/'source/site-map.json').read_text(encoding='utf-8'))
-GOLDEN = json.loads((ROOT/'source/runtime/fixtures/fireball-golden-v1.json').read_text(encoding='utf-8'))
+GOLDEN = json.loads((ROOT/'source/runtime/fixtures/fireball-golden-v2.json').read_text(encoding='utf-8'))
 CAPSTONE_PASSING = json.loads((ROOT/'source/runtime/tests/fixtures/capstone-passing-submission-v1.json').read_text(encoding='utf-8'))
 RUNTIME_PAGE = next((item for item in pages if item['file'] == 'modules/runtime-reference.html'), None)
 RUNTIME_FILE = RUNTIME_PAGE['file'] if RUNTIME_PAGE else None

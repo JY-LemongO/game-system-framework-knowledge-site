@@ -3,12 +3,14 @@ namespace GameSystemKnowledge.Reference.Contracts;
 public sealed class SkillRequest
 {
     public SkillRequest(
+        EntityId commandId,
         EntityId casterId,
         EntityId skillId,
         EntityId? targetId,
         long requestedTick,
         uint rootSeed)
     {
+        EntityId.ThrowIfInvalid(commandId, nameof(commandId));
         EntityId.ThrowIfInvalid(casterId, nameof(casterId));
         EntityId.ThrowIfInvalid(skillId, nameof(skillId));
         if (targetId.HasValue)
@@ -21,12 +23,15 @@ public sealed class SkillRequest
             throw new ArgumentOutOfRangeException(nameof(requestedTick));
         }
 
+        CommandId = commandId;
         CasterId = casterId;
         SkillId = skillId;
         TargetId = targetId;
         RequestedTick = requestedTick;
         RootSeed = rootSeed;
     }
+
+    public EntityId CommandId { get; }
 
     public EntityId CasterId { get; }
 
@@ -49,10 +54,16 @@ public enum SkillFailureReason
     Interrupted
 }
 
-public readonly record struct SkillDecision
+public sealed class SkillDecision
 {
     public SkillDecision(bool canExecute, SkillFailureReason? failureReason)
     {
+        if (failureReason is { } definedReason &&
+            !Enum.IsDefined(definedReason))
+        {
+            throw new ArgumentOutOfRangeException(nameof(failureReason));
+        }
+
         if (canExecute && failureReason is not null)
         {
             throw new ArgumentException(
@@ -93,6 +104,12 @@ public sealed class SkillResult
         SkillFailureReason? failureReason,
         IEnumerable<EffectResult>? effects = null)
     {
+        if (failureReason is { } definedReason &&
+            !Enum.IsDefined(definedReason))
+        {
+            throw new ArgumentOutOfRangeException(nameof(failureReason));
+        }
+
         if (succeeded && failureReason is not null)
         {
             throw new ArgumentException(
@@ -107,10 +124,24 @@ public sealed class SkillResult
                 nameof(failureReason));
         }
 
+        var effectCopy = (effects ?? Enumerable.Empty<EffectResult>()).ToArray();
+        if (effectCopy.Any(effect => effect is null))
+        {
+            throw new ArgumentException(
+                "Skill effects cannot contain null values.",
+                nameof(effects));
+        }
+
+        if (!succeeded && effectCopy.Length != 0)
+        {
+            throw new ArgumentException(
+                "A failed skill result cannot expose committed effects.",
+                nameof(effects));
+        }
+
         Succeeded = succeeded;
         FailureReason = failureReason;
-        Effects = Array.AsReadOnly(
-            (effects ?? Enumerable.Empty<EffectResult>()).ToArray());
+        Effects = Array.AsReadOnly(effectCopy);
     }
 
     public bool Succeeded { get; }

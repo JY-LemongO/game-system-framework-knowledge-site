@@ -33,7 +33,7 @@
   const REACTION_SORT_ORDER = ['priority:asc', 'stableOrderKey:ordinal:asc', 'reactionId:ordinal:asc'];
   const REACTION_LIMITS = ['maxDepth', 'maxReactions', 'maxBudget', 'idempotency'];
   const REACTION_FAILURE = 'keep-primary-and-dispatched-discard-undispatched-diagnostic-trace';
-  const REACTION_RETRY_POLICY = 'new-command-and-idempotency-keys-or-explicit-operator-policy';
+  const REACTION_RETRY_POLICY = 'same-business-keys-per-reaction-disposition-retry';
   const STATUS_EVENT_ORDER = 'DamageCommitted-StatusTicked-StatusExpired';
   const FINAL_TICK_COMMIT = 'damage-tick-expire-status-remove-atomic';
   const REPLAY_ENVELOPE_FIELDS = [
@@ -83,7 +83,7 @@
       limits: ['maxDepth', 'maxReactions', 'maxBudget', 'idempotency', 'wallClockTimeout'],
       budgetFailure: ['rollback-primary', 'keep-primary-discard-all-reactions', 'keep-primary-and-dispatched-discard-undispatched-durable-error-event', REACTION_FAILURE],
       commandIdPolicy: ['random-guid', 'reuse-root-command', 'derive-from-trigger-event-and-reaction-kind'],
-      retryPolicy: ['implicit-retry-same-command', 'reuse-consumed-idempotency-key', 'new-command-id-or-explicit-operator-policy', REACTION_RETRY_POLICY]
+      retryPolicy: ['implicit-retry-same-command', 'reuse-consumed-idempotency-key', 'new-command-id-or-explicit-operator-policy', 'new-command-and-idempotency-keys-or-explicit-operator-policy', REACTION_RETRY_POLICY]
     },
     status: {
       applyRule: ['positive-hp-damage-only', 'any-resolved-attempt', 'committed-hit-and-target-alive'],
@@ -368,7 +368,7 @@
         ['reaction-order', 'reaction 정렬 tuple을 고정한다', 3, s => sameArray(s.reaction.sortOrder, REACTION_SORT_ORDER)],
         ['reaction-limits', 'depth·개수·budget·멱등 상한을 둔다', 3, s => sameSet(s.reaction.limits, REACTION_LIMITS)],
         ['reaction-failure', '실패 전 commit과 primary를 보존하고 미실행 작업만 폐기한다', 4, s => s.reaction.budgetFailure === REACTION_FAILURE],
-        ['reaction-command-id', '후속 commandId를 결정론적으로 만들고 재시도에는 새 ID나 명시적 운영 정책을 요구한다', 3, s =>
+        ['reaction-command-id', '후속 commandId를 결정론적으로 만들고 미커밋 반응만 같은 business identity로 재시도한다', 3, s =>
           s.reaction.commandIdPolicy === 'derive-from-trigger-event-and-reaction-kind' &&
           s.reaction.retryPolicy === REACTION_RETRY_POLICY]
       ]

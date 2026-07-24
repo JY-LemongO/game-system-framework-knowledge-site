@@ -61,6 +61,15 @@ public abstract record DomainEvent(
         IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
     {
     }
+
+    internal virtual void ValidateStateTransition(
+        IReadOnlyDictionary<EntityId, VersionedResourceState> preState,
+        IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
+    {
+        ArgumentNullException.ThrowIfNull(preState);
+        ArgumentNullException.ThrowIfNull(postState);
+        ValidatePostState(postState);
+    }
 }
 
 public sealed record SkillCommitted(
@@ -69,7 +78,11 @@ public sealed record SkillCommitted(
     EntityId CasterId,
     EntityId SkillId,
     EntityId? TargetId,
-    SourceRef Source)
+    SourceRef Source,
+    EntityId ManaResourceId,
+    long ManaSpent,
+    EntityId CooldownResourceId,
+    long CooldownReadyTick)
     : DomainEvent(EventId, CommandId, Source)
 {
     internal override void ValidateContract()
@@ -80,6 +93,70 @@ public sealed record SkillCommitted(
         if (TargetId.HasValue)
         {
             EntityId.ThrowIfInvalid(TargetId.Value, nameof(TargetId));
+        }
+
+        if (Source.Kind != SourceKind.SkillExecution ||
+            Source.DefinitionId != SkillId ||
+            Source.InstanceId != CommandId)
+        {
+            throw new ArgumentException(
+                "SkillCommitted.Source must identify this skill execution.");
+        }
+
+        EntityId.ThrowIfInvalid(ManaResourceId, nameof(ManaResourceId));
+        EntityId.ThrowIfInvalid(CooldownResourceId, nameof(CooldownResourceId));
+        if (ManaResourceId == CooldownResourceId)
+        {
+            throw new ArgumentException(
+                "Mana and cooldown facts must identify distinct resources.");
+        }
+
+        if (ManaSpent < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(ManaSpent));
+        }
+
+        if (CooldownReadyTick < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(CooldownReadyTick));
+        }
+    }
+
+    internal override void ValidateStateTransition(
+        IReadOnlyDictionary<EntityId, VersionedResourceState> preState,
+        IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
+    {
+        base.ValidateStateTransition(preState, postState);
+
+        if (!preState.TryGetValue(ManaResourceId, out var manaBefore) ||
+            !postState.TryGetValue(ManaResourceId, out var manaAfter))
+        {
+            throw new InvalidOperationException(
+                "SkillCommitted must reference a committed mana resource.");
+        }
+
+        if (manaBefore.Value < ManaSpent ||
+            manaAfter.Value != manaBefore.Value - ManaSpent ||
+            manaBefore.Version == long.MaxValue ||
+            manaAfter.Version != manaBefore.Version + 1)
+        {
+            throw new InvalidOperationException(
+                "SkillCommitted.ManaSpent must match the committed mana transition.");
+        }
+
+        if (!preState.TryGetValue(CooldownResourceId, out var cooldownBefore) ||
+            !postState.TryGetValue(CooldownResourceId, out var cooldownAfter))
+        {
+            throw new InvalidOperationException(
+                "SkillCommitted must reference a committed cooldown resource.");
+        }
+
+        if (cooldownAfter.Value != CooldownReadyTick ||
+            cooldownBefore.Version == long.MaxValue ||
+            cooldownAfter.Version != cooldownBefore.Version + 1)
+        {
+            throw new InvalidOperationException(
+                "SkillCommitted.CooldownReadyTick must match the committed cooldown transition.");
         }
     }
 }
@@ -104,6 +181,20 @@ public sealed record DamageCommitted(
         EntityId.ThrowIfInvalid(DefenderId, nameof(DefenderId));
         EntityId.ThrowIfInvalid(TargetHpResourceId, nameof(TargetHpResourceId));
         EntityId.ThrowIfInvalid(TargetShieldResourceId, nameof(TargetShieldResourceId));
+        ArgumentNullException.ThrowIfNull(Result);
+
+        if (TargetHpResourceId == TargetShieldResourceId)
+        {
+            throw new ArgumentException(
+                "DamageCommitted must identify distinct HP and shield resources.");
+        }
+
+        if (Source.Kind == SourceKind.SkillExecution &&
+            Source.InstanceId != CommandId)
+        {
+            throw new ArgumentException(
+                "A skill-sourced DamageCommitted fact must identify this command execution.");
+        }
     }
 
     internal override void ValidatePostState(
@@ -131,6 +222,64 @@ public sealed record DamageCommitted(
         {
             throw new InvalidOperationException(
                 "DamageCommitted.TargetShieldAfter must match the committed target shield resource.");
+        }
+    }
+
+    internal override void ValidateStateTransition(
+        IReadOnlyDictionary<EntityId, VersionedResourceState> preState,
+        IReadOnlyDictionary<EntityId, VersionedResourceState> postState)
+    {
+        base.ValidateStateTransition(preState, postState);
+
+        if (!preState.TryGetValue(TargetHpResourceId, out var hpBefore) ||
+            !postState.TryGetValue(TargetHpResourceId, out var hpAfter) ||
+            !preState.TryGetValue(TargetShieldResourceId, out var shieldBefore) ||
+            !postState.TryGetValue(TargetShieldResourceId, out var shieldAfter))
+        {
+            throw new InvalidOperationException(
+                "DamageCommitted must reference committed HP and shield resources.");
+        }
+
+        ValidateDamageResourceTransition(
+            hpBefore,
+            hpAfter,
+            Result.FinalHpDamage,
+            "FinalHpDamage");
+        ValidateDamageResourceTransition(
+            shieldBefore,
+            shieldAfter,
+            Result.ShieldAbsorbed,
+            "ShieldAbsorbed");
+    }
+
+    private static void ValidateDamageResourceTransition(
+        VersionedResourceState before,
+        VersionedResourceState after,
+        int reportedDecrease,
+        string factName)
+    {
+        if (before.Value - after.Value != reportedDecrease)
+        {
+            throw new InvalidOperationException(
+                $"DamageCommitted.{factName} must match the committed resource decrease.");
+        }
+
+        if (reportedDecrease == 0)
+        {
+            if (after.Version != before.Version)
+            {
+                throw new InvalidOperationException(
+                    $"A zero {factName} must not advance the resource version.");
+            }
+
+            return;
+        }
+
+        if (before.Version == long.MaxValue ||
+            after.Version != before.Version + 1)
+        {
+            throw new InvalidOperationException(
+                $"A positive {factName} must advance the resource version exactly once.");
         }
     }
 }
@@ -406,7 +555,7 @@ public sealed class InMemoryRuntimeCommitter : IRuntimeCommitter
             // 상태에서 파생된 이벤트 사실은 같은 커밋의 사후 상태와 일치할 때만 발행한다.
             foreach (var @event in plan.OutboxEvents)
             {
-                @event.ValidatePostState(nextState);
+                @event.ValidateStateTransition(_state, nextState);
             }
 
             var committedEvents = plan.OutboxEvents
@@ -489,6 +638,7 @@ public sealed class DeterministicBoundedReactionQueue : IReactionQueue
     private int _activeMaxBudget;
     private int _activeAcceptedCount;
     private int _activeAcceptedBudget;
+    private int _activeDispatchDepth = -1;
     private Exception? _activeFailure;
 
     public DeterministicBoundedReactionQueue(
@@ -551,11 +701,31 @@ public sealed class DeterministicBoundedReactionQueue : IReactionQueue
                 return;
             }
 
+            var acceptedCommand = command;
+            if (_isDraining)
+            {
+                if (_activeDispatchDepth < 0)
+                {
+                    throw CreateLimitExceptionUnsafe(
+                        "A child reaction can be enqueued only while a parent is being dispatched.");
+                }
+
+                if (_activeDispatchDepth == int.MaxValue)
+                {
+                    throw CreateLimitExceptionUnsafe(
+                        "Reaction depth cannot advance beyond Int32.MaxValue.");
+                }
+
+                // Child depth belongs to the queue's causal traversal. A handler
+                // cannot bypass MaxDepth by submitting a forged lower value.
+                acceptedCommand = command.WithDepth(_activeDispatchDepth + 1);
+            }
+
             var maxDepth = _isDraining ? _activeMaxDepth : _maxDepth;
-            if (command.Depth > maxDepth)
+            if (acceptedCommand.Depth > maxDepth)
             {
                 throw CreateLimitExceptionUnsafe(
-                    $"Reaction depth {command.Depth} exceeds {maxDepth}.");
+                    $"Reaction depth {acceptedCommand.Depth} exceeds {maxDepth}.");
             }
 
             var acceptedCount = _isDraining
@@ -576,19 +746,19 @@ public sealed class DeterministicBoundedReactionQueue : IReactionQueue
             var maxBudget = _isDraining
                 ? _activeMaxBudget
                 : _maxBudget;
-            if ((long)acceptedBudget + command.BudgetCost > maxBudget)
+            if ((long)acceptedBudget + acceptedCommand.BudgetCost > maxBudget)
             {
                 throw CreateLimitExceptionUnsafe(
                     $"Reaction budget limit {maxBudget} would be exceeded.");
             }
 
-            _pending.Add(command);
-            _knownIdempotencyKeys.Add(command.IdempotencyKey);
-            _pendingBudget += command.BudgetCost;
+            _pending.Add(acceptedCommand);
+            _knownIdempotencyKeys.Add(acceptedCommand.IdempotencyKey);
+            _pendingBudget += acceptedCommand.BudgetCost;
             if (_isDraining)
             {
                 _activeAcceptedCount++;
-                _activeAcceptedBudget += command.BudgetCost;
+                _activeAcceptedBudget += acceptedCommand.BudgetCost;
             }
         }
     }
@@ -627,7 +797,15 @@ public sealed class DeterministicBoundedReactionQueue : IReactionQueue
 
                     _pending.Remove(next);
                     _pendingBudget -= next.BudgetCost;
-                    _dispatch(next);
+                    _activeDispatchDepth = next.Depth;
+                    try
+                    {
+                        _dispatch(next);
+                    }
+                    finally
+                    {
+                        _activeDispatchDepth = -1;
+                    }
                     drainedCount++;
 
                     if (_activeFailure is not null)
@@ -714,6 +892,7 @@ public sealed class DeterministicBoundedReactionQueue : IReactionQueue
         _activeMaxBudget = 0;
         _activeAcceptedCount = 0;
         _activeAcceptedBudget = 0;
+        _activeDispatchDepth = -1;
         _activeFailure = null;
     }
 }

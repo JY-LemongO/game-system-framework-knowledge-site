@@ -65,6 +65,19 @@ public sealed class ReactionCommand
     public int Depth { get; }
 
     public int BudgetCost { get; }
+
+    public ReactionCommand WithDepth(int depth) =>
+        new(
+            ReactionId,
+            IdempotencyKey,
+            HandlerId,
+            TargetId,
+            Source,
+            CausationId,
+            Priority,
+            StableOrderKey,
+            depth,
+            BudgetCost);
 }
 
 public sealed class ReactionBudget
@@ -258,15 +271,43 @@ public abstract record EffectOperation(EntityId OperationId)
     }
 }
 
-public sealed record DamageEffectOperation(
-    EntityId OperationId,
-    DamageRequest Request)
-    : EffectOperation(OperationId);
+public sealed record DamageEffectOperation : EffectOperation
+{
+    private DamageRequest _request;
 
-public sealed record ApplyStatusEffectOperation(
-    EntityId OperationId,
-    ApplyStatusRequest Request)
-    : EffectOperation(OperationId);
+    public DamageEffectOperation(
+        EntityId operationId,
+        DamageRequest request)
+        : base(operationId)
+    {
+        _request = request ?? throw new ArgumentNullException(nameof(request));
+    }
+
+    public DamageRequest Request
+    {
+        get => _request;
+        init => _request = value ?? throw new ArgumentNullException(nameof(value));
+    }
+}
+
+public sealed record ApplyStatusEffectOperation : EffectOperation
+{
+    private ApplyStatusRequest _request;
+
+    public ApplyStatusEffectOperation(
+        EntityId operationId,
+        ApplyStatusRequest request)
+        : base(operationId)
+    {
+        _request = request ?? throw new ArgumentNullException(nameof(request));
+    }
+
+    public ApplyStatusRequest Request
+    {
+        get => _request;
+        init => _request = value ?? throw new ArgumentNullException(nameof(value));
+    }
+}
 
 /// <summary>
 /// Controls only when reactions begin relative to the primary commit.
@@ -275,6 +316,42 @@ public sealed record ApplyStatusEffectOperation(
 public enum EffectExecutionPolicy
 {
     CommitThenReact
+}
+
+internal static class EffectIdentityValidation
+{
+    internal static void EnsureUniqueIds(
+        IEnumerable<EntityId> ids,
+        string parameterName,
+        string kind)
+    {
+        var seen = new HashSet<EntityId>();
+        if (ids.Any(id => !seen.Add(id)))
+        {
+            throw new ArgumentException(
+                $"An effect collection can mention each {kind} ID only once.",
+                parameterName);
+        }
+    }
+
+    internal static void EnsureUniqueReactions(
+        IReadOnlyCollection<ReactionRule> reactions,
+        string parameterName)
+    {
+        // 같은 bundle 안의 reaction은 실행 identity와 멱등 identity가 모두 유일해야 한다.
+        EnsureUniqueIds(
+            reactions.Select(reaction => reaction.RuleId),
+            parameterName,
+            "reaction rule");
+        EnsureUniqueIds(
+            reactions.Select(reaction => reaction.ReactionId),
+            parameterName,
+            "reaction");
+        EnsureUniqueIds(
+            reactions.Select(reaction => reaction.IdempotencyKey),
+            parameterName,
+            "reaction idempotency key");
+    }
 }
 
 public sealed class EffectBundle
@@ -286,6 +363,11 @@ public sealed class EffectBundle
         EffectExecutionPolicy policy = EffectExecutionPolicy.CommitThenReact)
     {
         EntityId.ThrowIfInvalid(bundleId, nameof(bundleId));
+
+        if (!Enum.IsDefined(policy))
+        {
+            throw new ArgumentOutOfRangeException(nameof(policy));
+        }
 
         var effectCopy = effects?.ToArray() ??
             throw new ArgumentNullException(nameof(effects));
@@ -302,6 +384,11 @@ public sealed class EffectBundle
             EntityId.ThrowIfInvalid(effect.OperationId, nameof(effects));
         }
 
+        EffectIdentityValidation.EnsureUniqueIds(
+            effectCopy.Select(effect => effect.OperationId),
+            nameof(effects),
+            "operation");
+
         var reactionCopy = (reactions ?? Enumerable.Empty<ReactionRule>()).ToArray();
         if (reactionCopy.Any(reaction => reaction is null))
         {
@@ -309,6 +396,10 @@ public sealed class EffectBundle
                 "Effect bundle reactions cannot contain null values.",
                 nameof(reactions));
         }
+
+        EffectIdentityValidation.EnsureUniqueReactions(
+            reactionCopy,
+            nameof(reactions));
 
         BundleId = bundleId;
         Effects = Array.AsReadOnly(effectCopy);
@@ -353,6 +444,11 @@ public sealed class EffectBundlePlan
             EntityId.ThrowIfInvalid(operation.OperationId, nameof(primaryOperations));
         }
 
+        EffectIdentityValidation.EnsureUniqueIds(
+            operationCopy.Select(operation => operation.OperationId),
+            nameof(primaryOperations),
+            "operation");
+
         var reactionCopy = (reactions ?? Enumerable.Empty<ReactionRule>()).ToArray();
         if (reactionCopy.Any(reaction => reaction is null))
         {
@@ -360,6 +456,10 @@ public sealed class EffectBundlePlan
                 "Effect plan reactions cannot contain null values.",
                 nameof(reactions));
         }
+
+        EffectIdentityValidation.EnsureUniqueReactions(
+            reactionCopy,
+            nameof(reactions));
 
         BundleId = bundleId;
         PrimaryOperations = Array.AsReadOnly(operationCopy);

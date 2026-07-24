@@ -12,7 +12,13 @@ internal static class Program
         {
             var suite = new ContractVerificationSuite();
             suite.Run();
-            Console.WriteLine($"PASS: {suite.AssertionCount} contract assertions");
+            var foundationAssertions = FoundationContractVerification.Run();
+            var advancedFoundationAssertions =
+                AdvancedFoundationVerification.Run();
+            var combatPolicyAssertions = CombatPolicyVerification.Run();
+            var statusPolicyAssertions = StatusPolicyVerification.Run();
+            Console.WriteLine(
+                $"PASS: {suite.AssertionCount + foundationAssertions + advancedFoundationAssertions + combatPolicyAssertions + statusPolicyAssertions} contract assertions");
             return 0;
         }
         catch (Exception exception)
@@ -33,9 +39,12 @@ internal sealed class ContractVerificationSuite
         VerifyCanonicalIdsAndSources();
         VerifyStatContracts();
         VerifySkillContracts();
+        VerifySkillAdmissionAndPlanning();
         VerifyEffectAndStatusContracts();
         VerifyFireballCalculation();
         VerifyCommitAndReactionContracts();
+        VerifyFireballExecutionIsolationAndNonHit();
+        VerifyLiveTargetStatusReactionPolicy();
         VerifyReactionBoundsAndOrder();
         VerifyStatusCatchUpPolicy();
     }
@@ -169,6 +178,7 @@ internal sealed class ContractVerificationSuite
     private void VerifySkillContracts()
     {
         var request = FireballReferenceScenario.CreateSkillRequest();
+        Equal(FireballReferenceScenario.CommandId, request.CommandId, "skill request keeps its idempotent command identity");
         Equal(FireballReferenceScenario.CasterId, request.CasterId, "skill request keeps caster");
         Equal(FireballReferenceScenario.TargetId, request.TargetId, "Fireball has one explicit target");
         Equal(FireballReferenceScenario.SkillDefinitionId, request.SkillId, "skill request uses a typed skill ID");
@@ -176,6 +186,16 @@ internal sealed class ContractVerificationSuite
         Equal(61_710u, request.RootSeed, "skill request keeps the replay seed");
         Throws<ArgumentException>(
             () => _ = new SkillRequest(
+                default,
+                FireballReferenceScenario.CasterId,
+                FireballReferenceScenario.SkillDefinitionId,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.CastTick,
+                rootSeed: 1),
+            "skill request rejects a default command ID");
+        Throws<ArgumentException>(
+            () => _ = new SkillRequest(
+                FireballReferenceScenario.CommandId,
                 default,
                 FireballReferenceScenario.SkillDefinitionId,
                 FireballReferenceScenario.TargetId,
@@ -191,6 +211,10 @@ internal sealed class ContractVerificationSuite
             SkillFailureReason.ControlLocked,
             SkillDecision.Rejected(SkillFailureReason.ControlLocked).FailureReason,
             "control-lock failure is canonical");
+        Equal<SkillDecision?>(
+            null,
+            default(SkillDecision),
+            "default SkillDecision cannot create an invalid decision instance");
         SequenceEqual(
             new[]
             {
@@ -203,6 +227,9 @@ internal sealed class ContractVerificationSuite
             },
             Enum.GetValues<SkillFailureReason>(),
             "failure enum matches the learning contract");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = SkillDecision.Rejected((SkillFailureReason)int.MaxValue),
+            "skill decision rejects an undefined failure reason");
         Throws<ArgumentException>(
             () => _ = new SkillDecision(true, SkillFailureReason.Cooldown),
             "accepted decision rejects a failure reason");
@@ -225,6 +252,289 @@ internal sealed class ContractVerificationSuite
         Throws<ArgumentException>(
             () => _ = new SkillResult(false, null),
             "failed skill result requires a failure reason");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new SkillResult(
+                succeeded: false,
+                failureReason: (SkillFailureReason)int.MaxValue),
+            "skill result rejects an undefined failure reason");
+        Throws<ArgumentException>(
+            () => _ = new SkillResult(
+                succeeded: true,
+                failureReason: null,
+                effects: new EffectResult[] { null! }),
+            "skill result rejects a null effect result");
+        Throws<ArgumentException>(
+            () => _ = new SkillResult(
+                succeeded: false,
+                failureReason: SkillFailureReason.Interrupted,
+                effects: new[] { effectResult }),
+            "failed skill result cannot expose committed effects");
+    }
+
+    private void VerifySkillAdmissionAndPlanning()
+    {
+        var request = FireballReferenceScenario.CreateSkillRequest();
+        var readyBefore = new SkillAdmissionSnapshot(
+            FireballReferenceScenario.TargetId,
+            targetHealth: 1,
+            cooldownReadyTick: request.RequestedTick - 1,
+            availableResource: FireballReferenceScenario.ManaCost);
+        var readyBeforeDecision = SkillAdmissionPolicy.Evaluate(
+            request,
+            readyBefore,
+            FireballReferenceScenario.ManaCost);
+        True(
+            readyBeforeDecision.CanExecute,
+            "a cooldown ready before the requested tick is admitted");
+
+        var readyExactly = new SkillAdmissionSnapshot(
+            FireballReferenceScenario.TargetId,
+            targetHealth: 1,
+            cooldownReadyTick: request.RequestedTick,
+            availableResource: FireballReferenceScenario.ManaCost);
+        True(
+            SkillAdmissionPolicy.Evaluate(
+                request,
+                readyExactly,
+                FireballReferenceScenario.ManaCost).CanExecute,
+            "readyTick equal to RequestedTick is admitted");
+
+        var readyAfter = new SkillAdmissionSnapshot(
+            FireballReferenceScenario.TargetId,
+            targetHealth: 1,
+            cooldownReadyTick: request.RequestedTick + 1,
+            availableResource: FireballReferenceScenario.ManaCost);
+        Equal(
+            SkillFailureReason.Cooldown,
+            SkillAdmissionPolicy.Evaluate(
+                request,
+                readyAfter,
+                FireballReferenceScenario.ManaCost).FailureReason,
+            "readyTick after RequestedTick is rejected as Cooldown");
+
+        var simultaneousFailure = new SkillAdmissionSnapshot(
+            FireballReferenceScenario.TargetId,
+            targetHealth: 1,
+            cooldownReadyTick: request.RequestedTick + 1,
+            availableResource: FireballReferenceScenario.ManaCost - 1);
+        Equal(
+            SkillFailureReason.Cooldown,
+            SkillAdmissionPolicy.Evaluate(
+                request,
+                simultaneousFailure,
+                FireballReferenceScenario.ManaCost).FailureReason,
+            "Cooldown wins when cooldown and mana fail together");
+
+        var deadTarget = new SkillAdmissionSnapshot(
+            FireballReferenceScenario.TargetId,
+            targetHealth: 0,
+            cooldownReadyTick: request.RequestedTick + 1,
+            availableResource: 0);
+        Equal(
+            SkillFailureReason.InvalidTarget,
+            SkillAdmissionPolicy.Evaluate(
+                request,
+                deadTarget,
+                FireballReferenceScenario.ManaCost).FailureReason,
+            "a dead target wins over cooldown and resource failures");
+
+        var insufficientMana = new SkillAdmissionSnapshot(
+            FireballReferenceScenario.TargetId,
+            targetHealth: 1,
+            cooldownReadyTick: request.RequestedTick,
+            availableResource: FireballReferenceScenario.ManaCost - 1);
+        Equal(
+            SkillFailureReason.OutOfResource,
+            SkillAdmissionPolicy.Evaluate(
+                request,
+                insufficientMana,
+                FireballReferenceScenario.ManaCost).FailureReason,
+            "mana is checked only after target and cooldown pass");
+        Equal(
+            request.RequestedTick - 1,
+            readyBefore.CooldownReadyTick,
+            "pure admission leaves the cooldown snapshot unchanged");
+        Equal(
+            FireballReferenceScenario.ManaCost,
+            readyBefore.AvailableResource,
+            "pure admission leaves the resource snapshot unchanged");
+        Throws<ArgumentException>(
+            () => _ = new SkillAdmissionSnapshot(
+                default,
+                targetHealth: 1,
+                cooldownReadyTick: 0,
+                availableResource: 0),
+            "skill admission snapshot rejects a default target ID");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new SkillAdmissionSnapshot(
+                FireballReferenceScenario.TargetId,
+                targetHealth: 1,
+                cooldownReadyTick: 0,
+                availableResource: -1),
+            "skill admission snapshot rejects a negative resource value");
+
+        var resolveSnapshot = FireballReferenceScenario.CreateResolveSnapshot();
+        var countingResolver = new CountingCombatResolver(new CombatResolver());
+        var planning = FireballSkillPlanner.ResolveAndPlan(
+            request,
+            resolveSnapshot,
+            countingResolver);
+        True(planning.Decision.CanExecute, "the canonical Fireball snapshot is admitted");
+        Equal(1, countingResolver.CallCount, "combat resolution runs once after admission");
+        var plan = planning.Plan ??
+            throw new InvalidOperationException("An admitted Fireball must carry a commit plan.");
+        var expectedVersions = new Dictionary<EntityId, long>
+        {
+            [FireballReferenceScenario.ManaResourceId] =
+                resolveSnapshot.ManaVersion,
+            [FireballReferenceScenario.CooldownResourceId] =
+                resolveSnapshot.CooldownVersion,
+            [FireballReferenceScenario.TargetShieldResourceId] =
+                resolveSnapshot.TargetShieldVersion,
+            [FireballReferenceScenario.TargetHealthResourceId] =
+                resolveSnapshot.TargetHealthVersion
+        };
+        foreach (var precondition in plan.Preconditions)
+        {
+            Equal(
+                expectedVersions[precondition.ResourceId],
+                precondition.ExpectedVersion,
+                "the commit plan preserves each resolve-snapshot version");
+        }
+
+        var customSnapshot = new FireballResolveSnapshot(
+            mana: 90,
+            manaVersion: 11,
+            cooldownReadyTick: request.RequestedTick - 10,
+            cooldownVersion: 13,
+            targetShield: 20,
+            targetShieldVersion: 17,
+            targetHealth: 300,
+            targetHealthVersion: 19);
+        var customPlanning = FireballSkillPlanner.ResolveAndPlan(
+            request,
+            customSnapshot,
+            new CombatResolver());
+        var customPlan = customPlanning.Plan ??
+            throw new InvalidOperationException("A ready custom snapshot must produce a plan.");
+        var customExpectedVersions = new Dictionary<EntityId, long>
+        {
+            [FireballReferenceScenario.ManaResourceId] = 11,
+            [FireballReferenceScenario.CooldownResourceId] = 13,
+            [FireballReferenceScenario.TargetShieldResourceId] = 17,
+            [FireballReferenceScenario.TargetHealthResourceId] = 19
+        };
+        foreach (var precondition in customPlan.Preconditions)
+        {
+            Equal(
+                customExpectedVersions[precondition.ResourceId],
+                precondition.ExpectedVersion,
+                "non-default resolve versions flow into the commit boundary");
+        }
+
+        var customCommitter = new InMemoryRuntimeCommitter(
+            new[]
+            {
+                new VersionedResourceState(
+                    FireballReferenceScenario.ManaResourceId,
+                    customSnapshot.Mana,
+                    customSnapshot.ManaVersion),
+                new VersionedResourceState(
+                    FireballReferenceScenario.CooldownResourceId,
+                    customSnapshot.CooldownReadyTick,
+                    customSnapshot.CooldownVersion),
+                new VersionedResourceState(
+                    FireballReferenceScenario.TargetShieldResourceId,
+                    customSnapshot.TargetShield,
+                    customSnapshot.TargetShieldVersion),
+                new VersionedResourceState(
+                    FireballReferenceScenario.TargetHealthResourceId,
+                    customSnapshot.TargetHealth,
+                    customSnapshot.TargetHealthVersion)
+            });
+        Equal(
+            CommitStatus.Committed,
+            customCommitter.Commit(customPlan).Status,
+            "a plan produced from a non-default snapshot commits against that snapshot");
+        Equal(
+            70L,
+            customCommitter.GetValue(FireballReferenceScenario.ManaResourceId),
+            "the plan spends mana from the captured value instead of a fixture constant");
+        Equal(
+            118L,
+            customCommitter.GetValue(FireballReferenceScenario.TargetHealthResourceId),
+            "the plan applies damage to the captured target health");
+
+        var rejectedResolver = new CountingCombatResolver(new CombatResolver());
+        var rejectedPlanning = FireballSkillPlanner.ResolveAndPlan(
+            request,
+            new FireballResolveSnapshot(
+                mana: FireballReferenceScenario.ManaCost - 1,
+                manaVersion: resolveSnapshot.ManaVersion,
+                cooldownReadyTick: request.RequestedTick + 1,
+                cooldownVersion: resolveSnapshot.CooldownVersion,
+                targetShield: resolveSnapshot.TargetShield,
+                targetShieldVersion: resolveSnapshot.TargetShieldVersion,
+                targetHealth: resolveSnapshot.TargetHealth,
+                targetHealthVersion: resolveSnapshot.TargetHealthVersion),
+            rejectedResolver);
+        Equal(
+            SkillFailureReason.Cooldown,
+            rejectedPlanning.Decision.FailureReason,
+            "the planner keeps canonical failure precedence");
+        Equal<CommitPlan?>(null, rejectedPlanning.Plan, "a rejected cast has no commit plan");
+        Equal(
+            0,
+            rejectedResolver.CallCount,
+            "cooldown rejection happens before combat resolution and RNG consumption");
+
+        var committer = new InMemoryRuntimeCommitter(
+            FireballReferenceScenario.CreateInitialState());
+        var cooldownInterleaving = new CommitPlan(
+            new EntityId("command.external.cooldown-interleaving"),
+            new[]
+            {
+                new VersionPrecondition(
+                    FireballReferenceScenario.CooldownResourceId,
+                    resolveSnapshot.CooldownVersion)
+            },
+            new[]
+            {
+                new StateMutation(
+                    FireballReferenceScenario.CooldownResourceId,
+                    request.RequestedTick + 1,
+                    "Apply an external cooldown before Fireball commit")
+            });
+        Equal(
+            CommitStatus.Committed,
+            committer.Commit(cooldownInterleaving).Status,
+            "the concurrent cooldown-only change commits first");
+
+        var staleFireball = committer.Commit(plan);
+        Equal(
+            CommitStatus.PreconditionFailed,
+            staleFireball.Status,
+            "a cooldown-only interleaving rejects the whole Fireball plan");
+        Equal(
+            FireballReferenceScenario.InitialMana,
+            committer.GetValue(FireballReferenceScenario.ManaResourceId),
+            "the rejected Fireball spends no mana");
+        Equal(
+            FireballReferenceScenario.InitialHealth,
+            committer.GetValue(FireballReferenceScenario.TargetHealthResourceId),
+            "the rejected Fireball applies no target damage");
+        Equal(
+            FireballReferenceScenario.InitialShield,
+            committer.GetValue(FireballReferenceScenario.TargetShieldResourceId),
+            "the rejected Fireball consumes no shield");
+        Equal(
+            request.RequestedTick + 1,
+            committer.GetValue(FireballReferenceScenario.CooldownResourceId),
+            "the rejected Fireball preserves the concurrent cooldown value");
+        Equal(
+            0,
+            committer.GetOutbox().Count,
+            "the rejected Fireball appends no outbox event");
     }
 
     private void VerifyEffectAndStatusContracts()
@@ -343,7 +653,14 @@ internal sealed class ContractVerificationSuite
                 FireballReferenceScenario.TargetId,
                 FireballReferenceScenario.SkillSource,
                 stackDelta: 0),
-            "status request must change stacks");
+            "status request must add a positive stack count");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new ApplyStatusRequest(
+                FireballReferenceScenario.BurnDefinitionId,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.SkillSource,
+                stackDelta: -1),
+            "status stack removal uses a separate command");
         Throws<ArgumentException>(
             () => _ = new ApplyStatusRequest(
                 default,
@@ -371,6 +688,14 @@ internal sealed class ContractVerificationSuite
         True(!failed.Succeeded, "failed status result is explicit");
         Equal<StatusFailureReason?>(StatusFailureReason.Immune, failed.FailureReason, "failed status keeps its reason");
         Equal<EntityId?>(null, failed.StatusInstanceId, "failed status cannot expose an instance");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = StatusResult.Removed(
+                new EntityId("status-instance.burn.0001"),
+                (StatusRemoveReason)int.MaxValue),
+            "removed status rejects an undefined removal reason");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = StatusResult.Failed((StatusFailureReason)int.MaxValue),
+            "failed status rejects an undefined failure reason");
     }
 
     private void VerifyFireballCalculation()
@@ -380,6 +705,47 @@ internal sealed class ContractVerificationSuite
         Equal(FireballReferenceScenario.FormulaId, request.FormulaId, "Fireball uses a typed formula ID");
         Equal(FireballReferenceScenario.CasterId, request.AttackerId, "Fireball fixture uses entity.caster");
         Equal(FireballReferenceScenario.TargetId, request.DefenderId, "Fireball fixture uses entity.target");
+        SequenceEqual(
+            new[] { "fire", "spell" },
+            request.Tags,
+            "damage tags are canonicalized with ordinal ordering");
+        var equivalentTagRequest = new DamageRequest(
+            FireballReferenceScenario.CasterId,
+            FireballReferenceScenario.TargetId,
+            FireballReferenceScenario.SkillSource,
+            FireballReferenceScenario.FormulaId,
+            "fire",
+            baseValue: 1,
+            coefficientBps: 0,
+            tags: new[] { "spell", "fire", "spell" },
+            seed: 1);
+        True(
+            request.Tags.Equals(equivalentTagRequest.Tags),
+            "damage tag identity ignores input order and duplicates");
+        Throws<ArgumentException>(
+            () => _ = new DamageRequest(
+                FireballReferenceScenario.CasterId,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.SkillSource,
+                FireballReferenceScenario.FormulaId,
+                "fire",
+                baseValue: 1,
+                coefficientBps: 0,
+                tags: new[] { "Fire" },
+                seed: 1),
+            "damage tags reject non-canonical casing");
+        Throws<ArgumentException>(
+            () => _ = new DamageRequest(
+                FireballReferenceScenario.CasterId,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.SkillSource,
+                FireballReferenceScenario.FormulaId,
+                "Fire",
+                baseValue: 1,
+                coefficientBps: 0,
+                tags: Array.Empty<string>(),
+                seed: 1),
+            "damage type uses the same canonical tag grammar");
         Throws<ArgumentException>(
             () => _ = new DamageRequest(
                 FireballReferenceScenario.CasterId,
@@ -413,6 +779,36 @@ internal sealed class ContractVerificationSuite
         Throws<ArgumentException>(
             () => _ = new DamageResult(HitOutcome.Miss, true, 1, 1, 0, 1, 0),
             "compact non-Hit damage result rejects critical and nonzero damage");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new DamageResult(
+                (HitOutcome)int.MaxValue,
+                false,
+                0,
+                0,
+                0,
+                0,
+                0),
+            "damage result rejects an undefined hit outcome");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new CombatContext(
+                scalingStatValue: 0m,
+                outcome: (HitOutcome)int.MaxValue,
+                critical: false,
+                criticalMultiplierBps: 10_000,
+                resistanceBps: 0,
+                availableShield: 0,
+                availableTargetHp: 1),
+            "combat context rejects an undefined hit outcome");
+        Throws<ArgumentException>(
+            () => _ = new CombatContext(
+                scalingStatValue: 0m,
+                outcome: HitOutcome.Blocked,
+                critical: true,
+                criticalMultiplierBps: 10_000,
+                resistanceBps: 0,
+                availableShield: 0,
+                availableTargetHp: 1),
+            "non-Hit combat context rejects a critical flag");
         Throws<ArgumentException>(
             () => _ = new DamageResult(
                 HitOutcome.Hit,
@@ -423,6 +819,38 @@ internal sealed class ContractVerificationSuite
                 int.MaxValue,
                 2),
             "damage conservation uses a widened sum and cannot pass through integer overflow");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new DamageRequest(
+                FireballReferenceScenario.CasterId,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.SkillSource,
+                FireballReferenceScenario.FormulaId,
+                "fire",
+                baseValue: 0,
+                coefficientBps: 100_001,
+                tags: Array.Empty<string>(),
+                seed: 1),
+            "compact coefficient uses the shared zero-to-one-hundred-thousand BPS range");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new CombatContext(
+                scalingStatValue: 0m,
+                outcome: HitOutcome.Hit,
+                critical: false,
+                criticalMultiplierBps: 9_999,
+                resistanceBps: 0,
+                availableShield: 0,
+                availableTargetHp: 1),
+            "compact critical multiplier cannot reduce a critical below one hundred percent");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new CombatContext(
+                scalingStatValue: 0m,
+                outcome: HitOutcome.Hit,
+                critical: false,
+                criticalMultiplierBps: 100_001,
+                resistanceBps: 0,
+                availableShield: 0,
+                availableTargetHp: 1),
+            "compact critical multiplier uses the shared one-to-ten-times range");
         var extremeCoefficientRequest = new DamageRequest(
             FireballReferenceScenario.CasterId,
             FireballReferenceScenario.TargetId,
@@ -430,7 +858,7 @@ internal sealed class ContractVerificationSuite
             FireballReferenceScenario.FormulaId,
             "fire",
             baseValue: 0,
-            coefficientBps: int.MaxValue,
+            coefficientBps: 100_000,
             tags: Array.Empty<string>(),
             seed: 1);
         var extremeScalingContext = new CombatContext(
@@ -448,7 +876,7 @@ internal sealed class ContractVerificationSuite
             scalingStatValue: 0m,
             outcome: HitOutcome.Hit,
             critical: true,
-            criticalMultiplierBps: int.MaxValue,
+            criticalMultiplierBps: 100_000,
             resistanceBps: 0,
             availableShield: 0,
             availableTargetHp: int.MaxValue);
@@ -489,6 +917,33 @@ internal sealed class ContractVerificationSuite
             RoundDamage((decimal)int.MaxValue * 9_999m / 10_000m),
             widenedMitigation.ResolvedDamage,
             "mitigation widens integer operands before multiplication");
+        var fractionalPipeline = resolver.Resolve(
+            new DamageRequest(
+                FireballReferenceScenario.CasterId,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.SkillSource,
+                FireballReferenceScenario.FormulaId,
+                "fire",
+                baseValue: 0,
+                coefficientBps: 5_000,
+                tags: Array.Empty<string>(),
+                seed: 1),
+            new CombatContext(
+                scalingStatValue: 1m,
+                outcome: HitOutcome.Hit,
+                critical: true,
+                criticalMultiplierBps: 15_000,
+                resistanceBps: 5_000,
+                availableShield: 0,
+                availableTargetHp: 10));
+        Equal(
+            1,
+            fractionalPipeline.RawDamage,
+            "raw damage is only a rounded reporting projection");
+        Equal(
+            0,
+            fractionalPipeline.ResolvedDamage,
+            "fractional formula and critical stages keep decimal precision; mitigation uses the exact three-quarter subtotal instead of the rounded raw projection");
 
         var lethal = resolver.Resolve(
             request,
@@ -517,12 +972,26 @@ internal sealed class ContractVerificationSuite
             FireballReferenceScenario.CreateCombatContext());
         var bundle = FireballReferenceScenario.CreateEffectBundle(
             FireballReferenceScenario.CreateDamageRequest());
-        var plan = FireballReferenceScenario.CreateCommitPlan(damage);
+        var planning = FireballSkillPlanner.ResolveAndPlan(
+            FireballReferenceScenario.CreateSkillRequest(),
+            FireballReferenceScenario.CreateResolveSnapshot(),
+            resolver);
+        var plan = planning.Plan ??
+            throw new InvalidOperationException("The reference Fireball must be admitted.");
         Equal(4, plan.Mutations.Count, "one plan contains mana, cooldown, shield, and HP changes");
         Equal(4, plan.Preconditions.Count, "each mutated resource has a version check");
         Equal(2, plan.OutboxEvents.Count, "one atomic plan carries skill and damage facts");
         True(plan.OutboxEvents[0] is SkillCommitted, "SkillCommitted is planned first");
         True(plan.OutboxEvents[1] is DamageCommitted, "DamageCommitted is planned second");
+        var plannedSkillFact = (SkillCommitted)plan.OutboxEvents[0];
+        Equal(
+            FireballReferenceScenario.ManaCost,
+            plannedSkillFact.ManaSpent,
+            "SkillCommitted carries the committed mana cost");
+        Equal(
+            FireballReferenceScenario.CooldownReadyTick,
+            plannedSkillFact.CooldownReadyTick,
+            "SkillCommitted carries the committed cooldown ready tick");
         Throws<ArgumentException>(
             () => _ = new CommitPlan(default, plan.Preconditions, plan.Mutations),
             "commit plan rejects a default command ID");
@@ -558,7 +1027,11 @@ internal sealed class ContractVerificationSuite
                     FireballReferenceScenario.CasterId,
                     FireballReferenceScenario.SkillDefinitionId,
                     FireballReferenceScenario.TargetId,
-                    FireballReferenceScenario.SkillSource),
+                    FireballReferenceScenario.SkillSource,
+                    FireballReferenceScenario.ManaResourceId,
+                    FireballReferenceScenario.ManaCost,
+                    FireballReferenceScenario.CooldownResourceId,
+                    FireballReferenceScenario.CooldownReadyTick),
                 "event envelope"),
             (
                 new SkillCommitted(
@@ -567,7 +1040,11 @@ internal sealed class ContractVerificationSuite
                     FireballReferenceScenario.CasterId,
                     FireballReferenceScenario.SkillDefinitionId,
                     FireballReferenceScenario.TargetId,
-                    FireballReferenceScenario.SkillSource),
+                    FireballReferenceScenario.SkillSource,
+                    FireballReferenceScenario.ManaResourceId,
+                    FireballReferenceScenario.ManaCost,
+                    FireballReferenceScenario.CooldownResourceId,
+                    FireballReferenceScenario.CooldownReadyTick),
                 "event command"),
             (
                 new SkillCommitted(
@@ -576,7 +1053,11 @@ internal sealed class ContractVerificationSuite
                     FireballReferenceScenario.CasterId,
                     FireballReferenceScenario.SkillDefinitionId,
                     FireballReferenceScenario.TargetId,
-                    default),
+                    default,
+                    FireballReferenceScenario.ManaResourceId,
+                    FireballReferenceScenario.ManaCost,
+                    FireballReferenceScenario.CooldownResourceId,
+                    FireballReferenceScenario.CooldownReadyTick),
                 "event source"),
             (
                 new SkillCommitted(
@@ -585,7 +1066,11 @@ internal sealed class ContractVerificationSuite
                     default,
                     FireballReferenceScenario.SkillDefinitionId,
                     FireballReferenceScenario.TargetId,
-                    FireballReferenceScenario.SkillSource),
+                    FireballReferenceScenario.SkillSource,
+                    FireballReferenceScenario.ManaResourceId,
+                    FireballReferenceScenario.ManaCost,
+                    FireballReferenceScenario.CooldownResourceId,
+                    FireballReferenceScenario.CooldownReadyTick),
                 "skill fact caster"),
             (
                 new SkillCommitted(
@@ -594,7 +1079,11 @@ internal sealed class ContractVerificationSuite
                     FireballReferenceScenario.CasterId,
                     default,
                     FireballReferenceScenario.TargetId,
-                    FireballReferenceScenario.SkillSource),
+                    FireballReferenceScenario.SkillSource,
+                    FireballReferenceScenario.ManaResourceId,
+                    FireballReferenceScenario.ManaCost,
+                    FireballReferenceScenario.CooldownResourceId,
+                    FireballReferenceScenario.CooldownReadyTick),
                 "skill fact skill"),
             (
                 new SkillCommitted(
@@ -603,7 +1092,11 @@ internal sealed class ContractVerificationSuite
                     FireballReferenceScenario.CasterId,
                     FireballReferenceScenario.SkillDefinitionId,
                     default(EntityId),
-                    FireballReferenceScenario.SkillSource),
+                    FireballReferenceScenario.SkillSource,
+                    FireballReferenceScenario.ManaResourceId,
+                    FireballReferenceScenario.ManaCost,
+                    FireballReferenceScenario.CooldownResourceId,
+                    FireballReferenceScenario.CooldownReadyTick),
                 "skill fact target"),
             (
                 new DamageCommitted(
@@ -668,6 +1161,79 @@ internal sealed class ContractVerificationSuite
                     new[] { invalidOutboxEvent.Event }),
                 $"commit plan rejects a default {invalidOutboxEvent.Label} ID");
         }
+
+        var zeroCostSkillFact = new CommittedOutboxEvent(
+            sequence: 1,
+            new SkillCommitted(
+                new EntityId("event.skill-committed.verify.zero-cost"),
+                plan.CommandId,
+                FireballReferenceScenario.CasterId,
+                FireballReferenceScenario.SkillDefinitionId,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.SkillSource,
+                FireballReferenceScenario.ManaResourceId,
+                ManaSpent: 0,
+                CooldownResourceId: FireballReferenceScenario.CooldownResourceId,
+                CooldownReadyTick: 0));
+        Equal(
+            0L,
+            ((SkillCommitted)zeroCostSkillFact.Event).ManaSpent,
+            "SkillCommitted permits an explicit zero-cost skill");
+
+        var invalidSkillFacts = new[]
+        {
+            new SkillCommitted(
+                new EntityId("event.skill-committed.verify.negative-mana"),
+                plan.CommandId,
+                FireballReferenceScenario.CasterId,
+                FireballReferenceScenario.SkillDefinitionId,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.SkillSource,
+                FireballReferenceScenario.ManaResourceId,
+                ManaSpent: -1,
+                CooldownResourceId: FireballReferenceScenario.CooldownResourceId,
+                CooldownReadyTick: FireballReferenceScenario.CooldownReadyTick),
+            new SkillCommitted(
+                new EntityId("event.skill-committed.verify.negative-cooldown"),
+                plan.CommandId,
+                FireballReferenceScenario.CasterId,
+                FireballReferenceScenario.SkillDefinitionId,
+                FireballReferenceScenario.TargetId,
+                FireballReferenceScenario.SkillSource,
+                FireballReferenceScenario.ManaResourceId,
+                FireballReferenceScenario.ManaCost,
+                FireballReferenceScenario.CooldownResourceId,
+                CooldownReadyTick: -1)
+        };
+        foreach (var invalidSkillFact in invalidSkillFacts)
+        {
+            Throws<ArgumentOutOfRangeException>(
+                () => _ = new CommitPlan(
+                    plan.CommandId,
+                    plan.Preconditions,
+                    plan.Mutations,
+                    new[] { invalidSkillFact }),
+                "SkillCommitted rejects negative resource facts");
+        }
+
+        var nullDamageResultFact = new DamageCommitted(
+            new EntityId("event.damage-committed.verify.null-result"),
+            plan.CommandId,
+            FireballReferenceScenario.CasterId,
+            FireballReferenceScenario.TargetId,
+            FireballReferenceScenario.SkillSource,
+            null!,
+            FireballReferenceScenario.TargetHealthResourceId,
+            TargetHpAfter: 338,
+            TargetShieldResourceId: FireballReferenceScenario.TargetShieldResourceId,
+            TargetShieldAfter: 0);
+        Throws<ArgumentNullException>(
+            () => _ = new CommitPlan(
+                plan.CommandId,
+                plan.Preconditions,
+                plan.Mutations,
+                new DomainEvent[] { nullDamageResultFact }),
+            "DamageCommitted rejects a null damage result");
 
         var readOnlyPreconditionPlan = new CommitPlan(
             new EntityId("command.verify.read-only-precondition"),
@@ -746,7 +1312,9 @@ internal sealed class ContractVerificationSuite
                         inconsistentCommandId,
                         FireballReferenceScenario.CasterId,
                         FireballReferenceScenario.TargetId,
-                        FireballReferenceScenario.SkillSource,
+                        SourceRef.SkillExecution(
+                            FireballReferenceScenario.SkillDefinitionId,
+                            inconsistentCommandId),
                         damage,
                         FireballReferenceScenario.TargetHealthResourceId,
                         inconsistentFact.TargetHpAfter,
@@ -775,6 +1343,209 @@ internal sealed class ContractVerificationSuite
             Throws<InvalidOperationException>(
                 () => inconsistentDamageCommitter.Commit(inconsistentDamagePlan),
                 "an inconsistent damage fact does not consume command idempotency");
+        }
+
+        var transitionCommandId =
+            new EntityId("command.verify.damage-transition-truth");
+        var transitionSource = SourceRef.SkillExecution(
+            FireballReferenceScenario.SkillDefinitionId,
+            transitionCommandId);
+        var targetPreconditions = new[]
+        {
+            new VersionPrecondition(
+                FireballReferenceScenario.TargetHealthResourceId,
+                7),
+            new VersionPrecondition(
+                FireballReferenceScenario.TargetShieldResourceId,
+                7)
+        };
+        var targetMutations = new[]
+        {
+            new StateMutation(
+                FireballReferenceScenario.TargetHealthResourceId,
+                338,
+                "Apply reference health damage"),
+            new StateMutation(
+                FireballReferenceScenario.TargetShieldResourceId,
+                0,
+                "Apply reference shield damage")
+        };
+        var lyingDamagePlan = new CommitPlan(
+            transitionCommandId,
+            targetPreconditions,
+            targetMutations,
+            new DomainEvent[]
+            {
+                new DamageCommitted(
+                    new EntityId("event.damage-committed.verify.false-delta"),
+                    transitionCommandId,
+                    FireballReferenceScenario.CasterId,
+                    FireballReferenceScenario.TargetId,
+                    transitionSource,
+                    new DamageResult(
+                        HitOutcome.Hit,
+                        critical: false,
+                        rawDamage: 1,
+                        resolvedDamage: 1,
+                        shieldAbsorbed: 0,
+                        finalHpDamage: 1,
+                        overkill: 0),
+                    FireballReferenceScenario.TargetHealthResourceId,
+                    TargetHpAfter: 338,
+                    FireballReferenceScenario.TargetShieldResourceId,
+                    TargetShieldAfter: 0)
+            });
+        var transitionCommitter = new InMemoryRuntimeCommitter(
+            FireballReferenceScenario.CreateInitialState());
+        Throws<InvalidOperationException>(
+            () => transitionCommitter.Commit(lyingDamagePlan),
+            "DamageCommitted cannot report a result that disagrees with the actual resource deltas");
+        Equal(
+            500L,
+            transitionCommitter.GetValue(
+                FireballReferenceScenario.TargetHealthResourceId),
+            "a false damage delta leaves HP unchanged");
+        Equal(
+            7L,
+            transitionCommitter.GetVersion(
+                FireballReferenceScenario.TargetHealthResourceId),
+            "a false damage delta leaves the HP version unchanged");
+        Equal(
+            0,
+            transitionCommitter.GetOutbox().Count,
+            "a false damage delta appends no outbox fact");
+        var truthfulDamagePlan = new CommitPlan(
+            transitionCommandId,
+            targetPreconditions,
+            targetMutations,
+            new DomainEvent[]
+            {
+                new DamageCommitted(
+                    new EntityId("event.damage-committed.verify.true-delta"),
+                    transitionCommandId,
+                    FireballReferenceScenario.CasterId,
+                    FireballReferenceScenario.TargetId,
+                    transitionSource,
+                    damage,
+                    FireballReferenceScenario.TargetHealthResourceId,
+                    TargetHpAfter: 338,
+                    FireballReferenceScenario.TargetShieldResourceId,
+                    TargetShieldAfter: 0)
+            });
+        Equal(
+            CommitStatus.Committed,
+            transitionCommitter.Commit(truthfulDamagePlan).Status,
+            "a rejected false fact does not consume command idempotency");
+
+        var sourceCommandId =
+            new EntityId("command.verify.damage-source-truth");
+        var wrongSourceFact = new DamageCommitted(
+            new EntityId("event.damage-committed.verify.wrong-source"),
+            sourceCommandId,
+            FireballReferenceScenario.CasterId,
+            FireballReferenceScenario.TargetId,
+            FireballReferenceScenario.SkillSource,
+            damage,
+            FireballReferenceScenario.TargetHealthResourceId,
+            TargetHpAfter: 338,
+            FireballReferenceScenario.TargetShieldResourceId,
+            TargetShieldAfter: 0);
+        var sourceCommitter = new InMemoryRuntimeCommitter(
+            FireballReferenceScenario.CreateInitialState());
+        Throws<ArgumentException>(
+            () => _ = new CommitPlan(
+                sourceCommandId,
+                targetPreconditions,
+                targetMutations,
+                new DomainEvent[] { wrongSourceFact }),
+            "skill-sourced damage must point to the plan command execution");
+        Equal(
+            FireballReferenceScenario.InitialHealth,
+            sourceCommitter.GetValue(
+                FireballReferenceScenario.TargetHealthResourceId),
+            "a wrong source cannot mutate target state");
+        Equal(0, sourceCommitter.GetOutbox().Count, "a wrong source cannot append an outbox fact");
+        var correctSource = SourceRef.SkillExecution(
+            FireballReferenceScenario.SkillDefinitionId,
+            sourceCommandId);
+        var correctSourcePlan = new CommitPlan(
+            sourceCommandId,
+            targetPreconditions,
+            targetMutations,
+            new DomainEvent[]
+            {
+                new DamageCommitted(
+                    new EntityId("event.damage-committed.verify.correct-source"),
+                    sourceCommandId,
+                    FireballReferenceScenario.CasterId,
+                    FireballReferenceScenario.TargetId,
+                    correctSource,
+                    damage,
+                    FireballReferenceScenario.TargetHealthResourceId,
+                    TargetHpAfter: 338,
+                    FireballReferenceScenario.TargetShieldResourceId,
+                    TargetShieldAfter: 0)
+            });
+        Equal(
+            CommitStatus.Committed,
+            sourceCommitter.Commit(correctSourcePlan).Status,
+            "correcting the source with the same command ID can still commit");
+
+        var inconsistentSkillFacts = new[]
+        {
+            (
+                Suffix: "mana",
+                ManaSpent: FireballReferenceScenario.ManaCost - 1,
+                CooldownReadyTick: FireballReferenceScenario.CooldownReadyTick),
+            (
+                Suffix: "cooldown",
+                ManaSpent: FireballReferenceScenario.ManaCost,
+                CooldownReadyTick: FireballReferenceScenario.CooldownReadyTick + 1)
+        };
+        foreach (var inconsistentFact in inconsistentSkillFacts)
+        {
+            var inconsistentCommandId = new EntityId(
+                $"command.skill-committed.verify.inconsistent-{inconsistentFact.Suffix}");
+            var inconsistentSkillPlan = new CommitPlan(
+                inconsistentCommandId,
+                plan.Preconditions,
+                plan.Mutations,
+                new DomainEvent[]
+                {
+                    new SkillCommitted(
+                        new EntityId(
+                            $"event.skill-committed.verify.inconsistent-{inconsistentFact.Suffix}"),
+                        inconsistentCommandId,
+                        FireballReferenceScenario.CasterId,
+                        FireballReferenceScenario.SkillDefinitionId,
+                        FireballReferenceScenario.TargetId,
+                        SourceRef.SkillExecution(
+                            FireballReferenceScenario.SkillDefinitionId,
+                            inconsistentCommandId),
+                        FireballReferenceScenario.ManaResourceId,
+                        inconsistentFact.ManaSpent,
+                        FireballReferenceScenario.CooldownResourceId,
+                        inconsistentFact.CooldownReadyTick)
+                });
+            var inconsistentSkillCommitter = new InMemoryRuntimeCommitter(
+                FireballReferenceScenario.CreateInitialState());
+            Throws<InvalidOperationException>(
+                () => inconsistentSkillCommitter.Commit(inconsistentSkillPlan),
+                $"skill fact cannot disagree with committed {inconsistentFact.Suffix}");
+            Equal(
+                FireballReferenceScenario.InitialMana,
+                inconsistentSkillCommitter.GetValue(
+                    FireballReferenceScenario.ManaResourceId),
+                "an inconsistent skill fact leaves mana unchanged");
+            Equal(
+                0L,
+                inconsistentSkillCommitter.GetValue(
+                    FireballReferenceScenario.CooldownResourceId),
+                "an inconsistent skill fact leaves cooldown unchanged");
+            Equal(
+                0,
+                inconsistentSkillCommitter.GetOutbox().Count,
+                "an inconsistent skill fact appends no outbox event");
         }
 
         var committer = new InMemoryRuntimeCommitter(
@@ -827,7 +1598,7 @@ internal sealed class ContractVerificationSuite
         var lethalFact = new CommittedOutboxEvent(
             sequence: 99,
             new DamageCommitted(
-                new EntityId("event.damage-committed.fireball.lethal"),
+                FireballReferenceScenario.DamageCommittedEventId,
                 FireballReferenceScenario.CommandId,
                 FireballReferenceScenario.CasterId,
                 FireballReferenceScenario.TargetId,
@@ -870,13 +1641,21 @@ internal sealed class ContractVerificationSuite
                     FireballReferenceScenario.CasterId,
                     FireballReferenceScenario.SkillDefinitionId,
                     FireballReferenceScenario.TargetId,
-                    FireballReferenceScenario.SkillSource),
+                    SourceRef.SkillExecution(
+                        FireballReferenceScenario.SkillDefinitionId,
+                        staleCommandId),
+                    FireballReferenceScenario.ManaResourceId,
+                    FireballReferenceScenario.ManaCost,
+                    FireballReferenceScenario.CooldownResourceId,
+                    FireballReferenceScenario.CooldownReadyTick),
                 new DamageCommitted(
                     new EntityId("event.damage-committed.fireball.0002"),
                     staleCommandId,
                     FireballReferenceScenario.CasterId,
                     FireballReferenceScenario.TargetId,
-                    FireballReferenceScenario.SkillSource,
+                    SourceRef.SkillExecution(
+                        FireballReferenceScenario.SkillDefinitionId,
+                        staleCommandId),
                     damage,
                     FireballReferenceScenario.TargetHealthResourceId,
                     TargetHpAfter: 338,
@@ -889,6 +1668,273 @@ internal sealed class ContractVerificationSuite
         Equal(80L, committer.GetValue(FireballReferenceScenario.ManaResourceId), "failed commit rolls back mana");
         Equal(338L, committer.GetValue(FireballReferenceScenario.TargetHealthResourceId), "failed commit rolls back HP");
         Equal(2, committer.GetOutbox().Count, "failed commit leaves outbox unchanged");
+    }
+
+    private void VerifyFireballExecutionIsolationAndNonHit()
+    {
+        ICombatResolver resolver = new CombatResolver();
+        var firstRequest = FireballReferenceScenario.CreateSkillRequest();
+        var firstPlanning = FireballSkillPlanner.ResolveAndPlan(
+            firstRequest,
+            FireballReferenceScenario.CreateResolveSnapshot(),
+            resolver);
+        var firstPlan = firstPlanning.Plan ??
+            throw new InvalidOperationException("The first Fireball must be admitted.");
+        var firstDamageRequest =
+            FireballReferenceScenario.CreateDamageRequest(firstRequest);
+        var firstBundle = FireballReferenceScenario.CreateEffectBundle(
+            firstRequest,
+            firstDamageRequest);
+        var committer = new InMemoryRuntimeCommitter(
+            FireballReferenceScenario.CreateInitialState());
+        var firstCommit = committer.Commit(firstPlan);
+        Equal(
+            CommitStatus.Committed,
+            firstCommit.Status,
+            "the first execution commits before a later cast");
+
+        var secondCommandId = new EntityId("command.fireball.cast.0002");
+        var secondRequest = FireballReferenceScenario.CreateSkillRequest(
+            secondCommandId,
+            requestedTick: FireballReferenceScenario.CooldownReadyTick,
+            rootSeed: 98_765);
+        var secondDamageRequest =
+            FireballReferenceScenario.CreateDamageRequest(secondRequest);
+        Equal(98_765u, secondDamageRequest.Seed, "each execution forwards its own replay seed");
+        var secondSnapshot = new FireballResolveSnapshot(
+            mana: 80,
+            manaVersion: 5,
+            cooldownReadyTick: FireballReferenceScenario.CooldownReadyTick,
+            cooldownVersion: 3,
+            targetShield: 0,
+            targetShieldVersion: 8,
+            targetHealth: 338,
+            targetHealthVersion: 8);
+        var secondPlanning = FireballSkillPlanner.ResolveAndPlan(
+            secondRequest,
+            secondSnapshot,
+            resolver);
+        var secondPlan = secondPlanning.Plan ??
+            throw new InvalidOperationException("The ready second Fireball must be admitted.");
+        var firstIdentity =
+            FireballReferenceScenario.CreateExecutionIdentity(firstRequest);
+        var secondIdentity =
+            FireballReferenceScenario.CreateExecutionIdentity(secondRequest);
+        Equal(secondCommandId, secondPlan.CommandId, "a later plan keeps its own command identity");
+        Equal(
+            secondRequest.RequestedTick +
+            FireballReferenceScenario.CooldownDurationTicks,
+            secondIdentity.CooldownReadyTick,
+            "cooldown derives from the current request tick");
+        True(
+            firstIdentity.BundleId != secondIdentity.BundleId,
+            "effect bundle IDs differ across executions");
+        True(
+            firstIdentity.SkillCommittedEventId !=
+            secondIdentity.SkillCommittedEventId,
+            "SkillCommitted event IDs differ across executions");
+        True(
+            firstIdentity.DamageCommittedEventId !=
+            secondIdentity.DamageCommittedEventId,
+            "DamageCommitted event IDs differ across executions");
+        True(
+            firstIdentity.BurnReactionId != secondIdentity.BurnReactionId,
+            "reaction IDs differ across executions");
+        True(
+            firstIdentity.BurnIdempotencyKey !=
+            secondIdentity.BurnIdempotencyKey,
+            "reaction idempotency keys differ across executions");
+        Equal(
+            3,
+            secondPlan.Mutations.Count,
+            "a second cast with no shield mutates mana, cooldown, and HP only");
+
+        var secondCommit = committer.Commit(secondPlan);
+        Equal(
+            CommitStatus.Committed,
+            secondCommit.Status,
+            "a distinct ready command is not mistaken for a duplicate");
+        Equal(60L, committer.GetValue(FireballReferenceScenario.ManaResourceId), "the second cast spends mana again");
+        Equal(
+            secondIdentity.CooldownReadyTick,
+            committer.GetValue(FireballReferenceScenario.CooldownResourceId),
+            "the second cast publishes its own cooldown");
+        Equal(136L, committer.GetValue(FireballReferenceScenario.TargetHealthResourceId), "the second cast applies damage to current HP");
+        Equal(
+            8L,
+            committer.GetVersion(FireballReferenceScenario.TargetShieldResourceId),
+            "zero shield damage does not create a false resource write");
+        Equal(
+            9L,
+            committer.GetVersion(FireballReferenceScenario.TargetHealthResourceId),
+            "positive HP damage advances the resource version once");
+        var secondSkillFact = (SkillCommitted)secondCommit.OutboxEvents[0].Event;
+        var secondDamageFact = (DamageCommitted)secondCommit.OutboxEvents[1].Event;
+        Equal(
+            secondIdentity.SkillSource,
+            secondSkillFact.Source,
+            "the second skill fact points to the second command execution");
+        Equal(
+            secondIdentity.SkillSource,
+            secondDamageFact.Source,
+            "the second damage fact points to the second command execution");
+
+        var secondBundle = FireballReferenceScenario.CreateEffectBundle(
+            secondRequest,
+            secondDamageRequest);
+        var firstReaction = FireballReferenceScenario.CreateReactionCommands(
+            firstBundle,
+            firstCommit.OutboxEvents[1]).Single();
+        var secondReaction = FireballReferenceScenario.CreateReactionCommands(
+            secondBundle,
+            secondCommit.OutboxEvents[1]).Single();
+        True(
+            firstReaction.ReactionId != secondReaction.ReactionId,
+            "separate casts enqueue separate Burn identities");
+        Equal(
+            secondDamageFact.EventId,
+            secondReaction.CausationId,
+            "the second Burn points to the second committed damage fact");
+        Equal(
+            FireballReferenceScenario.BurnDefinitionId,
+            FireballReferenceScenario.CreateBurnRequest(secondReaction).StatusId,
+            "dynamic Fireball identities still create the Burn request");
+        Throws<ArgumentException>(
+            () => FireballReferenceScenario.CreateReactionCommands(
+                firstBundle,
+                secondCommit.OutboxEvents[1]),
+            "a committed event cannot be paired with another execution's bundle");
+        Equal(
+            CommitStatus.DuplicateCommand,
+            committer.Commit(secondPlan).Status,
+            "replaying the second command remains idempotent");
+
+        var missCommandId = new EntityId("command.fireball.cast.miss");
+        var missRequest = FireballReferenceScenario.CreateSkillRequest(
+            missCommandId,
+            FireballReferenceScenario.CastTick,
+            rootSeed: 7);
+        var missResult = new DamageResult(
+            HitOutcome.Miss,
+            critical: false,
+            rawDamage: 0,
+            resolvedDamage: 0,
+            shieldAbsorbed: 0,
+            finalHpDamage: 0,
+            overkill: 0);
+        var missPlanning = FireballSkillPlanner.ResolveAndPlan(
+            missRequest,
+            FireballReferenceScenario.CreateResolveSnapshot(),
+            new FixedCombatResolver(missResult));
+        var missPlan = missPlanning.Plan ??
+            throw new InvalidOperationException("An admitted miss must still produce a commit plan.");
+        Equal(4, missPlan.Preconditions.Count, "a miss retains all snapshot consistency checks");
+        Equal(2, missPlan.Mutations.Count, "a miss commits only mana and cooldown");
+        Equal(2, missPlan.OutboxEvents.Count, "a miss publishes skill and zero-damage facts");
+        var missCommitter = new InMemoryRuntimeCommitter(
+            FireballReferenceScenario.CreateInitialState());
+        var missCommit = missCommitter.Commit(missPlan);
+        Equal(CommitStatus.Committed, missCommit.Status, "an admitted miss commits without throwing");
+        Equal(80L, missCommitter.GetValue(FireballReferenceScenario.ManaResourceId), "a miss still spends skill cost");
+        Equal(40L, missCommitter.GetValue(FireballReferenceScenario.TargetShieldResourceId), "a miss leaves shield unchanged");
+        Equal(500L, missCommitter.GetValue(FireballReferenceScenario.TargetHealthResourceId), "a miss leaves HP unchanged");
+        Equal(7L, missCommitter.GetVersion(FireballReferenceScenario.TargetShieldResourceId), "a miss does not advance shield version");
+        Equal(7L, missCommitter.GetVersion(FireballReferenceScenario.TargetHealthResourceId), "a miss does not advance HP version");
+        var missDamageFact = (DamageCommitted)missCommit.OutboxEvents[1].Event;
+        Equal(HitOutcome.Miss, missDamageFact.Result.Outcome, "the zero-damage fact preserves Miss");
+        Equal(
+            missCommandId,
+            missDamageFact.Source.InstanceId!.Value,
+            "the miss fact points to its own command execution");
+        var missBundle = FireballReferenceScenario.CreateEffectBundle(
+            missRequest,
+            FireballReferenceScenario.CreateDamageRequest(missRequest));
+        Equal(
+            0,
+            FireballReferenceScenario.CreateReactionCommands(
+                missBundle,
+                missCommit.OutboxEvents[1]).Count,
+            "a Miss cannot enqueue the hit-only Burn reaction");
+    }
+
+    private void VerifyLiveTargetStatusReactionPolicy()
+    {
+        ICombatResolver resolver = new CombatResolver();
+        var planning = FireballSkillPlanner.ResolveAndPlan(
+            FireballReferenceScenario.CreateSkillRequest(),
+            FireballReferenceScenario.CreateResolveSnapshot(),
+            resolver);
+        var plan = planning.Plan ??
+            throw new InvalidOperationException("The reference Fireball must be admitted.");
+        var committer = new InMemoryRuntimeCommitter(
+            FireballReferenceScenario.CreateInitialState());
+        var committed = committer.Commit(plan);
+        var damageFact = (DamageCommitted)committed.OutboxEvents[1].Event;
+        True(
+            damageFact.TargetHpAfter > 0,
+            "the primary impact leaves the target alive when Burn is queued");
+        var bundle = FireballReferenceScenario.CreateEffectBundle(
+            FireballReferenceScenario.CreateDamageRequest());
+        var reaction = FireballReferenceScenario.CreateReactionCommands(
+            bundle,
+            committed.OutboxEvents[1]).Single();
+
+        var aliveDecision = LiveTargetStatusReactionPolicy.Evaluate(
+            reaction,
+            new LiveTargetSnapshot(
+                reaction.TargetId,
+                damageFact.TargetHpAfter,
+                healthVersion: 8),
+            FireballReferenceScenario.BurnDefinitionId,
+            stackDelta: 1);
+        Equal(
+            StatusReactionDisposition.ReadyToApply,
+            aliveDecision.Disposition,
+            "a still-living target produces a status request");
+        True(aliveDecision.Request is not null, "the live path carries the Burn request");
+        Equal(
+            FireballReferenceScenario.BurnDefinitionId,
+            aliveDecision.Request!.StatusId,
+            "the live path carries the intended Burn definition");
+        True(!aliveDecision.IsTerminal, "the live path still requires status application");
+
+        var deadDecision = LiveTargetStatusReactionPolicy.Evaluate(
+            reaction,
+            new LiveTargetSnapshot(
+                reaction.TargetId,
+                currentHealth: 0,
+                healthVersion: 9),
+            FireballReferenceScenario.BurnDefinitionId,
+            stackDelta: 1);
+        Equal(
+            StatusReactionDisposition.NotApplicable,
+            deadDecision.Disposition,
+            "death after impact makes Burn NotApplicable at dispatch time");
+        True(deadDecision.IsTerminal, "NotApplicable is a terminal reaction result");
+        Equal<ApplyStatusRequest?>(
+            null,
+            deadDecision.Request,
+            "the terminal dead-target path creates no status request");
+        Equal(
+            9L,
+            deadDecision.ObservedTargetVersion,
+            "the terminal result records the live snapshot version");
+        Throws<ArgumentException>(
+            () => LiveTargetStatusReactionPolicy.Evaluate(
+                reaction,
+                new LiveTargetSnapshot(
+                    new EntityId("entity.other-target"),
+                    currentHealth: 1,
+                    healthVersion: 1),
+                FireballReferenceScenario.BurnDefinitionId,
+                stackDelta: 1),
+            "reaction evaluation rejects a snapshot for another target");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new LiveTargetSnapshot(
+                reaction.TargetId,
+                currentHealth: -1,
+                healthVersion: 1),
+            "live target snapshots reject negative health");
     }
 
     private void VerifyReactionBoundsAndOrder()
@@ -909,9 +1955,11 @@ internal sealed class ContractVerificationSuite
             new EntityId("effect.apply-burn"),
             FireballReferenceScenario.TargetId,
             source,
-            new EntityId("event.damage-committed.fireball.0001"),
+            FireballReferenceScenario.DamageCommittedEventId,
             100,
-            new EntityId("order.fireball.burn.0001"),
+            FireballReferenceScenario.CreateExecutionIdentity(
+                FireballReferenceScenario.CreateSkillRequest())
+                .BurnStableOrderKey,
             depth: 1,
             budgetCost: 1);
         var alpha = CreateTestReaction("alpha", priority: 50, order: "a", depth: 1, budgetCost: 2);
@@ -944,9 +1992,10 @@ internal sealed class ContractVerificationSuite
         Equal(0, queue.PendingCount, "processed idempotency key remains suppressed");
 
         var nestedDispatched = new List<EntityId>();
+        var nestedDepths = new List<int>();
         var root = CreateTestReaction("nested-root", priority: 30, order: "root", depth: 0, budgetCost: 1);
-        var child = CreateTestReaction("nested-child", priority: 20, order: "child", depth: 1, budgetCost: 1);
-        var grandchild = CreateTestReaction("nested-grandchild", priority: 10, order: "grandchild", depth: 2, budgetCost: 1);
+        var child = CreateTestReaction("nested-child", priority: 20, order: "child", depth: 0, budgetCost: 1);
+        var grandchild = CreateTestReaction("nested-grandchild", priority: 10, order: "grandchild", depth: 0, budgetCost: 1);
         DeterministicBoundedReactionQueue nestedQueue = null!;
         nestedQueue = new DeterministicBoundedReactionQueue(
             maxReactions: 3,
@@ -955,6 +2004,7 @@ internal sealed class ContractVerificationSuite
             command =>
             {
                 nestedDispatched.Add(command.ReactionId);
+                nestedDepths.Add(command.Depth);
                 if (command.ReactionId == root.ReactionId)
                 {
                     nestedQueue.Enqueue(child);
@@ -973,7 +2023,44 @@ internal sealed class ContractVerificationSuite
             new[] { root.ReactionId, child.ReactionId, grandchild.ReactionId },
             nestedDispatched,
             "nested reactions are dispatched before the wave closes");
+        SequenceEqual(
+            new[] { 0, 1, 2 },
+            nestedDepths,
+            "the queue derives child depth from the active parent instead of trusting handler input");
         Equal(0, nestedQueue.PendingCount, "nested wave leaves no work for a later drain");
+
+        var forgedRoot = CreateTestReaction(
+            "forged-depth-root",
+            priority: 1,
+            order: "root",
+            depth: 0,
+            budgetCost: 1);
+        var forgedChild = CreateTestReaction(
+            "forged-depth-child",
+            priority: 2,
+            order: "child",
+            depth: 0,
+            budgetCost: 1);
+        DeterministicBoundedReactionQueue depthOwnershipQueue = null!;
+        depthOwnershipQueue = new DeterministicBoundedReactionQueue(
+            maxReactions: 2,
+            maxDepth: 0,
+            maxBudget: 2,
+            command =>
+            {
+                if (command.ReactionId == forgedRoot.ReactionId)
+                {
+                    depthOwnershipQueue.Enqueue(forgedChild);
+                }
+            });
+        depthOwnershipQueue.Enqueue(forgedRoot);
+        Throws<InvalidOperationException>(
+            () => depthOwnershipQueue.Drain(new ReactionBudget(2, 0, 2)),
+            "a handler cannot bypass MaxDepth by declaring its child as depth zero");
+        Equal(
+            0,
+            depthOwnershipQueue.PendingCount,
+            "a derived-depth violation discards the remainder of the causation wave");
 
         var exhaustedQueue = new DeterministicBoundedReactionQueue(2, 2, 6, _ => { });
         var expensive = CreateTestReaction("expensive", priority: 1, order: "a", depth: 2, budgetCost: 3);
@@ -1054,6 +2141,10 @@ internal sealed class ContractVerificationSuite
     private void VerifyStatusCatchUpPolicy()
     {
         const long currentTick = 1_000;
+        Equal<StatusCatchUpResult?>(
+            null,
+            default(StatusCatchUpResult),
+            "default StatusCatchUpResult cannot create an invalid result instance");
         var active = StatusCatchUpPolicy.Evaluate(currentTick, expiresAtTick: 1_010, 5, 3);
         Equal(3, active.TicksToExecute, "active catch-up respects the cap");
         Equal(StatusCatchUpAction.DeferRemainingTicks, active.Action, "active status defers excess ticks");
@@ -1079,6 +2170,93 @@ internal sealed class ContractVerificationSuite
         Equal(0, expiredWithoutTicks.TicksToExecute, "expired status may close with no due tick");
         Equal(StatusCatchUpAction.CloseExpiredStatus, expiredWithoutTicks.Action, "zero-due expired status still closes");
         Equal<StatusRemoveReason?>(StatusRemoveReason.Expired, expiredWithoutTicks.RemoveReason, "zero-due closure is normal expiry");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new StatusCatchUpResult(
+                -1,
+                StatusCatchUpAction.ExecuteDueTicks,
+                null),
+            "catch-up result rejects a negative tick count");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new StatusCatchUpResult(
+                0,
+                (StatusCatchUpAction)int.MaxValue,
+                null),
+            "catch-up result rejects an undefined action");
+        Throws<ArgumentOutOfRangeException>(
+            () => _ = new StatusCatchUpResult(
+                0,
+                StatusCatchUpAction.CloseExpiredStatus,
+                (StatusRemoveReason)int.MaxValue),
+            "catch-up result rejects an undefined removal reason");
+        Throws<ArgumentException>(
+            () => _ = new StatusCatchUpResult(
+                0,
+                StatusCatchUpAction.CloseExpiredStatus,
+                null),
+            "closing a catch-up result requires an expiry reason");
+        Throws<ArgumentException>(
+            () => _ = new StatusCatchUpResult(
+                1,
+                StatusCatchUpAction.ExecuteDueTicks,
+                StatusRemoveReason.Expired),
+            "continuing a catch-up result cannot have a removal reason");
+        Throws<ArgumentException>(
+            () => _ = new StatusCatchUpResult(
+                0,
+                StatusCatchUpAction.CloseExpiredStatus,
+                StatusRemoveReason.Dispelled),
+            "catch-up closure cannot use an unrelated dispel reason");
+        Throws<ArgumentException>(
+            () => _ = new StatusCatchUpResult(
+                0,
+                StatusCatchUpAction.DeferRemainingTicks,
+                null),
+            "deferred catch-up cannot claim progress when it executes no tick");
+        Throws<ArgumentException>(
+            () => _ = new StatusCatchUpResult(
+                0,
+                StatusCatchUpAction.CloseExpiredStatus,
+                StatusRemoveReason.CatchUpLimited),
+            "limited catch-up closure must execute at least one bounded tick");
+    }
+
+    private sealed class CountingCombatResolver : ICombatResolver
+    {
+        private readonly ICombatResolver _inner;
+
+        public CountingCombatResolver(ICombatResolver inner)
+        {
+            _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+        }
+
+        public int CallCount { get; private set; }
+
+        public DamageResult Resolve(
+            DamageRequest request,
+            CombatContext context)
+        {
+            CallCount++;
+            return _inner.Resolve(request, context);
+        }
+    }
+
+    private sealed class FixedCombatResolver : ICombatResolver
+    {
+        private readonly DamageResult _result;
+
+        public FixedCombatResolver(DamageResult result)
+        {
+            _result = result ?? throw new ArgumentNullException(nameof(result));
+        }
+
+        public DamageResult Resolve(
+            DamageRequest request,
+            CombatContext context)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            ArgumentNullException.ThrowIfNull(context);
+            return _result;
+        }
     }
 
     private static ReactionCommand CreateTestReaction(

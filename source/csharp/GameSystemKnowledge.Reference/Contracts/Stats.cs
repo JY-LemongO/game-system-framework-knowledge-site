@@ -1,5 +1,3 @@
-using System.Collections.ObjectModel;
-
 namespace GameSystemKnowledge.Reference.Contracts;
 
 public sealed class StatContext
@@ -7,7 +5,7 @@ public sealed class StatContext
     public StatContext(
         EntityId ownerId,
         EntityId? targetId,
-        EntityId skillId,
+        EntityId? skillId,
         IEnumerable<string>? skillTags = null,
         IEnumerable<string>? targetTags = null,
         IEnumerable<EntityId>? targetStatuses = null,
@@ -20,7 +18,10 @@ public sealed class StatContext
             EntityId.ThrowIfInvalid(targetId.Value, nameof(targetId));
         }
 
-        EntityId.ThrowIfInvalid(skillId, nameof(skillId));
+        if (skillId.HasValue)
+        {
+            EntityId.ThrowIfInvalid(skillId.Value, nameof(skillId));
+        }
 
         if (distance < 0m)
         {
@@ -32,8 +33,12 @@ public sealed class StatContext
             throw new ArgumentException("A stat query moment is required.", nameof(moment));
         }
 
-        var skillTagCopy = CopyTags(skillTags, nameof(skillTags));
-        var targetTagCopy = CopyTags(targetTags, nameof(targetTags));
+        var skillTagSet = skillTags is null
+            ? TagSet.Empty
+            : new TagSet(skillTags);
+        var targetTagSet = targetTags is null
+            ? TagSet.Empty
+            : new TagSet(targetTags);
         var targetStatusCopy = (targetStatuses ?? Enumerable.Empty<EntityId>()).ToArray();
         if (targetStatusCopy.Any(statusId => !statusId.IsValid))
         {
@@ -45,8 +50,8 @@ public sealed class StatContext
         OwnerId = ownerId;
         TargetId = targetId;
         SkillId = skillId;
-        SkillTags = Array.AsReadOnly(skillTagCopy);
-        TargetTags = Array.AsReadOnly(targetTagCopy);
+        SkillTags = skillTagSet;
+        TargetTags = targetTagSet;
         TargetStatuses = Array.AsReadOnly(targetStatusCopy);
         Distance = distance;
         Moment = moment;
@@ -56,30 +61,18 @@ public sealed class StatContext
 
     public EntityId? TargetId { get; }
 
-    public EntityId SkillId { get; }
+    public EntityId? SkillId { get; }
 
-    public ReadOnlyCollection<string> SkillTags { get; }
+    public TagSet SkillTags { get; }
 
-    public ReadOnlyCollection<string> TargetTags { get; }
+    public TagSet TargetTags { get; }
 
-    public ReadOnlyCollection<EntityId> TargetStatuses { get; }
+    public IReadOnlyList<EntityId> TargetStatuses { get; }
 
     public decimal Distance { get; }
 
     public string Moment { get; }
 
-    private static string[] CopyTags(
-        IEnumerable<string>? tags,
-        string parameterName)
-    {
-        var copy = (tags ?? Enumerable.Empty<string>()).ToArray();
-        if (copy.Any(string.IsNullOrWhiteSpace))
-        {
-            throw new ArgumentException("Stat context tags cannot be empty.", parameterName);
-        }
-
-        return copy;
-    }
 }
 
 public interface IStatQuery
@@ -120,6 +113,28 @@ public sealed class StatModifier
         EntityId.ThrowIfInvalid(statId, nameof(statId));
         SourceRef.ThrowIfInvalid(source, nameof(source));
         EntityId.ThrowIfInvalid(stackRuleId, nameof(stackRuleId));
+
+        if (!Enum.IsDefined(operation))
+        {
+            throw new ArgumentOutOfRangeException(nameof(operation));
+        }
+
+        // 비율 operation은 음수 배율이나 100% 초과 감소를 만들지 못하게 막는다.
+        switch (operation)
+        {
+            case ModifierOperation.PercentAdd when value < -1m:
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "PercentAdd cannot reduce its input below zero by itself.");
+            case ModifierOperation.More when value < 0m:
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "More requires a non-negative ratio.");
+            case ModifierOperation.Less when value is < 0m or > 1m:
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Less must be between zero and one.");
+        }
 
         ModifierId = modifierId;
         StatId = statId;

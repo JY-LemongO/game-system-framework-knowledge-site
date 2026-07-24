@@ -25,7 +25,7 @@ digraph G {
   }
   subgraph cluster_log {
     label="Input / Result / Observation"; style="rounded,dashed"; color="#dfe5ee"; fontcolor="#607086"; fontsize=18;
-    SkillRequest [label="<<public contract>> SkillRequest\nCasterId · SkillId · TargetId?\nRequestedTick · RootSeed", fillcolor="#eefbf6", color="#61b99a"];
+    SkillRequest [label="<<public contract>> SkillRequest\nCommandId · CasterId · SkillId\nTargetId? · RequestedTick · RootSeed", fillcolor="#eefbf6", color="#61b99a"];
     SkillValidator [label="<<public interface>> ISkillRequestValidator\nValidate(SkillRequest)", fillcolor="#f3eefc", color="#ab8fe0"];
     SkillDecision [label="<<public contract>> SkillDecision\nCanExecute · FailureReason?", fillcolor="#f3eefc", color="#ab8fe0"];
     SkillResult [label="<<public contract>> SkillResult\nSucceeded · FailureReason?\nEffects · public CommitReceipt", fillcolor="#f0f3f9", color="#99a8bd"];

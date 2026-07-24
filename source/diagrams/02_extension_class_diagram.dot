@@ -99,12 +99,12 @@ digraph ExtensionClassDiagram {
 		StatSaveAdapter
 		StatSnapshot
 	}
-	StatDefinitionRepository:e -> DerivedStatDefinition:w [label="stores derived definitions (0..*)" arrowhead=diamond color="#8A6D3B"]
+	StatDefinitionRepository:e -> DerivedStatDefinition:w [label="stores derived definitions (0..*)" dir=both arrowtail=odiamond arrowhead=none color="#8A6D3B"]
 	DerivedStatDefinition:e -> IStatFormula:w [label="evaluates with formula" arrowhead=vee color="#7257A6"]
 	DerivedStatDefinition:s -> StatDependencyGraph:n [label="registers dependency graph" arrowhead=vee color="#8A6D3B"]
 	ResourceController:e -> ResourcePolicy:w [label="applies resource clamp policy" arrowhead=vee color="#B45D69"]
 	ResourceController:s -> StatEventBus:n [label="publishes committed resource change" arrowhead=vee color="#397B8C"]
-	StatEventBus:e -> StatChangedEvent:w [label="delivers StatChangedEvent" arrowhead=diamond color="#397B8C"]
+	StatEventBus:e -> StatChangedEvent:w [label="delivers StatChangedEvent" style=dashed arrowhead=vee color="#397B8C"]
 	StatSaveAdapter:e -> StatSnapshot:w [label="snapshot round-trip" arrowhead=vee color="#5B7F4A"]
 	StatSaveAdapter:n -> StatDefinitionRepository:s [label="validates definition version" arrowhead=vee color="#8292A8" style=dashed]
 	DebugBreakdown:e -> StatEventBus:w [label="optional debug observation" arrowhead=vee color="#8292A8" constraint=false style=dotted]

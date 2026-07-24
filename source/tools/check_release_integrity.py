@@ -33,9 +33,9 @@ def package_version() -> str:
 
 
 def fixture_runtime_version() -> str:
-    value = json.loads(read_text("source/runtime/fixtures/fireball-golden-v1.json")).get("runtimeVersion")
+    value = json.loads(read_text("source/runtime/fixtures/fireball-golden-v2.json")).get("runtimeVersion")
     if not isinstance(value, str):
-        raise ValueError("fireball-golden-v1.json.runtimeVersion must be a string")
+        raise ValueError("fireball-golden-v2.json.runtimeVersion must be a string")
     return value
 
 

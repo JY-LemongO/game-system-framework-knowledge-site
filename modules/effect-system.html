@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Effect System · GSF System Atlas</title>
-<meta content="C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계" name="description"/>
+<meta content="C# Effect 계약과 결정론적 target snapshot·resolved operation·원자적 commit fragment 합성 구조" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <link href="../favicon.svg" rel="icon" sizes="any" type="image/svg+xml"/>
 <script>
@@ -127,7 +127,7 @@
        ▶
       </span>
 <b>
-       Skill
+       Effect intent
       </b>
 </a>
 <a class="system-dock-link" data-system="combat" href="../modules/combat-resolution-system.html">
@@ -214,7 +214,7 @@
        Effect System
       </h1>
 <p class="lead">
-       Effect System은 스킬, 아이템, 상태, 보상이 실제 게임 결과를 요청하는 공통 실행 경계다. 현재 C# 참조는 <code>EffectContext</code>, operation·bundle 값과 planner/executor 포트 모양을 제공하고, 대상 선택·계획·commit 조율 구현은 개념 확장으로 설명한다. 피해·상태·자원 변경은 각 소유 시스템에 위임한다.
+       Effect System은 스킬, 아이템, 상태, 보상이 실제 게임 결과를 요청하는 공통 실행 경계다. 현재 C# 참조는 target-independent Damage/Status spec, 결정적 target resolution, 명시적 operation outcome과 Effect 전용 CommitPlan fragment 조합을 실행한다. 피해·상태 계산은 각 소유 시스템에 위임하고 Skill·reaction fragment 통합은 확장 경계로 남긴다.
       </p>
 <div class="badges">
 <span class="badge" data-example-language="csharp">예제 언어 · C#</span>
@@ -288,7 +288,7 @@
 </tr>
 <tr>
 <td>
-           outbox event plan과 commit 이후 dispatch
+           outbox event blueprint·plan 준비(실제 commit 이후 dispatch는 외부 dispatcher 책임)
           </td>
 <td>
            AI 의사결정
@@ -314,7 +314,7 @@
 </div>
 <img alt="Effect 핵심 클래스 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/10_effect_core_class_diagram.svg"/>
 <figcaption class="cap">
-         실제 C#의 EffectBundle·IEffectExecutor·IEffectPlanner·EffectContext·EffectResult 포트와, product가 추가할 개념적 EffectDefinition·TargetSelector·EffectPipeline·IEffectOperationExecutor 전략의 관계를 함께 보여준다. 개념 타입의 구현은 현재 저장소에 없다.
+         기존 EffectBundle·planner/executor port와 product 확장 UML을 보여 주는 그림이다. 별도의 실행 참조인 ReferenceEffectSpecification·ReferenceEffectTargetResolver·CommitPlanFragment·DeterministicEffectCommitPlanComposer는 source 링크의 C# 코드가 기준이며 이 그림에는 아직 반영되지 않았다.
         </figcaption>
 </figure>
 </div>
@@ -333,37 +333,37 @@
        →
       </b>
 <span>
-       EffectBundle
+       Target resolve
       </span>
 <b>
        →
       </b>
 <span>
-       EffectExecutor
+       Resolved bundle
       </span>
 <b>
        →
       </b>
 <span>
-       Target
+       Commit fragment
       </span>
 <b>
        →
       </b>
 <span>
-       Result
+       CommitPlan
       </span>
 <b>
        →
       </b>
 <span>
-       Event
+       Commit / facts
       </span>
 </div>
 <h2 id="핵심-객체-상세">
       핵심 객체 상세
      </h2>
-<div class="callout warn"><b>증거 범위.</b> <code>EffectDefinition</code>·<code>TargetSelector</code>·<code>ValueExpression</code>은 콘텐츠 로딩 계층을 위한 개념적 확장이다. 현재 C# 실행 참조는 <code>EffectContext</code>, <code>EffectOperation</code>/<code>EffectBundle</code>, 결과 타입과 planner/executor 포트까지만 선언한다.</div>
+<div class="callout warn"><b>증거 범위.</b> <code>EffectDefinition</code>·범용 <code>ValueExpression</code>·Area/Arc/Chain selector는 콘텐츠 로딩 계층의 개념 확장이다. 실행 기준은 <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Effects.cs"><code>Contracts/Effects.cs</code></a>의 guarded request/bundle과 <a href="../source/csharp/GameSystemKnowledge.Reference/Systems/ReferenceEffectPipeline.cs"><code>ReferenceEffectPipeline.cs</code></a>의 target-independent Damage/ApplyStatus spec, 세 target mode, outcome, Effect fragment composer다.</div>
 <div class="grid cols2">
 <div class="card">
 <h3 id="effectdefinition">
@@ -415,8 +415,9 @@
 </div>
 </div>
 <h3 id="csharp-effect-contracts">C# 핵심 계약</h3>
-<p>개념적 <code>EffectDefinition</code>은 콘텐츠 작성·로딩 단계의 목표 정적 데이터다. production 로더와 대상 선택기는 이를 검증해 실행 가능한 실제 계약인 <code>EffectOperation</code> 또는 <code>EffectBundle</code>로 정규화한다. 공개 <code>IEffectExecutor</code>는 이 런타임 모델만 받으며, DamageEffect는 피해를 직접 계산하지 않고 <code>DamageRequest</code>를 Combat에 전달한다.</p>
-<pre><code class="language-csharp">public sealed record EffectContext(
+<p><strong>Executable · abridged.</strong> 아래 블록은 기존 target-bound request 타입의 공개 모양을 축약한 것이다. <code>Valid*</code> helper, Bundle의 null·enum·중복 ID guard 전체는 <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Effects.cs"><code>Contracts/Effects.cs</code></a>가 기준이다. target-independent spec과 resolver는 다음 절의 별도 실행 reference가 담당한다.</p>
+<pre><code class="language-csharp">// Executable contract · abridged; helper and collection guard bodies are omitted.
+public sealed record EffectContext(
     EntityId CasterId,
     EntityId? InitialTargetId,
     SourceRef Source,
@@ -460,6 +461,40 @@ public abstract record EffectOperation(EntityId OperationId)
         get =&gt; _operationId;
         init =&gt; _operationId =
             ValidOperationId(value, nameof(OperationId));
+    }
+}
+
+public sealed record DamageEffectOperation : EffectOperation
+{
+    private DamageRequest _request;
+
+    public DamageEffectOperation(EntityId operationId, DamageRequest request)
+        : base(operationId)
+    {
+        _request = request ?? throw new ArgumentNullException(nameof(request));
+    }
+
+    public DamageRequest Request
+    {
+        get =&gt; _request;
+        init =&gt; _request = value ?? throw new ArgumentNullException(nameof(value));
+    }
+}
+
+public sealed record ApplyStatusEffectOperation : EffectOperation
+{
+    private ApplyStatusRequest _request;
+
+    public ApplyStatusEffectOperation(EntityId operationId, ApplyStatusRequest request)
+        : base(operationId)
+    {
+        _request = request ?? throw new ArgumentNullException(nameof(request));
+    }
+
+    public ApplyStatusRequest Request
+    {
+        get =&gt; _request;
+        init =&gt; _request = value ?? throw new ArgumentNullException(nameof(value));
     }
 }
 
@@ -528,11 +563,40 @@ public interface IEffectPlanner
         EffectBundle bundle,
         EffectContext context);
 }</code></pre>
-<p><code>EffectDefinition → EffectOperation</code> 변환은 내부 정의 해석 단계다. 공개 <code>IEffectExecutor</code>는 독립 command를 끝까지 실행할 때 사용하고, Skill처럼 비용·쿨다운과 주 Effect를 같은 transaction으로 묶어야 하는 상위 조율자는 순수 <code>IEffectPlanner.Prepare</code>로 target-resolved <code>EffectBundlePlan</code>을 먼저 얻는다. 실행 참조에는 두 포트가 모두 있으므로 <code>Execute(EffectDefinition, ...)</code> 같은 혼합 API를 만들지 않는다.</p>
+<div class="callout"><b>Executable 생성 경계.</b> Damage/ApplyStatus operation은 null request를 생성자와 record copy 양쪽에서 거부한다. EffectBundle은 정의되지 않은 <code>EffectExecutionPolicy</code>, 중복 <code>OperationId</code>, <code>ReactionRule.RuleId</code>, <code>ReactionId</code>, <code>IdempotencyKey</code>를 거부하며 EffectBundlePlan도 같은 identity 규칙을 적용한다.</div>
+<p>기존 <code>EffectOperation</code>의 DamageRequest·ApplyStatusRequest에는 대상이 이미 있으므로 <code>EffectBundle</code>과 <code>EffectBundlePlan</code>은 target-bound 경계다. resolver 입력으로 재사용하면 이중 resolution이 된다. 새 실행 참조는 대상 없는 <code>DamageEffectSpec</code>/<code>ApplyStatusEffectSpec</code>을 <code>ReferenceEffectSpecification</code>에 담고, resolver가 한 번만 실제 request로 bind한다. 기존 planner port와 새 reference pipeline은 같은 타입인 척 섞지 않는다.</p>
 <h2 id="effect-실행-파이프라인">
-      개념적 Effect 실행 파이프라인
+      실행 가능한 Effect 파이프라인과 확장 경계
      </h2>
-<div class="callout warn"><b>증거 범위.</b><p>아래 순서는 production adapter가 구현할 목표 조율이다. 현재 C# 실행 참조는 <code>EffectOperation</code>·<code>EffectBundle</code>·<code>EffectBundlePlan</code>·결과 타입과 <code>IEffectPlanner</code>/<code>IEffectExecutor</code> 인터페이스, Fireball bundle 구성을 검증하지만 planner/executor/TargetSelector 구현은 포함하지 않는다.</p></div>
+<div class="callout"><b>Executable · bounded reference.</b><p><code>ReferenceEffectOperationSpec</code> → <code>ReferenceEffectTargetResolver</code> → target-bound <code>ResolvedEffectOperation</code> → <code>EffectOperationOutcome</code> → <code>CommitPlanFragment</code> → <code>DeterministicEffectCommitPlanComposer</code>가 실제 C#으로 연결된다. resolver가 지원하는 payload는 Damage와 ApplyStatus, target mode는 Self·ExplicitTarget·CandidateSnapshot뿐이다. Combat/Status가 resolved request를 계산해 fragment를 만드는 일반 executor와 Skill 비용·cooldown fragment, reaction fragment API는 아직 없다. 경계 선택과 outbox 근거는 <a href="../source/adr/ADR-006-effect-targeting-and-commit-composition.md">ADR-006</a>에 기록했다.</p></div>
+<pre><code class="language-csharp">// Executable API shape · abridged
+var specification = new ReferenceEffectSpecification(
+    specificationId,
+    new ReferenceEffectOperationSpec[]
+    {
+        new DamageEffectSpec(
+            operationId,
+            formulaId,
+            damageType: "fire",
+            baseValue: 24,
+            coefficientBps: 12_000,
+            tags: new[] { "spell", "fire" })
+    });
+
+EffectTargetResolutionPlan resolution =
+    ReferenceEffectTargetResolver.Resolve(
+        specification,
+        context,
+        new[]
+        {
+            new EffectTargetRule(
+                operationId,
+                EffectTargetMode.ExplicitTarget)
+        });
+
+DamageEffectOperation request =
+    (DamageEffectOperation)resolution.Operations.Single().BoundOperation;</code></pre>
+<div class="callout"><b>실행 증거.</b> <a href="../source/csharp/GameSystemKnowledge.Reference.Verification/AdvancedFoundationVerification.cs"><code>AdvancedFoundationVerification.cs</code></a>는 정상 Self/Explicit/candidate bind, 같은 metric의 EntityId tie-break, 빈 snapshot과 missing explicit target의 NotApplicable, duplicate candidate와 rule mismatch 실패를 검증한다.</div>
 <figure class="diagram">
 <div class="dh">
 <strong>
@@ -546,41 +610,20 @@ public interface IEffectPlanner
 </div>
 <img alt="Effect 실행 시퀀스 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/11_effect_execution_sequence_diagram.svg"/>
 <figcaption class="cap">
-       개념적 product 흐름에서는 Skill, Status, Item이 EffectService에 실행을 요청하면 EffectExecutor adapter가 TargetSelector·Stat·Combat을 읽어 plan을 만든다. RuntimeCommitter가 상태와 outbox를 원자적으로 확정한 뒤 외부 adapter가 committed fact를 dispatch한다.
+       이 혼합 흐름은 실행 가능한 C# handoff와 아직 필요한 product adapter를 함께 보인다. caller는 target-independent specification을 전달하고, 공간 adapter가 eligibility와 정수 metric을 확정한 candidate snapshot을 만든다. domain target resolver는 Self·ExplicitTarget·snapshot을 한 번만 bind하고 eligibility를 다시 판정하지 않는다. 소유 resolver가 pure outcome/fragment를 만들고 composer와 runtime committer가 plan·state·outbox를 확정한 뒤 외부 dispatcher가 committed fact를 전달한다. 기존 target-bound <code>EffectOperation</code>/<code>EffectBundlePlan</code>을 resolver 입력으로 되돌리는 흐름이 아니다.
       </figcaption>
 </figure>
 <ol>
-<li>
-       Effect 요청을 받는다.
-      </li>
-<li>
-       EffectDefinition을 로드한다.
-      </li>
-<li>
-       EffectContext를 만든다.
-      </li>
-<li>
-       전역 조건과 실행 조건을 검증한다.
-      </li>
-<li>
-       TargetSelector로 대상 후보를 수집한다.
-      </li>
-<li>
-       대상별 조건을 다시 검증한다.
-      </li>
-<li>
-       일반 Effect는 ValueExpression을 계산한다. DamageEffect는 계산 입력을 DamageRequest로 정규화한다. 현재 실행 참조에서는 호출자가 Stat snapshot을 <code>CombatContext.ScalingStatValue</code>로 미리 해석하고 Combat은 단일 계수식을 계산하며, 전체 Stat 조회와 공식 registry는 개념 확장이다.
-      </li>
-<li>
-       EffectOperation의 mutation과 outbox를 EffectPlan으로 준비한다.
-      </li>
-<li>
-       RuntimeCommitter가 plan의 상태 변경과 outbox를 한 transaction으로 commit한다.
-      </li>
-<li>
-       commit 성공 receipt로 EffectResult와 trace를 만들고, 외부 adapter가 committed fact를 dispatch한다.
-      </li>
+<li><strong>Intent.</strong> target-independent Effect spec과 실행 context를 검증한다.</li>
+<li><strong>Resolve targets once.</strong> adapter가 eligibility와 정수 metric 값을 확정하면 <code>EffectTargetCandidate</code> 생성자가 metric 범위를, <code>CanonicalTargetSnapshot</code> 생성자가 null·중복과 canonical total order를 보장한다. resolver는 이 동결 입력을 받아 mode·필수 snapshot을 확인하고 <code>MaxTargets</code>만 적용하며 팀·거리·시야를 다시 판정하지 않는다.</li>
+<li><strong>Resolved operations.</strong> 대상별 DamageRequest·ApplyStatusRequest를 만들며 이후 단계에서는 대상을 다시 고르지 않는다.</li>
+<li><strong>Pure resolve.</strong> Combat 등 소유 resolver가 상태를 바꾸지 않고 결과를 계산한다. 현재 C# Combat은 미리 해석된 <code>CombatContext.ScalingStatValue</code>로 compact 공식을 실행한다.</li>
+<li><strong>CommitPlanFragment.</strong> 현재 reference는 version precondition, mutation, outbox event를 준비한다. reaction command는 아직 fragment에 포함하지 않는다.</li>
+<li><strong>Compose.</strong> 현재 composer는 Effect fragment끼리만 합친다. Skill 비용·쿨다운까지 일반화한 outer composer는 아직 없다.</li>
+<li><strong>Atomic commit.</strong> stale snapshot이면 전체 plan을 거부하고 state와 outbox를 모두 유지한다.</li>
+<li><strong>Commit then react.</strong> commit receipt의 fact만 외부 dispatcher가 전달하고, 상태 변경 반응은 ReactionQueue의 새 command가 된다.</li>
 </ol>
+<div class="callout warn"><b>현재 commit 증거의 저장 범위.</b><p>C# <code>RuntimeCommitter</code>와 JavaScript <code>StateStore</code>의 state+outbox 원자성은 in-memory reference다. 프로세스 장애와 다중 writer를 견디는 durable transaction, outbox row claim/lease, publisher retry, consumer idempotency는 제품 adapter의 책임이며 현재 실행 참조가 제공한다고 해석하면 안 된다.</p></div>
 <h2 id="target-selection-설계">
       Target Selection 설계
      </h2>
@@ -600,9 +643,10 @@ public interface IEffectPlanner
 </div>
 <img alt="Target Selection 액티비티 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/12_target_selection_activity_diagram.svg"/>
 <figcaption class="cap">
-       후보 수집, 필터링, 정렬, 제한, 최종 대상 반환 순서로 읽는다.
+       공간 adapter의 eligibility·metric 계산, domain 값 생성자의 metric/null/중복 guard·canonical 정렬, resolver의 mode 확인·one-shot bind·MaxTargets 적용을 단계별로 분리해서 읽는다. Self·ExplicitTarget·CandidateSnapshot만 현재 C# 실행 mode다.
       </figcaption>
 </figure>
+<div class="callout"><b>Executable target contract.</b> Unity Physics·서버 spatial index adapter는 eligibility를 판정하고 정수 metric 값을 제공한다. <code>EffectTargetCandidate</code> 생성자는 metric 범위를 검증하고, <code>CanonicalTargetSnapshot</code> 생성자는 null·duplicate EntityId를 거부한 뒤 <code>SelectionPriority DESC → DistanceSquared ASC → EntityId Ordinal ASC</code>로 정렬한다. <code>ReferenceEffectTargetResolver</code>는 이 canonical 순서를 유지하며 <code>MaxTargets</code>를 적용한다. 따라서 Physics 반환 순서, culture, 부동소수 거리 tie가 domain 결과를 바꾸지 않는다. <code>UnityEngine.Vector3</code>나 Collider는 domain 계약에 들어오지 않는다.</div>
 <div class="table-scroll">
 <table class="data-table">
 <tr>
@@ -636,6 +680,17 @@ public interface IEffectPlanner
         </td>
 <td>
          단일 타겟 주문
+        </td>
+</tr>
+<tr>
+<td>
+         CandidateSnapshot
+        </td>
+<td>
+         adapter가 필터·metric 계산을 끝낸 후보 스냅샷
+        </td>
+<td>
+         최대 N개를 priority·정수 거리·ID 순으로 선택
         </td>
 </tr>
 <tr>
@@ -686,7 +741,7 @@ public interface IEffectPlanner
 </div>
 <div class="callout">
 <b>
-       두 타겟팅의 차이.
+       현재 범위와 두 타겟팅의 차이.
       </b>
       Skill의
       <code>
@@ -696,7 +751,7 @@ public interface IEffectPlanner
       <code>
        TargetSelector
       </code>
-      는 release/hit 시점에 실제 영향 대상을 다시 해석한다.
+       를 위한 공간 adapter는 팀·거리·시야·충돌 같은 eligibility를 먼저 판정한다. 현재 Effect domain 값 생성 경계가 candidate metric, snapshot null·중복·결정적 정렬을 보장하고, resolver는 Self를 caster에 bind하고 ExplicitTarget의 ID 존재를 확인하며 CandidateSnapshot mode에서 필수 snapshot과 MaxTargets만 처리한다. 입력 가능한 대상인지는 다시 검증하지 않는다. caller가 정한 release/hit 시점의 immutable snapshot에서 대상을 한 번만 bind하며, AreaCircle·ForwardArc·Chain·OwnerOrSource는 위 표의 production 설계 예시이고 현재 resolver mode가 아니다.
      </div>
 <h2 id="effect-타입-카탈로그">
       Effect 타입 카탈로그
@@ -846,18 +901,19 @@ DamageResult result = combatResolver.Resolve(request, combatContext);</code></pr
 <h2 id="effectresult와-로그">
       EffectResult와 실행 trace
      </h2>
+<div class="callout warn"><b>Conceptual observability example.</b> 아래 <code>EffectTrace</code>, <code>EffectCompleted</code>, <code>EffectRuntimeTrace</code>는 현재 C# source에 선언된 실행 타입·event가 아니라 제품 관찰 모델 예시다. 실행 C#에는 guarded <code>EffectResult</code>/<code>EffectBundleResult</code>, composition 결과와 실제 commit fact가 있고, JavaScript Fireball에는 <code>DamageCalculated</code> trace와 committed damage/status event가 있다. 제품 trace schema를 만들 때 둘을 연결해야 한다.</div>
 <p>
       공개 결과 타입은 호출자가 분기할 최소 정보만 반환한다. 단일 operation은 성공 여부와 OperationId, 묶음은 commit 여부와 적용·reaction 개수를 제공한다. 대상별 계산값, 생성 이벤트, 실패 근거와 디버그 메시지는 EffectTrace와 각 소유 시스템 결과에 별도로 남겨 결과 계약이 비대해지지 않게 한다.
      </p>
 <p><code>EffectBundleResult</code> 생성자는 두 count의 음수를 거부하고, <code>Committed == false</code>이면 적용 effect와 queued reaction 수가 모두 0이도록 강제한다. 실패했는데 일부 적용을 보고하는 모순된 carrier를 만들 수 없다.</p>
-<pre><code class="language-text">EffectTrace effect.fireball-damage
+<pre><code class="language-text">Conceptual EffectTrace effect.fireball-damage
   - sourceRef: { kind: skill-execution, definitionId: skill.fireball, instanceId: command.fireball.cast.0001 }
   - caster: entity.caster
   - targets:
   - entity.target: committed, outcome=Hit, rawDamage=252, resolvedDamage=202, shieldAbsorbed=40, finalHpDamage=162, overkill=0
 - events:
   - DamageCommitted
-  - EffectCompleted
+  - EffectCompleted (conceptual product fact)
 - debug:
   - base 24 + spell_power 120 × 1.2 = 168
   - critical 168 × 1.5 = 252
@@ -938,7 +994,7 @@ DamageResult result = combatResolver.Resolve(request, combatContext);</code></pr
 </tr>
 </table>
 </div>
-<div class="callout"><b>Fireball의 조합.</b> 비용·쿨다운·Damage 주 효과는 AllOrNothing으로 같은 commit에 넣고, Burn은 CommitThenReact로 분리한다. 현재 실행 fixture는 Burn 면역을 판정하지 않는다. 면역 정책을 추가한다면 후속 command의 정상 실패로 처리한다.</div>
+<div class="callout"><b>정책 증거 범위.</b> <code>DeterministicEffectCommitPlanComposer</code>는 Effect fragment의 동일 precondition만 dedupe하고, 서로 다른 expected version, duplicate operation-target/fragment/event, 같은 resource의 복수 mutation을 commit 전에 거부한다. NotApplicable만 있으면 NoChanges, 하나라도 Rejected면 partial plan 없이 Rejected다. AllOrNothing·BestEffortPerTarget 선택, Skill cost/cooldown fragment, reaction fragment는 아직 production 확장이다. Fireball reference의 Skill+Damage 원자성은 여전히 수동 <code>CommitPlan</code> 구성 증거다.</div>
 <h2 id="plan-commit-boundary">
       실행 계획과 Commit 경계
      </h2>
@@ -972,25 +1028,26 @@ DamageResult result = combatResolver.Resolve(request, combatContext);</code></pr
        Dispatch committed facts
       </span>
 </div>
-<h3 id="csharp-effect-execution">C# 계약을 사용하는 개념 조율</h3>
-<p>정의 로더가 대상과 조건을 해석해 operation을 만든 뒤 executor port에 전달하는 목표 형태다. executor 내부의 검증과 계획 생성은 상태를 바꾸지 않고, RuntimeCommitter가 mutation과 outbox를 같은 transaction으로 확정한다. 아래 코드는 실행 참조의 실제 공개 타입과 인터페이스를 사용하는 <strong>통합 의사 코드</strong>이며, <code>_effectExecutor</code> 구현과 RuntimeCommitter 연결은 저장소에 포함되지 않는다.</p>
-<pre><code class="language-csharp">// Conceptual product adapter; no executor implementation ships in this repository.
-EffectOperation damage = new DamageEffectOperation(
-    operationId,
-    damageRequest);
+<h3 id="csharp-effect-execution">C# Effect fragment 조합</h3>
+<p>Combat·Status 같은 소유 resolver가 target-bound request를 계산한 뒤 precondition·mutation·event를 fragment로 투영한다. 아래 API는 실행 가능하지만 <code>preconditions</code>·<code>mutations</code>·<code>outboxEvents</code>를 만드는 소유 resolver는 호출자가 제공해야 한다.</p>
+<pre><code class="language-csharp">// Executable API shape · abridged
+var fragment = new CommitPlanFragment(
+    fragmentId,
+    resolved.OperationId,
+    resolved.TargetId,
+    preconditions,
+    mutations,
+    outboxEvents);
+var outcome = EffectOperationOutcome.Applied(resolved, fragment);
 
-EffectBundle bundle = new(
-    bundleId,
-    new[] { damage },
-    new[] { burnReaction },
-    EffectExecutionPolicy.CommitThenReact);
+EffectCommitComposition composition =
+    DeterministicEffectCommitPlanComposer.Compose(
+        commandId,
+        new[] { outcome });
 
-EffectBundleResult result = _effectExecutor.Execute(bundle, context);
-
-if (!result.Committed)
-    return; // 주 transaction 실패: reaction을 시작하지 않는다.
-
-// Product executor는 committed fact에서 만든 reaction만 queue에 넣는다.</code></pre>
+if (composition.Status == EffectCompositionStatus.Ready)
+    runtimeCommitter.Commit(composition.Plan!);</code></pre>
+<div class="callout"><b>정상·경계·실패 증거.</b> verifier는 입력 outcome 순서를 뒤집어도 같은 mutation/event 순서가 나오는 정상 경로와 실제 <code>InMemoryRuntimeCommitter</code> commit, NotApplicable의 NoChanges 경계를 검증한다. conflicting precondition, mutation collision, duplicate fragment/event/outcome, operation-wide NotApplicable과 applied target의 모순은 모두 실패로 검증한다.</div>
 <h2 id="결정론과-랜덤-시드">
       결정론과 랜덤 시드
      </h2>
@@ -1016,11 +1073,11 @@ if (!result.Committed)
 </div>
 <img alt="Effect 데이터 모델 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/13_effect_data_model_diagram.svg"/>
 <figcaption class="cap">
-       EffectDefinitionData, TargetSelectorData, ValueExpressionData, EffectRuntimeTrace를 분리한다.
+       Conceptual/Mixed 데이터 모델이다. EffectDefinitionData, TargetSelectorData, ValueExpressionData, EffectRuntimeTrace를 분리하지만 이 이름의 저장·trace 타입이 현재 C#에 모두 구현됐다는 뜻은 아니다.
       </figcaption>
 </figure>
 <p>
-      정의 데이터는 콘텐츠로 저장하고, 런타임의 EffectResult·outbox·trace는 재현 정보로 연결한다. EffectResult 자체를 세이브 데이터처럼 영구 저장할 필요는 보통 없지만, command와 SourceRef로 trace를 다시 찾을 수 있어야 디버깅과 리플레이가 가능하다.
+       제품에서는 정의 데이터를 콘텐츠로 저장하고, 런타임의 EffectResult·outbox·trace를 재현 정보로 연결한다. 현재 C# reference는 이 영속 데이터·trace 저장소를 구현하지 않는다. EffectResult 자체를 세이브 데이터처럼 영구 저장할 필요는 보통 없지만, command와 SourceRef로 trace를 다시 찾을 수 있어야 디버깅과 리플레이가 가능하다.
      </p>
 <h2 id="생명주기">
       생명주기
@@ -1041,7 +1098,7 @@ if (!result.Committed)
 </div>
 <img alt="Effect 생명주기 상태 다이어그램" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/14_effect_lifecycle_state_diagram.svg"/>
 <figcaption class="cap">
-       Defined와 Registered부터 Requested, Validating, Resolving Targets, Planning, Prepared, Atomic Commit, Committed, Reaction Queued까지의 실행 상태와 Scheduled·Cancelled·Failed 분기를 보여준다.
+       구현된 runtime state machine을 뜻하는 그림이 아니라 product 생명주기의 개념 모델이다. 다만 실행 C#의 핵심 handoff인 target-independent <code>ReferenceEffectSpecification</code> → adapter snapshot → one-shot target bind → target-bound <code>ResolvedEffectOperation</code> → pure outcome/fragment → deterministic composition은 실제 타입명으로 표시했다. Scheduled·Waiting Trigger·Cancelled와 registry 조율은 product extension이다.
       </figcaption>
 </figure>
 <h2 id="구현-안티패턴">
@@ -1177,7 +1234,7 @@ if (!result.Committed)
 <ol class="checkpoint-grid">
 <li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="effect.q1"><summary>DamageEffect가 주문력 계수, 치명타, 저항과 보호막까지 계산해 최종 피해를 만들어도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">안 된다. Effect는 FormulaId, BaseValue, CoefficientBps, 대상과 SourceRef를 DamageRequest에 담고 최종 피해 계산은 Combat에 위임한다.</p></div></details></li>
 <li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="effect.q2"><summary>개념 확장에 Burn 면역을 추가한 뒤 후속 판정이 실패하면 어떤 결과가 남아야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">주 transaction에서 이미 commit된 피해와 EffectBundleResult는 유지하고, 면역 실패는 별도 StatusResult와 trace에 남긴다. 현재 실행 fixture에는 면역 입력과 판정이 없다.</p></div></details></li>
-<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="effect.q3"><summary>입력 시점에 유효했던 대상이 release 시점에 이동했다면 Skill과 Effect는 각각 어디까지 다시 판단해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Skill의 TargetingSpec은 사용자가 조준할 수 있는 입력을 검증한다. Effect의 TargetSelector는 release 또는 hit 시점의 실제 영향 대상을 다시 해석해 Combat이나 Status 요청으로 넘긴다.</p></div></details></li>
+<li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="effect.q3"><summary>입력 시점에 유효했던 대상이 release 시점에 이동했다면 Skill과 Effect는 각각 어디까지 다시 판단해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Skill은 입력 가능한 대상을 검증한다. caller는 정책이 정한 release/hit 시점에 adapter snapshot을 만들고 Effect resolver는 그 snapshot을 한 번만 bind한다. 이후 commit precondition이 stale이면 전체 plan을 거부하며 같은 command에서 대상을 자동 재선택하지 않는다.</p></div></details></li>
 </ol>
 </section>
 <h2 id="설계-점검">
@@ -1191,22 +1248,22 @@ if (!result.Committed)
        EffectContext가 CasterId, InitialTargetId, Source, RandomSeed를 포함한다.
       </li>
 <li>
-       TargetSelector가 공통 모듈로 분리되어 있다.
+       Self·ExplicitTarget·CandidateSnapshot resolver와 Area·Arc·Chain product 확장 범위가 구분되어 있다.
       </li>
 <li>
-       EffectOperation은 Damage, Heal, Resource, Status, Modifier부터 시작한다.
+       현재 target-independent spec은 Damage·ApplyStatus만 실행하며 Heal·Resource·Modifier·Dispel·Spawn은 카탈로그 확장임을 표시한다.
       </li>
 <li>
        EffectOperationResult와 EffectBundleResult는 호출 분기에 필요한 최소 결과를 담고, 상세 실패·계산 근거는 SourceRef로 trace와 연결한다.
       </li>
 <li>
-       EffectService는 EffectCompleted를 outbox plan에 준비하고, commit 성공 뒤 외부 adapter가 이를 dispatch한다. 상태를 바꾸는 후속 효과는 ReactionQueue 명령으로 변환하며 UI를 직접 호출하지 않는다.
+       Effect fragment composer가 precondition·mutation·outbox를 조합하는 범위와, 아직 없는 Skill·reaction fragment 및 post-commit dispatcher 범위가 구분되어 있다.
       </li>
 </ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/stat-system.html"><span>← 이전</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a>
-<a class="next" href="../modules/skill-action-system.html"><span>다음 →</span><b>Skill / Action</b><small>C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조</small></a>
+<a class="prev" href="../modules/stat-system.html"><span>← 이전</span><b>Stat System</b><small>C# Derived Stat DAG·Modifier 계산·versioned context cache와 리소스·저장 경계를 함께 배우는 구조</small></a>
+<a class="next" href="../modules/skill-action-system.html"><span>다음 →</span><b>Skill / Action</b><small>C# Skill admission과 snapshot 기반 비용·쿨다운 검증, Fireball resolve·원자적 plan 조율 구조</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -1389,7 +1446,7 @@ if (!result.Committed)
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a aria-current="page" class="is-active" href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# Status 요청·결과 계약과 JavaScript Burn 실행 참조를 바탕으로 버프, DoT, 중첩, tick, 정화, 면역을 설계하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# compact 계약, JavaScript 실행 fixture, 목표형 Skill·Effect·Combat·Status 조율을 구분한 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Derived Stat DAG·Modifier 계산·versioned context cache와 리소스·저장 경계를 함께 배우는 구조</small></a><a aria-current="page" class="is-active" href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# Effect 계약과 결정론적 target snapshot·resolved operation·원자적 commit fragment 합성 구조</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# Skill admission과 snapshot 기반 비용·쿨다운 검증, Fireball resolve·원자적 plan 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# 순수 정책으로 명중·치명타·관통·방어·저항·barrier·overkill과 단일 반올림 경계를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# 상태 재적용·중첩·지속시간·정화 결정 정책과 JavaScript Burn tick 실행을 함께 배우는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# handoff와 아직 남은 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# admission·snapshot·atomic commit과 JavaScript replay·Burn reaction을 잇는 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 검증하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 표기의 개념·혼합 학습 모델을 UML 관계도와 비-UML 실행 흐름도로 구분하고 구현 증거 경계를 확인하는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

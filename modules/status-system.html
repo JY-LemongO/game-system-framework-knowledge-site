@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Status System · GSF System Atlas</title>
-<meta content="C# Status 요청·결과 계약과 JavaScript Burn 실행 참조를 바탕으로 버프, DoT, 중첩, tick, 정화, 면역을 설계하는 구조" name="description"/>
+<meta content="C# 상태 재적용·중첩·지속시간·정화 결정 정책과 JavaScript Burn tick 실행을 함께 배우는 구조" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <link href="../favicon.svg" rel="icon" sizes="any" type="image/svg+xml"/>
 <script>
@@ -214,7 +214,7 @@
        Status System
       </h1>
 <p class="lead">
-       Status System은 목표형 StatusDefinition·StatusInstance 설계, C# compact 요청·결과 계약, JavaScript Burn 실행 참조를 구분해 버프, 디버프, DoT, HoT, CC의 지속시간·중첩·tick·해제·면역을 설명한다. 상태는 값을 직접 바꾸지 않고 Modifier를 제공하거나 주기 Effect를 요청한다.
+       Status System은 목표형 StatusDefinition·StatusInstance 저장 모델, 순수 C# 재적용·지속시간·면역·정화 정책, JavaScript Burn tick 실행 참조를 구분해 버프, 디버프, DoT, HoT, CC를 설명한다. 상태는 값을 직접 바꾸지 않고 Modifier를 제공하거나 주기 Effect를 요청한다.
       </p>
 <div class="badges">
 <span class="badge" data-example-language="csharp">예제 언어 · C#</span>
@@ -239,7 +239,7 @@
 </div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>정의와 인스턴스를 C# 타입으로 분리하고, 지속시간·중첩·tick·면역·정화와 반복 피해의 소유권을 구분한다.</p></article>
+<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>정의와 인스턴스를 분리하고, C# 정책의 진리표로 동일성·재적용·지속시간·면역·정화를 결정하며, tick과 반복 피해의 소유권을 구분한다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>Core의 시간·식별자 계약과 Stat Modifier, Combat 피해 요청 흐름을 먼저 이해한다.</p></article>
 </div>
 <h2 id="status의-역할">
@@ -391,7 +391,7 @@
          </code>
 </td>
 <td>
-         refresh, add stack, replace, independent stack 같은 재적용 규칙을 결정한다.
+         실행 C# 참조는 RefreshOnly, AddStacksCapped, Replace, Independent의 생성·병합·교체 결과를 순수 함수로 결정한다.
         </td>
 </tr>
 <tr>
@@ -401,7 +401,7 @@
          </code>
 </td>
 <td>
-         지속시간 갱신, 연장, 고정, 감소, 만료 규칙을 결정한다.
+         실행 C# 참조는 BPS 지속시간 저항, 현재 시각 기준 갱신, 기존 만료 연장, 더 긴 만료 유지와 정수 overflow 실패를 결정한다. 적용 확률 저항은 별도 product 정책이다.
         </td>
 </tr>
 <tr>
@@ -441,7 +441,7 @@
          </code>
 </td>
 <td>
-         정화, 해제, 면역, 태그 기반 제거를 처리한다.
+         실행 C# 참조는 canonical TagSet 필터와 전체 우선순위 정렬로 정화 대상을 선택한다. 실제 제거와 보호 charge 소비는 저장·commit 서비스의 책임이다.
         </td>
 </tr>
 <tr>
@@ -451,13 +451,13 @@
          </code>
 </td>
 <td>
-         목표형 확장 결과는 적용, 갱신, 중첩 변경, 면역, 제거, tick 예약, DebugTrace를 담는다. 현재 compact C# 결과는 성공 여부, StatusInstanceId, RemoveReason, FailureReason을 factory로 안전하게 조합한다.
+         compact 서비스 결과는 적용·제거·실패 조합을, 순수 정책 결과는 생성·갱신·중첩·교체·독립 생성·면역 또는 정화 대상 없음/선택을 서로 다른 타입으로 표현한다.
         </td>
 </tr>
 </table>
 </div>
-<h3 id="csharp-status-contracts">개념적 정의와 C# compact 요청·결과</h3>
-<p>아래 StatusDefinition은 production 데이터 모델을 설명하는 <code>Conceptual extension</code>이다. 현재 C# 실행 참조가 실제 제공하는 범위는 ApplyStatusRequest, compact StatusResult, IStatusService와 별도의 StatusCatchUpPolicy다. 대상별 StatusInstance 저장소와 service 구현은 포함하지 않는다.</p>
+<h3 id="csharp-status-contracts">개념적 정의와 C# compact 서비스 계약</h3>
+<p><code>StatusDefinition</code> 부분은 production 데이터 모델을 설명하는 <strong>Conceptual extension</strong>이다. <code>ApplyStatusRequest</code>부터는 <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Status.cs">실행 C# 계약</a>의 <strong>abridged presentation</strong>이며, ID·enum·성공/실패 조합 guard를 포함한다. 대상별 StatusInstance 저장소와 원자적 commit을 수행하는 전체 service는 포함하지 않는다.</p>
 <pre><code class="language-csharp">public sealed class StatusDefinition
 {
     public EntityId StatusId { get; }
@@ -508,10 +508,14 @@ public sealed class ApplyStatusRequest
         SourceRef source,
         int stackDelta)
     {
-        if (stackDelta == 0)
+        EntityId.ThrowIfInvalid(statusId, nameof(statusId));
+        EntityId.ThrowIfInvalid(targetId, nameof(targetId));
+        SourceRef.ThrowIfInvalid(source, nameof(source));
+
+        if (stackDelta &lt;= 0)
             throw new ArgumentOutOfRangeException(
                 nameof(stackDelta),
-                "A status application must change the stack count.");
+                "Application adds stacks; removal uses a separate command.");
 
         StatusId = statusId;
         TargetId = targetId;
@@ -540,15 +544,29 @@ public sealed class StatusResult
     public StatusFailureReason? FailureReason { get; }
 
     public static StatusResult Applied(EntityId instanceId) =&gt;
-        new(true, instanceId, null, null);
+        new(true, ValidInstanceId(instanceId), null, null);
 
     public static StatusResult Removed(
         EntityId instanceId,
-        StatusRemoveReason reason) =&gt;
-        new(true, instanceId, reason, null);
+        StatusRemoveReason reason)
+    {
+        if (!Enum.IsDefined(reason))
+            throw new ArgumentOutOfRangeException(nameof(reason));
+        return new(true, ValidInstanceId(instanceId), reason, null);
+    }
 
-    public static StatusResult Failed(StatusFailureReason reason) =&gt;
-        new(false, null, null, reason);
+    public static StatusResult Failed(StatusFailureReason reason)
+    {
+        if (!Enum.IsDefined(reason))
+            throw new ArgumentOutOfRangeException(nameof(reason));
+        return new(false, null, null, reason);
+    }
+
+    private static EntityId ValidInstanceId(EntityId instanceId)
+    {
+        EntityId.ThrowIfInvalid(instanceId, nameof(instanceId));
+        return instanceId;
+    }
 }
 
 public enum StatusFailureReason
@@ -565,7 +583,53 @@ public interface IStatusService
     void AdvanceTo(long simulationTick);
 }</code></pre>
 <p><code>StatusResult</code>는 공개 생성자 대신 <code>Applied</code>·<code>Removed</code>·<code>Failed</code> factory만 제공한다. 성공 적용은 instance와 no removal/failure reason, 성공 제거는 instance와 removal reason, 실패는 failure reason과 no instance라는 유효 조합만 생성한다.</p>
-<div class="callout"><b>개념 확장 경계.</b> 아래 StatusInstance 생명주기, 면역·중첩·refresh·Modifier 조율과 풍부한 StatusResult는 production 설계 모델이다. JavaScript fixture는 단일 Burn instance·tick·expire만 실행하며, C#은 요청·결과 계약과 catch-up 정책 계산만 검증한다.</div>
+<div class="callout"><b>실행 범위 경계.</b> C# 참조는 요청·결과 계약, catch-up, 아래 재적용·지속시간·면역·정화 <em>결정</em>을 실행 검증한다. 그러나 StatusInstance 저장소, Modifier·tick 예약 조율, version precondition, 실제 제거와 outbox를 확정하는 commit service는 여전히 <strong>Conceptual extension</strong>이다. JavaScript fixture는 단일 Burn instance의 최초 적용·tick·expire 경로만 실행한다.</div>
+<h3 id="csharp-status-reapplication-policy">실행 C# 재적용 정책</h3>
+<p><a href="../source/csharp/GameSystemKnowledge.Reference/Systems/ReferenceStatusPolicy.cs"><code>ReferenceStatusReapplicationPolicy</code></a>는 엔진과 저장소에 의존하지 않는 순수 결정 함수다. 입력은 새 적용 요청과 한 시점의 active instance snapshot이고, 출력은 만들거나 갱신할 불변 instance와 제거할 기존 ID다. 이 함수는 저장소를 수정하지 않으며, 호출자는 반환값을 version precondition이 있는 commit plan으로 바꿔야 한다. 정상·경계·실패 진리표는 <a href="../source/csharp/GameSystemKnowledge.Reference.Verification/StatusPolicyVerification.cs">StatusPolicyVerification.cs</a>에서 실행한다.</p>
+<div class="table-scroll">
+<table class="data-table">
+<tr><th><code>SourceScope</code></th><th>같은 identity로 보는 소스</th><th>대표 용도</th></tr>
+<tr><td><code>AnySource</code></td><td>SourceRef를 비교하지 않는다.</td><td>누가 걸었든 대상에게 하나만 존재하는 전역 debuff</td></tr>
+<tr><td><code>SourceDefinition</code></td><td><code>SourceKind + DefinitionId</code>를 비교하고 cast/instance ID는 무시한다.</td><td>같은 스킬의 여러 시전은 합치되 다른 스킬은 분리</td></tr>
+<tr><td><code>SourceInstance</code></td><td>instance ID를 포함한 전체 <code>SourceRef</code>를 비교한다. instance ID 없는 소스는 생성 경계에서 거부한다.</td><td>소환물·장판·개별 시전마다 별도 상태</td></tr>
+</table>
+</div>
+<p>세 범위 모두 <code>TargetId + StatusDefinitionId + StackingGroupId + SourceScope</code>가 먼저 같아야 한다. 즉, stacking group은 문자열 주석이 아니라 identity 입력이다. active snapshot은 평가 시각보다 만료가 뒤인 instance만 포함해야 하고 ID는 유일해야 한다. non-independent identity가 둘 이상 일치하면 정책은 임의 선택하지 않고 저장 불변식 위반으로 실패한다.</p>
+<div class="table-scroll">
+<table class="data-table">
+<tr><th><code>StackBehavior</code></th><th>일치 instance 없음</th><th>일치 instance 있음</th><th>instance/source·expiry</th><th>potency·periodic tick phase</th></tr>
+<tr><td><code>RefreshOnly</code></td><td><code>Created</code>; 최초 stack은 <code>min(StackDelta, MaxStacks)</code></td><td><code>Refreshed</code>; stack 수는 그대로 두고 duration 정책만 적용</td><td>기존 instance ID·SourceRef를 보존하고 선택한 merge expiry 공식을 적용</td><td rowspan="2"><strong>Conceptual product choice.</strong> 실행 snapshot에는 potency와 NextTickAt이 없다. <code>KeepExisting</code>/<code>ReplaceIfStronger</code>와 <code>PreservePhase</code>/<code>RestartPhase</code> 중 무엇을 쓸지 별도로 정해야 하며 현재 정책이 보존·교체·재시작한다고 추론하면 안 된다.</td></tr>
+<tr><td><code>AddStacksCapped</code></td><td><code>Created</code>; 최초 stack을 상한에 맞춤</td><td><code>StacksAdded</code>; <code>min(old + delta, max)</code>, 실제 증가량과 요청 stack이 잘려 나간 <code>StackCapReached</code> 여부를 반환. 결과가 정확히 max에 닿았어도 요청이 전부 반영됐다면 false다.</td><td>기존 instance ID·SourceRef를 보존하고 선택한 merge expiry 공식을 적용</td></tr>
+<tr><td><code>Replace</code></td><td><code>Created</code></td><td><code>Replaced</code>; 기존 instance 제거 ID와 새 instance를 함께 반환</td><td>incoming ID·SourceRef와 fresh expiry로 교체</td><td rowspan="2"><strong>Conceptual storage/planner work.</strong> 새 instance용 incoming potency와 first tick을 저장 계약이 받아 계산해야 한다. 현재 실행 타입에는 두 필드가 없어 “자동 reset”도 검증하지 않는다.</td></tr>
+<tr><td><code>Independent</code></td><td colspan="2"><code>IndependentCreated</code>; 일치 여부와 무관하게 새 instance를 만들고 기존 것은 제거하지 않음</td><td>각 instance가 독립 수명과 정리 키를 가짐</td></tr>
+</table>
+</div>
+<div class="callout"><b>중첩 감소는 별도 정책이다.</b> 실행 계약의 <code>StackDelta</code>는 양수 적용만 허용하고, 현재 <code>IStatusService.Remove</code>는 whole-instance 제거만 표현한다. 일부 stack 감소, stack별 만료, 제거할 stack의 출처 선택은 이 참조가 제공하지 않으므로 product 규칙을 정한 뒤 별도 command/result로 모델링해야 한다.</div>
+<h3 id="csharp-status-duration-policy">지속시간 진리표와 overflow 경계</h3>
+<p>새 생성·교체·independent는 언제나 <code>checked(CurrentTick + DurationTicks)</code>의 fresh expiry를 사용한다. 아래 세 정책은 기존 instance를 병합할 때만 적용한다. <code>DurationTicks</code>는 1 이상이며 이미 만료된 instance를 active로 넘기면 실패한다.</p>
+<div class="callout"><b>C# 정책과 JavaScript fixture의 duration 경계는 다르다.</b><p>C# <code>ReferenceStatusReapplicationPolicy</code>는 active instance 정책이므로 <code>DurationTicks &gt;= 1</code>만 허용하고 저항 적용 뒤에도 최소 1 tick을 보장한다. 반면 JavaScript Burn fixture는 스케줄러 경계 증거를 위해 <code>durationTicks=0</code>과 tick interval보다 짧은 <code>1</code>도 허용하며, 이 경우 periodic damage 없이 적용 시각 또는 +1에 정확히 한 번 만료한다. 한 구현의 입력 범위를 다른 구현의 보편 규칙으로 일반화하면 안 된다.</p></div>
+<div class="table-scroll">
+<table class="data-table">
+<tr><th><code>DurationBehavior</code></th><th>공식</th><th>효과와 주의점</th></tr>
+<tr><td><code>RefreshFromCurrentTick</code></td><td><code>now + duration</code></td><td>남은 시간이 길어도 새 기준으로 바꾸므로 만료 시각이 앞당겨질 수 있다.</td></tr>
+<tr><td><code>ExtendCurrentExpiry</code></td><td><code>oldExpiry + duration</code></td><td>연속 재적용으로 시간이 계속 누적된다. 상한이 필요하면 별도 product 규칙으로 둔다.</td></tr>
+<tr><td><code>KeepLongerExpiry</code></td><td><code>max(oldExpiry, now + duration)</code></td><td>재적용 때문에 남은 시간이 줄어들지 않는다.</td></tr>
+</table>
+</div>
+<h4 id="status-duration-resistance">BPS 지속시간 저항</h4>
+<p><code>ReferenceStatusDurationPolicy.ScaleByResistance</code>는 정의의 base duration을 먼저 유효 duration으로 바꾼다. 공식은 <code>baseTicks × (10,000 - resistanceBps) / 10,000</code>이고, decimal 중간값을 유지한 뒤 <code>MidpointRounding.AwayFromZero</code>로 단 한 번 반올림하며 최소 1 tick을 보장한다. 그 결과를 새 생성 또는 위 재적용 expiry 공식의 <code>duration</code> 입력으로 사용한다.</p>
+<div class="table-scroll">
+<table class="data-table">
+<tr><th>base ticks</th><th>저항</th><th>decimal 중간값</th><th>commit ticks</th><th>경계 의미</th></tr>
+<tr><td>10</td><td>0 BPS</td><td>10.0</td><td>10</td><td>저항 없음은 원값 보존</td></tr>
+<tr><td>1</td><td>5,000 BPS</td><td>0.5</td><td>1</td><td>midpoint away-from-zero와 최소 1 tick이 일치</td></tr>
+<tr><td>3</td><td>5,000 BPS</td><td>1.5</td><td>2</td><td>정확한 midpoint 반올림</td></tr>
+<tr><td>10</td><td>9,000 BPS</td><td>1.0</td><td>1</td><td>참조 정책의 최대 저항은 90%</td></tr>
+</table>
+</div>
+<p>저항 범위는 0..9,000 BPS로 고정한다. 100%를 넣어 duration 0으로 만드는 방식은 “적용됐지만 즉시 만료”와 “적용 자체가 거부됨”을 섞으므로 사용하지 않는다. 완전 면역은 별도 tag gate의 <code>Immune</code> 결과다. 반올림 정책이나 저항 상한을 바꾸면 replay와 balance가 달라지므로 numeric policy version도 함께 올려야 한다.</p>
+<p>decimal 결과의 <code>long</code> 변환과 모든 expiry 덧셈은 <code>checked</code>로 계산한다. 저항 배율은 0..1이어서 유효 duration은 base보다 커지지 않으며 base가 <code>long.MaxValue</code>이고 저항이 0%인 경계도 검증한다. 반면 <code>now + duration</code>이나 <code>oldExpiry + duration</code>이 범위를 넘으면 포화시키거나 되감지 않고 <code>OverflowException</code>으로 실패해 저장 데이터·설정 오류를 드러낸다.</p>
+<div class="callout"><b>면역도 값 결과다.</b> 실행 정책은 incoming <code>StatusTags</code>와 대상 정책이 제공한 <code>BlockedStatusTags</code>의 교집합을 canonical 순서로 찾는다. 하나라도 일치하면 <code>Immune</code>와 일치 태그를 반환하고 생성·갱신·제거를 모두 계획하지 않는다. <code>status.immunity.cc</code> 같은 게임 데이터 표기를 실제 blocked category <code>cc</code>로 해석하는 일은 설정/adapter 경계의 책임이다.</div>
 <h2 id="상태-생명주기">
       상태 생명주기
      </h2>
@@ -593,7 +657,7 @@ public interface IStatusService
        ApplyStatusEffect가 StatusSystem에 적용 요청을 보낸다.
       </li>
 <li>
-       면역, 태그, 대상 생존 여부를 검사한다.
+       면역, 태그, 대상 생존 여부를 현재 snapshot에서 검사한다. committed damage event의 과거 생존 값은 적용 후보를 만드는 근거일 뿐이며, reaction dispatch 시 live target을 다시 읽는다.
       </li>
 <li>
        기존 StatusInstance가 있으면 StackPolicy와 DurationPolicy를 적용한다.
@@ -611,6 +675,7 @@ public interface IStatusService
        제거 시 StatusInstance, StatModifier, 예약 tick, 이벤트 구독을 정리한다.
       </li>
 </ol>
+<div class="callout warn"><b>Reaction-time 재검증.</b><p>주 피해 commit과 Status 적용은 서로 다른 transaction이다. 그 사이 대상이 사망할 수 있으므로 적용 handler는 현재 HP와 version을 다시 확인한다. JavaScript 실행 참조는 이미 죽은 대상이면 <code>NotApplicable / TARGET_NOT_ALIVE</code>를 반환하고 Status instance와 <code>StatusApplied</code>를 만들지 않는다. 살아 있는 snapshot으로 plan을 만든 뒤 version이 바뀌면 commit precondition 실패로 전체를 거부해야 한다.</p></div>
 <h2 id="status-identity-ordering">
       인스턴스 키와 동일 시각 순서
      </h2>
@@ -619,7 +684,7 @@ public interface IStatusService
       <code>
        (TargetId, StatusDefinitionId, StackingGroup, SourceScope)
       </code>
-       이며 independent stack은 각자 StatusInstanceId를 가진다. expire와 tick이 같은 시각이면 어느 쪽을 먼저 처리할지도 clock domain마다 고정한다. 이 사이트의 fixed simulation tick 계약은
+       이며 source의 실제 비교 범위는 위 실행 정책의 AnySource·SourceDefinition·SourceInstance 중 하나로 고정한다. independent stack은 identity 검색 결과를 병합하지 않고 각자 고유한 StatusInstanceId를 가진다. expire와 tick이 같은 시각이면 어느 쪽을 먼저 처리할지도 clock domain마다 고정한다. 이 사이트의 fixed simulation tick 계약은
        <code>tickAt ≤ expireAt</code>
        인 마지막 tick 계산을 먼저 plan에 넣고, 같은 원자적 commit에서 피해·다음 상태·outbox와 함께 expire를 확정한다.
      </p>
@@ -702,11 +767,11 @@ public interface IStatusService
 </div>
 <img alt="Status tick 활동 흐름" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/29_status_tick_activity_diagram.svg"/>
 <figcaption class="cap">
-       DoT, HoT, aura pulse는 상태가 직접 HP를 수정하지 않고 EffectContext로 periodic effect plan을 만든다. RuntimeCommitter가 피해와 다음 tick 또는 만료, outbox를 due tick당 한 번에 확정한다.
+       목표 product 구조에서는 DoT, HoT, aura pulse가 EffectContext와 periodic effect plan을 만들 수 있다. 현재 JavaScript fixture는 StatusInstance due tick에서 공용 피해 resolver를 직접 호출해 plan을 만들고, StateStore가 피해와 다음 tick 또는 만료, outbox를 한 번에 확정한다. C#에는 아직 Status tick executor가 없다.
       </figcaption>
 </figure>
 <p>
-       Burn 같은 DoT는 tick 시점마다 DamageEffect를 실행해 DamageRequest를 만들고 Combat의 저항·보호막 계산을 그대로 통과한다. 이후 RuntimeCommitter가 HP·Shield, 다음 tick 또는 만료 상태, outbox와 사망 사실을 하나의 plan으로 확정한다. 이때 공격 계수는 적용 시점에 고정하는 snapshot 방식과 매 tick 다시 계산하는 dynamic 방식 중 하나를 선택해야 한다.
+       일반 설계에서는 Burn 같은 DoT가 tick마다 DamageEffect/DamageRequest를 만들 수 있다. 이 저장소의 JavaScript fixture는 별도 EffectContext 객체를 만들지 않고 <code>resolveDamageAgainstTarget</code>에 snapshot raw tick과 live target을 전달하지만, 같은 저항·보호막 계산과 원자적 commit 계약을 재사용한다. StateStore가 HP·Shield, 다음 tick 또는 만료 상태, outbox와 사망 사실을 하나의 plan으로 확정한다. 이때 공격 계수는 적용 시점에 고정하는 snapshot 방식과 매 tick 다시 계산하는 dynamic 방식 중 하나를 선택해야 한다.
      </p>
 <div class="table-scroll">
 <table class="data-table">
@@ -774,9 +839,9 @@ public interface IStatusService
       </b>
       Caster 객체 참조를 보관하지 말고 필요한 계수·태그·DefinitionVersion을 불변 스냅샷으로 저장한다. 대상 저항을 dynamic으로 읽는다면 그 정책도 trace에 남긴다.
      </div>
-<div class="callout"><b>실행 참조의 시간 단조성.</b><p>복원한 active Status의 <code>appliedTick</code>은 state clock보다 미래일 수 없다. 새 <code>status.add</code>는 commit 시각에 적용되고 첫 <code>nextTickAt</code>은 그보다 뒤여야 한다. <code>status.patch</code>는 기존 <code>nextTickAt</code>보다 큰 값으로만 진행한다. 과거 시각으로 되감아 overdue tick을 중복 실행하는 입력은 commit 전에 거부된다. 재적용 refresh·merge는 이 최소 실행 참조의 범위 밖이므로 같은 instance ID를 add해 덮어쓰지 않는다.</p></div>
+<div class="callout"><b>실행 참조의 시간 단조성.</b><p>복원한 active Status의 <code>appliedTick</code>은 state clock보다 미래일 수 없다. 새 <code>status.add</code>는 commit 시각에 적용되고 첫 <code>nextTickAt</code>은 그보다 뒤여야 한다. <code>status.patch</code>는 기존 <code>nextTickAt</code>보다 큰 값으로만 진행한다. 과거 시각으로 되감아 overdue tick을 중복 실행하는 입력은 commit 전에 거부된다. 순수 C# 재적용 정책은 stack과 expiry 결정을 제공하지만 JavaScript commit fixture 및 NextTickAt phase와 연결되지 않았으므로, 같은 instance ID를 add해 덮어쓰는 방식으로 둘을 임의 결합하면 안 된다.</p></div>
 <h3 id="csharp-status-tick">개념적 C# Tick 조율(비실행 의사코드)</h3>
-<p>아래 코드는 production 조율 순서를 설명하는 <code>Conceptual extension</code>이다. 현재 C# 실행 참조는 <code>StatusCatchUpPolicy.Evaluate</code>의 실행·지연·제거 결정을 검증하지만 <code>StatusSnapshot</code>·<code>EffectPlan</code>·<code>StatusTransition</code>·<code>BuildTickPlan</code>·StatusService는 구현하지 않는다. JavaScript fixture는 마지막 tick과 만료가 같을 때 tick을 먼저 계산하고 같은 원자적 commit에서 만료를 확정하며, 한 advance의 MaxCatchUpTicks와 CatchUpLimited 정책을 실행 검증한다.</p>
+<p>아래 코드는 production tick 조율 순서를 설명하는 <code>Conceptual extension</code>이다. C#은 <code>StatusCatchUpPolicy.Evaluate</code>와 별도의 재적용·지속시간 정책을 검증하지만 <code>StatusSnapshot</code>·<code>EffectPlan</code>·<code>StatusTransition</code>·<code>BuildTickPlan</code>·StatusService는 구현하지 않는다. JavaScript fixture는 마지막 tick과 만료가 같을 때 tick을 먼저 계산하고 같은 원자적 commit에서 만료를 확정하며, 한 advance의 MaxCatchUpTicks와 CatchUpLimited 정책을 실행 검증한다.</p>
 <div class="callout"><b>Catch-up의 호출 주기 의존성.</b> 이 정책은 한 번의 <code>AdvanceTo</code>마다 상한을 적용하고, 이미 만료된 backlog가 남으면 그 tick을 버리고 제거한다. tick 2·4·6, 만료 6, 상한 2인 상태는 <code>AdvanceTo(6)</code> 한 번이면 tick 6을 잃지만 <code>AdvanceTo(4)</code> 뒤 <code>AdvanceTo(6)</code>을 호출하면 세 번 모두 처리된다. 따라서 frame 지연과 무관한 tick 횟수 불변식은 없다. replay가 같은 결과를 요구하면 advance 호출 cadence를 보존하거나 별도의 backlog 정책을 정의해야 한다.</div>
 <pre><code class="language-csharp">private void AdvanceInstance(StatusSnapshot status, long now)
 {
@@ -872,7 +937,7 @@ private void CommitRemovalPlan(
       Burn 예시
      </h2>
 <p>
-       Burn은 Status System을 설명하기 좋은 대표 DoT다. 아래 JSON은 단일 인스턴스·refresh-only·최대 1 stack을 목표로 한 개념 확장 정책이다. 현재 실행 fixture는 한 번 적용된 Burn의 tick 경로만 검증하며, 동일 상태 재적용 병합과 면역 판정은 구현하지 않는다. 강도 중첩을 쓰는 다른 상태는 <code>TickBaseDamage × StackCount</code>처럼 공식을 별도로 명시해야 한다.
+       Burn은 Status System을 설명하기 좋은 대표 DoT다. 아래 JSON은 단일 인스턴스·refresh-only·최대 1 stack의 <strong>설정 예시</strong>다. 순수 C# 정책은 이 재적용과 면역 결정을 실행 검증하지만 JSON loader나 Status 저장소와 연결되어 있지는 않다. JavaScript fixture는 한 번 적용된 Burn의 tick·expire 경로만 검증한다. 강도 중첩을 쓰는 다른 상태는 <code>TickBaseDamage × StackCount</code>처럼 공식을 별도로 명시해야 한다.
      </p>
 <pre><code class="language-json">{
   "id": "status.burn",
@@ -976,7 +1041,7 @@ private void CommitRemovalPlan(
          상태 적용 자체를 거부한다.
         </td>
 <td>
-         status.immunity.burn 태그가 있으면 Burn 적용 실패
+         대상 설정의 status.immunity.burn을 blocked category fire로 해석한 뒤 incoming fire 태그와 일치하면 <code>Immune</code>
         </td>
 </tr>
 <tr>
@@ -984,10 +1049,10 @@ private void CommitRemovalPlan(
          Status Resistance
         </td>
 <td>
-         상태 적용 확률이나 지속시간을 줄인다. Combat의 피해 저항과 이름을 구분해 관리한다.
+         실행 참조는 0..9,000 BPS로 지속시간만 줄인다. 적용 확률 저항은 별도 product 정책이며 Combat의 피해 저항과 이름을 구분한다.
         </td>
 <td>
-         poison_status_resistance 50% → 지속시간 절반
+         base 3 ticks, 50% → decimal 1.5 → AwayFromZero 2 ticks
         </td>
 </tr>
 <tr>
@@ -1025,6 +1090,20 @@ private void CommitRemovalPlan(
 </tr>
 </table>
 </div>
+<h3 id="csharp-status-cleanse-policy">실행 C# 정화 선택 정책</h3>
+<p><a href="../source/csharp/GameSystemKnowledge.Reference/Systems/ReferenceStatusCleansePolicy.cs"><code>ReferenceStatusCleansePolicy</code></a>는 저장소가 제공한 candidate snapshot에서 제거할 instance ID만 선택한다. 후보와 질의 태그는 모두 <code>TagSet</code>이므로 대소문자 보정이나 부분 문자열 비교가 없고, 잘못된 태그는 정책 실행 전에 계약 경계에서 거부된다.</p>
+<div class="table-scroll">
+<table class="data-table">
+<tr><th>단계</th><th>실행 규칙</th><th>빈 집합 의미</th></tr>
+<tr><td>1 · any 필터</td><td><code>RequiredAnyTags</code> 중 하나 이상을 가진 후보만 유지</td><td>조건 없음</td></tr>
+<tr><td>2 · all 필터</td><td><code>RequiredAllTags</code>를 모두 가진 후보만 유지</td><td>조건 없음</td></tr>
+<tr><td>3 · exclude 필터</td><td><code>ExcludedTags</code> 중 하나라도 가진 후보는 제외</td><td>제외 없음</td></tr>
+<tr><td>4 · 전체 정렬</td><td>적격 후보 전체를 priority 내림차순, 동률이면 canonical InstanceId 오름차순으로 정렬</td><td>항상 같은 total order</td></tr>
+<tr><td>5 · 상한</td><td>정렬이 끝난 뒤 앞에서 <code>MaxRemovals</code>개 선택</td><td><code>MaxRemovals</code>는 1 이상</td></tr>
+</table>
+</div>
+<p>필터가 모두 비어 있으면 “모든 상태”를 명시적으로 뜻한다. 적격 후보가 있으면 <code>Selected</code>와 전체 적격 수·선택 ID를 반환하고, 없으면 예외나 가짜 성공 대신 <code>NoMatch</code>와 빈 목록을 반환한다. 입력 후보 순서가 달라도 결과가 같으며, <code>Take(MaxRemovals)</code>를 저장소 열거 순서에 먼저 적용하는 편향을 막는다.</p>
+<div class="callout warn"><b>선택과 제거는 다른 단계다.</b><p>이 정책은 어떤 instance를 제거할지만 계산한다. 실제 정화는 선택한 ID의 version을 다시 확인하고 StatusInstance, 해당 SourceRef의 Modifier, tick 예약, 구독, outbox를 같은 commit으로 정리해야 한다. <code>protected</code> 같은 태그를 excluded filter로 빼는 것은 실행되지만, 1회 보호 charge 소비는 이 참조의 실행 범위가 아니다.</p></div>
 <h2 id="안티패턴">
       안티패턴
      </h2>
@@ -1090,11 +1169,14 @@ private void CommitRemovalPlan(
 <section aria-labelledby="이해도-확인" class="learning-checkpoint" data-learning-checkpoint="">
 <span class="section-kicker">Comprehension check</span>
 <h2 id="이해도-확인">이해도 확인</h2>
-<p class="checkpoint-intro">Status가 소유하는 수명·중첩·예약·정리와 Stat·Effect·Combat에 위임할 실행을 구분해 본다.</p>
+<p class="checkpoint-intro">Status가 소유하는 동일성·수명·중첩·선택·정리와 Stat·Effect·Combat에 위임할 실행을 구분해 본다.</p>
 <ol class="checkpoint-grid">
-<li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="status.q1"><summary>Burn tick이 HP를 직접 감소시키고 Rage가 attack_power를 직접 30% 증가시켜도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">안 된다. Burn은 periodic DamageEffect를 실행해 Combat으로 넘기고 Rage는 추적 가능한 StatModifier를 등록한다. Status는 수명·중첩·예약과 정리를 소유한다.</p></div></details></li>
+<li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="status.q1"><summary>Burn tick이 HP를 직접 감소시키고 Rage가 attack_power를 직접 30% 증가시켜도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">안 된다. 목표 product 구조에서 Burn은 periodic DamageEffect를 Combat으로 넘긴다. 현재 JavaScript fixture는 Status가 HP를 직접 쓰지 않고 공용 <code>resolveDamageAgainstTarget</code>와 commit plan을 호출하며, C#에는 아직 tick executor가 없다. Rage는 추적 가능한 StatModifier로 연결해야 한다. Status가 소유하는 것은 수명·중첩·예약과 정리다.</p></div></details></li>
 <li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="status.q2"><summary>Burn의 다음 tick과 만료가 같은 simulation tick에 도달하면 현재 계약은 어떤 순서로 처리할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">그 tick이 MaxCatchUpTicks 안에서 처리되면 마지막 tick의 피해와 상태 만료, outbox를 같은 원자적 commit으로 확정한다. 이미 만료된 backlog가 상한을 넘으면 남은 tick을 CatchUpLimited로 버리므로 advance 호출 cadence가 다르면 총 tick 수도 달라질 수 있다.</p></div></details></li>
 <li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="status.q3"><summary>Fireball의 Burn을 정화할 때 SourceRef와 StatusInstanceId는 각각 어디에 사용될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">SkillExecution SourceRef는 어떤 스킬 실행이 상태를 부여했는지 추적한다. 상태가 제공하는 Modifier는 SourceRef.Status(definitionId, statusInstanceId)를 사용하며, 정화 시 StatusInstanceId로 Modifier·예약·구독을 함께 정리한다.</p></div></details></li>
+<li><span>04 · 재적용 진리표</span><details data-checkpoint-question="" data-question-id="status.q4"><summary>기존 4 stack Poison에 3 stack을 AddStacksCapped(max 5)로 재적용하면 결과에 무엇을 남겨야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">결과 stack은 5, 실제 증가량은 1, StackCapReached는 true다. 기존 StatusInstanceId와 기존 SourceRef를 보존하고 선택한 duration 정책만 별도로 적용한다. 요청량 3을 그대로 “추가됨”으로 기록하면 후속 이벤트와 UI가 거짓이 된다.</p></div></details></li>
+<li><span>05 · 결정적 정화</span><details data-checkpoint-question="" data-question-id="status.q5"><summary>정화가 최대 1개만 제거한다면 저장소에서 처음 발견한 적격 상태를 바로 선택해도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">안 된다. 모든 후보에 any/all/exclude 필터를 적용한 뒤 적격 집합 전체를 priority 내림차순, InstanceId 오름차순으로 정렬하고 마지막에 MaxRemovals를 적용해야 저장소 열거 순서와 무관한 replay 결과를 얻는다.</p></div></details></li>
+<li><span>06 · 수치 경계</span><details data-checkpoint-question="" data-question-id="status.q6"><summary>base duration 3 ticks에 50% 저항을 적용하면 몇 tick이며, 100%를 면역 대신 써도 될까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">decimal 중간값 1.5를 AwayFromZero로 한 번 반올림해 2 ticks다. 이 참조의 저항 범위는 최대 90%이고 최소 1 tick을 보장한다. 완전 면역은 duration 0이 아니라 별도 Immune 결과로 표현해야 적용 거부와 즉시 만료를 혼동하지 않는다.</p></div></details></li>
 </ol>
 </section>
 <h2 id="설계-점검">
@@ -1105,7 +1187,10 @@ private void CommitRemovalPlan(
        StatusDefinition과 StatusInstance가 분리되어 있다.
       </li>
 <li>
-       StackPolicy, DurationPolicy, TickPolicy가 상태별로 명시되어 있다.
+       StackPolicy, DurationPolicy, TickPolicy가 상태별로 명시되어 있고 재적용 진리표가 실행 C# 정책과 일치한다.
+      </li>
+<li>
+       지속시간 저항은 BPS 범위, decimal 중간값, AwayFromZero 단일 반올림, 최소 1 tick, overflow 실패를 함께 고정한다.
       </li>
 <li>
        Status가 제공하는 Modifier는 SourceRef.Status(StatusDefinitionId, StatusInstanceId)를 가지며 tick 예약도 같은 StatusInstanceId로 정리할 수 있다.
@@ -1120,7 +1205,7 @@ private void CommitRemovalPlan(
        각 due tick은 피해·다음 tick 또는 만료·outbox를 포함한 하나의 plan으로 정확히 한 번 commit된다.
       </li>
 <li>
-       면역, 저항, 정화, 해제 정책이 TagSet 기반으로 설명된다.
+       면역과 정화는 canonical TagSet과 명시적 Immune/NoMatch 결과를 사용하며, 정화 상한은 전체 정렬 뒤 적용한다.
       </li>
 <li>
        Burn과 Rage 예제가 Stat, Effect, Combat과 연결된다.
@@ -1128,8 +1213,8 @@ private void CommitRemovalPlan(
 </ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/combat-resolution-system.html"><span>← 이전</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a>
-<a class="next" href="../modules/integration-map.html"><span>다음 →</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향</small></a>
+<a class="prev" href="../modules/combat-resolution-system.html"><span>← 이전</span><b>Combat</b><small>C# 순수 정책으로 명중·치명타·관통·방어·저항·barrier·overkill과 단일 반올림 경계를 계산하는 구조</small></a>
+<a class="next" href="../modules/integration-map.html"><span>다음 →</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# handoff와 아직 남은 product 확장을 구분한 의존 방향</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -1300,7 +1385,7 @@ private void CommitRemovalPlan(
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a><a aria-current="page" class="is-active" href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# Status 요청·결과 계약과 JavaScript Burn 실행 참조를 바탕으로 버프, DoT, 중첩, tick, 정화, 면역을 설계하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# compact 계약, JavaScript 실행 fixture, 목표형 Skill·Effect·Combat·Status 조율을 구분한 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Derived Stat DAG·Modifier 계산·versioned context cache와 리소스·저장 경계를 함께 배우는 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# Effect 계약과 결정론적 target snapshot·resolved operation·원자적 commit fragment 합성 구조</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# Skill admission과 snapshot 기반 비용·쿨다운 검증, Fireball resolve·원자적 plan 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# 순수 정책으로 명중·치명타·관통·방어·저항·barrier·overkill과 단일 반올림 경계를 계산하는 구조</small></a><a aria-current="page" class="is-active" href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# 상태 재적용·중첩·지속시간·정화 결정 정책과 JavaScript Burn tick 실행을 함께 배우는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# handoff와 아직 남은 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# admission·snapshot·atomic commit과 JavaScript replay·Burn reaction을 잇는 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 검증하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 표기의 개념·혼합 학습 모델을 UML 관계도와 비-UML 실행 흐름도로 구분하고 구현 증거 경계를 확인하는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

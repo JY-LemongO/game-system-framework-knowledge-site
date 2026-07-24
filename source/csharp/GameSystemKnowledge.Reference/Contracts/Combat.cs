@@ -1,5 +1,3 @@
-using System.Collections.ObjectModel;
-
 namespace GameSystemKnowledge.Reference.Contracts;
 
 public sealed class DamageRequest
@@ -20,36 +18,29 @@ public sealed class DamageRequest
         SourceRef.ThrowIfInvalid(source, nameof(source));
         EntityId.ThrowIfInvalid(formulaId, nameof(formulaId));
 
-        if (string.IsNullOrWhiteSpace(damageType))
-        {
-            throw new ArgumentException("DamageType cannot be empty.", nameof(damageType));
-        }
+        var canonicalDamageType = new Tag(damageType);
 
         if (baseValue < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(baseValue));
         }
 
-        if (coefficientBps < 0)
+        if (coefficientBps is < 0 or > 100_000)
         {
             throw new ArgumentOutOfRangeException(nameof(coefficientBps));
         }
 
-        var tagCopy = tags?.ToArray() ??
-            throw new ArgumentNullException(nameof(tags));
-        if (tagCopy.Any(string.IsNullOrWhiteSpace))
-        {
-            throw new ArgumentException("Damage tags cannot be empty.", nameof(tags));
-        }
+        var canonicalTags = new TagSet(
+            tags ?? throw new ArgumentNullException(nameof(tags)));
 
         AttackerId = attackerId;
         DefenderId = defenderId;
         Source = source;
         FormulaId = formulaId;
-        DamageType = damageType;
+        DamageType = canonicalDamageType.Value;
         BaseValue = baseValue;
         CoefficientBps = coefficientBps;
-        Tags = Array.AsReadOnly(tagCopy);
+        Tags = canonicalTags;
         Seed = seed;
     }
 
@@ -67,7 +58,7 @@ public sealed class DamageRequest
 
     public int CoefficientBps { get; }
 
-    public ReadOnlyCollection<string> Tags { get; }
+    public TagSet Tags { get; }
 
     public uint Seed { get; }
 }
@@ -92,12 +83,17 @@ public sealed class CombatContext
         int availableShield,
         int availableTargetHp)
     {
+        if (!Enum.IsDefined(outcome))
+        {
+            throw new ArgumentOutOfRangeException(nameof(outcome));
+        }
+
         if (scalingStatValue < 0m)
         {
             throw new ArgumentOutOfRangeException(nameof(scalingStatValue));
         }
 
-        if (criticalMultiplierBps < 10_000)
+        if (criticalMultiplierBps is < 10_000 or > 100_000)
         {
             throw new ArgumentOutOfRangeException(nameof(criticalMultiplierBps));
         }
@@ -115,6 +111,13 @@ public sealed class CombatContext
         if (availableTargetHp < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(availableTargetHp));
+        }
+
+        if (outcome != HitOutcome.Hit && critical)
+        {
+            throw new ArgumentException(
+                "A non-Hit combat context cannot carry a critical flag.",
+                nameof(critical));
         }
 
         ScalingStatValue = scalingStatValue;
@@ -152,6 +155,11 @@ public sealed class DamageResult
         int finalHpDamage,
         int overkill)
     {
+        if (!Enum.IsDefined(outcome))
+        {
+            throw new ArgumentOutOfRangeException(nameof(outcome));
+        }
+
         if (rawDamage < 0 || resolvedDamage < 0 ||
             shieldAbsorbed < 0 || finalHpDamage < 0 || overkill < 0)
         {

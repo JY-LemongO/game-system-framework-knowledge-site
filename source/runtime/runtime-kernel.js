@@ -5,9 +5,9 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createRuntime() {
   'use strict';
 
-  const RUNTIME_VERSION = '3.4.0-reference';
-  const CONTRACT_SCHEMA_VERSION = 1;
-  const REPLAY_FORMAT_VERSION = 1;
+  const RUNTIME_VERSION = '4.0.1-reference';
+  const CONTRACT_SCHEMA_VERSION = 2;
+  const REPLAY_FORMAT_VERSION = 2;
   const RNG_ALGORITHM_VERSION = 'mulberry32-keyed-v1';
   const RNG_KEY_SCHEMA_VERSION = 'correlation-branch-target-v1';
   const CLOCK_DOMAIN = 'simulation_tick';
@@ -252,6 +252,142 @@
     return Object.is(rounded, -0) ? 0 : rounded;
   }
 
+  function greatestCommonDivisor(left, right) {
+    left = left < 0n ? -left : left;
+    right = right < 0n ? -right : right;
+    while (right !== 0n) {
+      const remainder = left % right;
+      left = right;
+      right = remainder;
+    }
+    return left;
+  }
+
+  function normalizeExactRational(numerator, denominator) {
+    domainAssert(
+      typeof numerator === 'bigint'
+        && typeof denominator === 'bigint'
+        && denominator !== 0n,
+      'INVALID_EXACT_SCALAR',
+      'numeric',
+      'An exact scalar requires BigInt numerator and non-zero denominator.',
+    );
+    if (denominator < 0n) {
+      numerator = -numerator;
+      denominator = -denominator;
+    }
+    const divisor = greatestCommonDivisor(numerator, denominator);
+    return {
+      numerator: numerator / divisor,
+      denominator: denominator / divisor,
+    };
+  }
+
+  function exactRationalFromInteger(value) {
+    requireInteger(value, 'exact integer');
+    return { numerator: BigInt(value), denominator: 1n };
+  }
+
+  function addExactRationals(left, right) {
+    return normalizeExactRational(
+      left.numerator * right.denominator
+        + right.numerator * left.denominator,
+      left.denominator * right.denominator,
+    );
+  }
+
+  function multiplyExactRationalBps(value, basisPoints) {
+    requireInteger(basisPoints, 'exact basisPoints', -1_000_000, 1_000_000);
+    return normalizeExactRational(
+      value.numerator * BigInt(basisPoints),
+      value.denominator * BigInt(BASIS_POINTS),
+    );
+  }
+
+  function serializeExactDamageScalar(value) {
+    const normalized = normalizeExactRational(
+      value.numerator,
+      value.denominator,
+    );
+    return deepFreeze({
+      numerator: normalized.numerator.toString(),
+      denominator: normalized.denominator.toString(),
+    });
+  }
+
+  function parseExactDamageScalar(
+    value,
+    label,
+    code = 'INVALID_EXACT_DAMAGE',
+    stage = 'contract',
+  ) {
+    const fields = ['numerator', 'denominator'];
+    requireObjectFields(value, {
+      label,
+      required: fields,
+      allowed: fields,
+      code,
+      stage,
+    });
+    const decimalPattern = /^(0|[1-9][0-9]*)$/;
+    domainAssert(
+      typeof value.numerator === 'string'
+        && typeof value.denominator === 'string'
+        && value.numerator.length <= 128
+        && value.denominator.length <= 128
+        && decimalPattern.test(value.numerator)
+        && decimalPattern.test(value.denominator)
+        && value.denominator !== '0',
+      code,
+      stage,
+      `${label} must use canonical non-negative decimal integer strings.`,
+      { label },
+    );
+    const normalized = normalizeExactRational(
+      BigInt(value.numerator),
+      BigInt(value.denominator),
+    );
+    domainAssert(
+      normalized.numerator.toString() === value.numerator
+        && normalized.denominator.toString() === value.denominator,
+      code,
+      stage,
+      `${label} must be a reduced canonical fraction.`,
+      { label },
+    );
+    return normalized;
+  }
+
+  function roundExactRationalAwayFromZero(value, label) {
+    const normalized = normalizeExactRational(
+      value.numerator,
+      value.denominator,
+    );
+    const negative = normalized.numerator < 0n;
+    const absolute = negative
+      ? -normalized.numerator
+      : normalized.numerator;
+    let rounded = absolute / normalized.denominator;
+    const remainder = absolute % normalized.denominator;
+    if (remainder * 2n >= normalized.denominator) rounded += 1n;
+    if (negative) rounded = -rounded;
+    const minimum = BigInt(Number.MIN_SAFE_INTEGER);
+    const maximum = BigInt(Number.MAX_SAFE_INTEGER);
+    domainAssert(
+      rounded >= minimum && rounded <= maximum,
+      'NUMERIC_OVERFLOW',
+      'numeric',
+      `${label} does not fit in the JavaScript safe-integer lane.`,
+      {
+        label,
+        numerator: normalized.numerator.toString(),
+        denominator: normalized.denominator.toString(),
+      },
+    );
+    const output = Number(rounded);
+    return Object.is(output, -0) ? 0 : output;
+  }
+
   function mulberry32(seed) {
     let state = seed >>> 0;
     return function next() {
@@ -333,6 +469,8 @@
     return deepFreeze(envelope);
   }
 
+  const ACTIVE_REACTION_DISPATCHES = new WeakSet();
+
   class ReactionQueue {
     #maxDepth;
     #maxReactions;
@@ -347,6 +485,7 @@
     #activeAcceptedCount;
     #activeAcceptedBudget;
     #activeFailure;
+    #activeParentDepth;
     #isRecordingTrace;
 
     constructor({ maxDepth = 8, maxReactions = 64, maxBudget = 128 } = {}) {
@@ -363,6 +502,7 @@
       this.#activeAcceptedCount = 0;
       this.#activeAcceptedBudget = 0;
       this.#activeFailure = null;
+      this.#activeParentDepth = null;
       this.#isRecordingTrace = false;
       Object.preventExtensions(this);
     }
@@ -381,13 +521,16 @@
     enqueue(raw) {
       domainAssert(traceObserverDepth === 0 && !this.#isRecordingTrace, 'REACTION_TRACE_SIDE_EFFECT', 'reaction', 'A reaction trace observer cannot enqueue domain work.');
       const canonicalRaw = deepFreeze(deepClone(raw));
+      const requestedDepth = requireInteger(canonicalRaw.depth ?? 0, 'depth', 0);
+      // dispatch 중 생성된 작업은 호출자 값이 아니라 현재 부모에서 인과 깊이를 파생한다.
+      const depth = this.#isDraining ? this.#activeParentDepth + 1 : requestedDepth;
       const reaction = deepFreeze({
         reactionId: requireId(canonicalRaw.reactionId, 'reactionId'),
         idempotencyKey: requireId(canonicalRaw.idempotencyKey ?? canonicalRaw.reactionId, 'idempotencyKey'),
         kind: requireString(canonicalRaw.kind, 'kind'),
         priority: requireInteger(canonicalRaw.priority ?? 100, 'priority'),
         stableOrderKey: requireString(canonicalRaw.stableOrderKey ?? canonicalRaw.reactionId, 'stableOrderKey'),
-        depth: requireInteger(canonicalRaw.depth ?? 0, 'depth', 0),
+        depth,
         budgetCost: requireInteger(canonicalRaw.budgetCost ?? 1, 'budgetCost', 1),
         payload: deepClone(canonicalRaw.payload ?? {}),
       });
@@ -451,7 +594,15 @@
           currentReaction = this.#pending.shift();
           this.#pendingBudget -= currentReaction.budgetCost;
           budgetUsed += currentReaction.budgetCost;
-          const result = handler(currentReaction);
+          this.#activeParentDepth = currentReaction.depth;
+          let result;
+          ACTIVE_REACTION_DISPATCHES.add(currentReaction);
+          try {
+            result = handler(currentReaction);
+          } finally {
+            ACTIVE_REACTION_DISPATCHES.delete(currentReaction);
+            this.#activeParentDepth = null;
+          }
           executed.push({ reaction: currentReaction, result });
           this.#recordTraceSafely(trace, 'reaction_executed', tick, { reactionId: currentReaction.reactionId, kind: currentReaction.kind, budgetUsed });
           if (this.#activeFailure) throw this.#activeFailure;
@@ -479,6 +630,7 @@
         this.#activeAcceptedCount = 0;
         this.#activeAcceptedBudget = 0;
         this.#activeFailure = null;
+        this.#activeParentDepth = null;
       }
     }
     #recordTraceSafely(trace, stage, tick, payload) {
@@ -551,7 +703,9 @@
     for (const dependency of normalizedDependencies) {
       domainAssert(dependency.split('.').every(Boolean), 'INVALID_CONTEXT_PATH', 'stat-cache', 'Context path cannot contain empty segments.', { dependency });
       const resolved = readContextPath(context, dependency);
-      defineDataProperty(values, dependency, resolved.found ? deepClone(resolved.value) : { $missing: true });
+      defineDataProperty(values, dependency, resolved.found
+        ? { presence: 'present', value: deepClone(resolved.value) }
+        : { presence: 'missing' });
     }
     const canonical = { dependencies: normalizedDependencies, values };
     return deepFreeze({ ...canonical, hash: hashHex(canonical) });
@@ -571,19 +725,21 @@
       requireInteger(ownerVersion, 'ownerVersion', 0);
       domainAssert(typeof compute === 'function', 'INVALID_STAT_COMPUTE', 'stat-cache', 'compute must be a function.');
       const fingerprint = createContextFingerprint(context, dependencies);
-      const descriptor = { entityId, statId, ownerVersion, contextFingerprint: fingerprint.hash };
-      const cacheKey = hashHex(descriptor);
-      if (this.entries.has(cacheKey)) {
-        const entry = this.entries.get(cacheKey);
-        this.entries.delete(cacheKey);
-        this.entries.set(cacheKey, entry);
+      const descriptor = { entityId, statId, ownerVersion, contextFingerprint: { dependencies: fingerprint.dependencies, values: fingerprint.values } };
+      const canonicalDescriptor = canonicalStringify(descriptor);
+      const cacheKey = hashHex(canonicalDescriptor);
+      // 짧은 진단 hash가 충돌해도 전체 descriptor가 같은 경우에만 cache hit로 본다.
+      if (this.entries.has(canonicalDescriptor)) {
+        const entry = this.entries.get(canonicalDescriptor);
+        this.entries.delete(canonicalDescriptor);
+        this.entries.set(canonicalDescriptor, entry);
         this.hits += 1;
         return deepFreeze({ cacheHit: true, cacheKey, fingerprint, value: deepClone(entry.value) });
       }
       const value = compute();
       domainAssert(value !== undefined, 'INVALID_STAT_RESULT', 'stat-cache', 'Computed value cannot be undefined.');
       canonicalStringify(value);
-      this.entries.set(cacheKey, deepFreeze({ ...descriptor, value: deepClone(value) }));
+      this.entries.set(canonicalDescriptor, deepFreeze({ ...descriptor, value: deepClone(value) }));
       this.misses += 1;
       while (this.entries.size > this.maxEntries) {
         const oldest = this.entries.keys().next().value;
@@ -734,79 +890,1020 @@
   }
 
   function findWorkingEntity(workingState, entityId) {
-    return typeof entityId === 'string' && Object.hasOwn(workingState.entities, entityId)
+    return typeof entityId === 'string'
+      && isPlainObject(workingState?.entities)
+      && Object.hasOwn(workingState.entities, entityId)
       ? workingState.entities[entityId]
       : null;
   }
 
-  // 상태에서 파생되는 outbox 사실은 publish 직전의 working state를 기준으로 검증한다.
-  const OUTBOX_STATE_VALIDATORS = Object.freeze({
-    DamageCommitted(event, workingState) {
-      const payload = event.payload;
-      const targetId = payload?.targetId;
-      const entity = findWorkingEntity(workingState, targetId);
+  const DAMAGE_FACT_CORE_FIELDS = Object.freeze([
+    'actorId', 'sourceId', 'sourceRef', 'targetId', 'hitOutcome', 'damageType',
+    'exactRawDamage', 'rawDamage', 'resistanceBps', 'resolvedDamage', 'shieldAbsorbed',
+    'finalHpDamage', 'overkill', 'targetHpAfter', 'targetShieldAfter',
+  ]);
+  const PRIMARY_DAMAGE_FACT_FIELDS = Object.freeze([
+    'skillDefinitionId', 'critical', 'burn',
+  ]);
+  const PERIODIC_DAMAGE_FACT_FIELDS = Object.freeze([
+    'statusInstanceId', 'statusDefinitionId', 'periodic', 'tickAt',
+    'triggerEventId',
+  ]);
+
+  function requireFactBoolean(value, label) {
+    domainAssert(
+      typeof value === 'boolean',
+      'OUTBOX_FACT_MISMATCH',
+      'commit',
+      `${label} must be boolean.`,
+      { label, value },
+    );
+    return value;
+  }
+
+  function validateFactSource(payload, label) {
+    const actorId = requireId(payload.actorId, `${label}.actorId`);
+    const sourceId = requireId(payload.sourceId, `${label}.sourceId`);
+    const sourceRef = createSourceRef(payload.sourceRef);
+    const canonicalSourceId = sourceRef.instanceId ?? sourceRef.definitionId;
+    domainAssert(
+      sourceId === canonicalSourceId,
+      'OUTBOX_FACT_MISMATCH',
+      'commit',
+      `${label}.sourceId must flatten its structured SourceRef.`,
+      { sourceId, canonicalSourceId },
+    );
+    return { actorId, sourceId, sourceRef };
+  }
+
+  function validateDamageFact(event, workingState, transition, expectedOutcome) {
+    const payload = event.payload;
+    const periodic = payload?.periodic === true;
+    const variantFields = periodic
+      ? PERIODIC_DAMAGE_FACT_FIELDS
+      : PRIMARY_DAMAGE_FACT_FIELDS;
+    const fields = [...DAMAGE_FACT_CORE_FIELDS, ...variantFields];
+    requireObjectFields(payload, {
+      label: `${event.type} payload`,
+      required: fields,
+      allowed: fields,
+      code: 'OUTBOX_FACT_MISMATCH',
+      stage: 'commit',
+    });
+    const targetId = requireId(payload.targetId, `${event.type}.targetId`);
+    const { actorId, sourceId, sourceRef } = validateFactSource(
+      payload,
+      event.type,
+    );
+    const hitOutcome = requireString(
+      payload.hitOutcome,
+      `${event.type}.hitOutcome`,
+    );
+    const damageType = requireString(
+      payload.damageType,
+      `${event.type}.damageType`,
+    );
+    const exactRawDamage = parseExactDamageScalar(
+      payload.exactRawDamage,
+      `${event.type}.exactRawDamage`,
+      'OUTBOX_FACT_MISMATCH',
+      'commit',
+    );
+    const rawDamage = requireInteger(
+      payload.rawDamage,
+      `${event.type}.rawDamage`,
+      0,
+    );
+    const resistanceBps = requireInteger(
+      payload.resistanceBps,
+      `${event.type}.resistanceBps`,
+      0,
+      BASIS_POINTS,
+    );
+    const resolvedDamage = requireInteger(
+      payload.resolvedDamage,
+      `${event.type}.resolvedDamage`,
+      0,
+    );
+    const shieldAbsorbed = requireInteger(
+      payload.shieldAbsorbed,
+      `${event.type}.shieldAbsorbed`,
+      0,
+    );
+    const finalHpDamage = requireInteger(
+      payload.finalHpDamage,
+      `${event.type}.finalHpDamage`,
+      0,
+    );
+    const overkill = requireInteger(
+      payload.overkill,
+      `${event.type}.overkill`,
+      0,
+    );
+    const targetHpAfter = requireInteger(
+      payload.targetHpAfter,
+      `${event.type}.targetHpAfter`,
+      0,
+    );
+    const targetShieldAfter = requireInteger(
+      payload.targetShieldAfter,
+      `${event.type}.targetShieldAfter`,
+      0,
+    );
+    const command = transition?.command;
+    const operations = transition?.operations ?? [];
+    const before = findWorkingEntity(transition?.preState ?? {}, targetId);
+    const after = findWorkingEntity(workingState, targetId);
+    const hpOperations = operations.filter(operation =>
+      operation.kind === 'resource.delta'
+      && operation.entityId === targetId
+      && operation.resource === 'hp');
+    const shieldOperations = operations.filter(operation =>
+      operation.kind === 'resource.delta'
+      && operation.entityId === targetId
+      && operation.resource === 'shield');
+    const expectedRawDamage = roundExactRationalAwayFromZero(
+      exactRawDamage,
+      `${event.type}.rawDamage`,
+    );
+    const expectedResolvedDamage = roundExactRationalAwayFromZero(
+      multiplyExactRationalBps(
+        exactRawDamage,
+        BASIS_POINTS - resistanceBps,
+      ),
+      `${event.type}.resolvedDamage`,
+    );
+    const resistanceStat = `${damageType}ResistanceBps`;
+    const committedResistanceBps = before?.stats?.[resistanceStat] ?? 0;
+    const expectedShieldAbsorbed = before
+      ? Math.min(before.resources.shield, expectedResolvedDamage)
+      : null;
+    const expectedPostShieldDamage = expectedShieldAbsorbed === null
+      ? null
+      : expectedResolvedDamage - expectedShieldAbsorbed;
+    const expectedFinalHpDamage = before && expectedPostShieldDamage !== null
+      ? Math.min(before.resources.hp, expectedPostShieldDamage)
+      : null;
+    const expectedOverkill =
+      expectedPostShieldDamage === null || expectedFinalHpDamage === null
+        ? null
+        : expectedPostShieldDamage - expectedFinalHpDamage;
+    const damageOperationsMatch =
+      hpOperations.length === (finalHpDamage > 0 ? 1 : 0)
+      && shieldOperations.length === (shieldAbsorbed > 0 ? 1 : 0)
+      && (finalHpDamage === 0 || hpOperations[0].delta === -finalHpDamage)
+      && (shieldAbsorbed === 0
+        || shieldOperations[0].delta === -shieldAbsorbed);
+    domainAssert(
+      Boolean(command)
+        && command.actorId === actorId
+        && event.correlationId === command.correlationId
+        && event.causationId === command.commandId
+        && hitOutcome === expectedOutcome
+        && rawDamage === expectedRawDamage
+        && (expectedOutcome === 'Hit'
+          || (exactRawDamage.numerator === 0n && rawDamage === 0))
+        && Boolean(before)
+        && Boolean(after)
+        && before.resources.hp - after.resources.hp === finalHpDamage
+        && before.resources.shield - after.resources.shield === shieldAbsorbed
+        && resistanceBps === committedResistanceBps
+        && after.resources.hp === targetHpAfter
+        && after.resources.shield === targetShieldAfter
+        && resolvedDamage === expectedResolvedDamage
+        && shieldAbsorbed === expectedShieldAbsorbed
+        && finalHpDamage === expectedFinalHpDamage
+        && overkill === expectedOverkill
+        && resolvedDamage
+          === shieldAbsorbed + finalHpDamage + overkill
+        && damageOperationsMatch,
+      'OUTBOX_FACT_MISMATCH',
+      'commit',
+      `${event.type} must match its command, source, damage policy, mutations, and committed resources.`,
+      {
+        eventId: event.eventId,
+        targetId,
+        sourceId,
+        damageType,
+        hitOutcome,
+        expectedOutcome,
+        rawDamage,
+        exactRawDamage: serializeExactDamageScalar(exactRawDamage),
+        expectedRawDamage,
+        resistanceBps,
+        committedResistanceBps,
+        resolvedDamage,
+        expectedResolvedDamage,
+        shieldAbsorbed,
+        finalHpDamage,
+        overkill,
+        hpOperationCount: hpOperations.length,
+        shieldOperationCount: shieldOperations.length,
+      },
+    );
+
+    if (periodic) {
+      const statusInstanceId = requireId(
+        payload.statusInstanceId,
+        `${event.type}.statusInstanceId`,
+      );
+      const statusDefinitionId = requireId(
+        payload.statusDefinitionId,
+        `${event.type}.statusDefinitionId`,
+      );
+      requireFactBoolean(payload.periodic, `${event.type}.periodic`);
+      const tickAt = requireInteger(
+        payload.tickAt,
+        `${event.type}.tickAt`,
+        0,
+      );
+      const triggerEventId = requireId(
+        payload.triggerEventId,
+        `${event.type}.triggerEventId`,
+      );
+      const status = before?.statuses?.[statusInstanceId];
       domainAssert(
-        Boolean(entity)
-          && payload.targetHpAfter === entity.resources.hp
-          && payload.targetShieldAfter === entity.resources.shield,
+        Boolean(status)
+          && sourceRef.kind === 'status'
+          && sourceRef.definitionId === statusDefinitionId
+          && sourceRef.instanceId === statusInstanceId
+          && sourceId === statusInstanceId
+          && status.definitionId === statusDefinitionId
+          && status.actorId === actorId
+          && status.targetId === targetId
+          && status.nextTickAt === tickAt
+          && exactRawDamage.numerator === BigInt(status.rawTickDamage)
+          && exactRawDamage.denominator === 1n
+          && rawDamage === status.rawTickDamage
+          && status.lastTransitionEventId === triggerEventId
+          && command.causationId === triggerEventId
+          && command.dataVersion === status.dataVersion
+          && command.payload.targetId === targetId
+          && command.payload.statusInstanceId === statusInstanceId
+          && command.payload.sourceId === sourceId
+          && canonicalStringify(command.payload.sourceRef)
+            === canonicalStringify(sourceRef)
+          && damageType === 'fire'
+          && event.occurredTick
+            === Math.max(tickAt, transition.preState.tick),
         'OUTBOX_FACT_MISMATCH',
         'commit',
-        'DamageCommitted must match committed target HP and shield.',
+        `${event.type} periodic provenance must match the pre-commit StatusInstance and command.`,
+        { statusInstanceId, statusDefinitionId, tickAt, triggerEventId },
+      );
+      return;
+    }
+
+    const skillDefinitionId = requireId(
+      payload.skillDefinitionId,
+      `${event.type}.skillDefinitionId`,
+    );
+    const critical = requireFactBoolean(
+      payload.critical,
+      `${event.type}.critical`,
+    );
+    const burnFields = [
+      'definitionId', 'rawTickDamage', 'durationTicks', 'intervalTicks',
+      'maxCatchUpTicks', 'dataVersion', 'applyWhenTargetAlive',
+    ];
+    requireObjectFields(payload.burn, {
+      label: `${event.type}.burn`,
+      required: burnFields,
+      allowed: burnFields,
+      code: 'OUTBOX_FACT_MISMATCH',
+      stage: 'commit',
+    });
+    requireId(payload.burn.definitionId, `${event.type}.burn.definitionId`);
+    const burnRawTickDamage = requireInteger(
+      payload.burn.rawTickDamage,
+      `${event.type}.burn.rawTickDamage`,
+      0,
+    );
+    requireInteger(
+      payload.burn.durationTicks,
+      `${event.type}.burn.durationTicks`,
+      0,
+    );
+    requireInteger(
+      payload.burn.intervalTicks,
+      `${event.type}.burn.intervalTicks`,
+      1,
+    );
+    requireInteger(
+      payload.burn.maxCatchUpTicks,
+      `${event.type}.burn.maxCatchUpTicks`,
+      1,
+    );
+    requireString(
+      payload.burn.dataVersion,
+      `${event.type}.burn.dataVersion`,
+    );
+    const applyWhenTargetAlive = requireFactBoolean(
+      payload.burn.applyWhenTargetAlive,
+      `${event.type}.burn.applyWhenTargetAlive`,
+    );
+    domainAssert(
+      sourceRef.kind === 'skill-execution'
+        && sourceRef.definitionId === skillDefinitionId
+        && sourceRef.instanceId === command.commandId
+        && sourceId === command.commandId
+        && damageType === 'fire'
+        && command.payload.targetId === targetId
+        && command.payload.skillDefinitionId === skillDefinitionId
+        && payload.burn.dataVersion === command.dataVersion
+        && applyWhenTargetAlive
+          === (expectedOutcome === 'Hit'
+            && burnRawTickDamage > 0
+            && targetHpAfter > 0)
+        && (expectedOutcome === 'Hit' || (!critical && burnRawTickDamage === 0)),
+      'OUTBOX_FACT_MISMATCH',
+      'commit',
+      `${event.type} primary skill facts and Burn self-consistency must match the command and transition.`,
+      {
+        skillDefinitionId,
+        critical,
+        burnRawTickDamage,
+        applyWhenTargetAlive,
+      },
+    );
+  }
+
+  // 상태에서 파생되는 outbox 사실은 publish 직전의 working state를 기준으로 검증한다.
+  const OUTBOX_STATE_VALIDATORS = Object.freeze({
+    SkillCommitted(event, workingState, transition) {
+      const payload = event.payload;
+      const fields = [
+        'actorId', 'sourceId', 'sourceRef', 'targetId',
+        'skillDefinitionId', 'manaSpent', 'cooldownReadyTick',
+      ];
+      requireObjectFields(payload, {
+        label: 'SkillCommitted payload',
+        required: fields,
+        code: 'OUTBOX_FACT_MISMATCH',
+        stage: 'commit',
+      });
+      const actorId = requireId(payload.actorId, 'SkillCommitted.actorId');
+      const targetId = requireId(payload.targetId, 'SkillCommitted.targetId');
+      const skillDefinitionId = requireId(
+        payload.skillDefinitionId,
+        'SkillCommitted.skillDefinitionId',
+      );
+      const sourceId = requireId(payload.sourceId, 'SkillCommitted.sourceId');
+      const sourceRef = createSourceRef(payload.sourceRef);
+      const manaSpent = requireInteger(
+        payload.manaSpent,
+        'SkillCommitted.manaSpent',
+        0,
+      );
+      const cooldownReadyTick = requireInteger(
+        payload.cooldownReadyTick,
+        'SkillCommitted.cooldownReadyTick',
+        0,
+      );
+      const command = transition?.command;
+      const operations = transition?.operations ?? [];
+      const actorBefore = findWorkingEntity(transition?.preState ?? {}, actorId);
+      const actorAfter = findWorkingEntity(workingState, actorId);
+      const targetBefore = findWorkingEntity(
+        transition?.preState ?? {},
+        targetId,
+      );
+      const targetAfter = findWorkingEntity(workingState, targetId);
+      const manaOperations = operations.filter(operation =>
+        operation.kind === 'resource.delta'
+        && operation.entityId === actorId
+        && operation.resource === 'mana');
+      const cooldownOperations = operations.filter(operation =>
+        operation.kind === 'cooldown.set'
+        && operation.entityId === actorId
+        && operation.definitionId === skillDefinitionId);
+      domainAssert(
+        Boolean(command)
+          && command.actorId === actorId
+          && event.correlationId === command.correlationId
+          && event.causationId === command.commandId
+          && command.payload.targetId === targetId
+          && command.payload.skillDefinitionId === skillDefinitionId
+          && sourceId === command.commandId
+          && sourceRef.kind === 'skill-execution'
+          && sourceRef.definitionId === skillDefinitionId
+          && sourceRef.instanceId === command.commandId
+          && Boolean(actorBefore)
+          && Boolean(actorAfter)
+          && Boolean(targetBefore)
+          && Boolean(targetAfter)
+          && actorBefore.resources.mana - actorAfter.resources.mana === manaSpent
+          && manaOperations.length === 1
+          && manaOperations[0].delta === -manaSpent
+          && cooldownOperations.length === 1
+          && cooldownOperations[0].readyTick === cooldownReadyTick
+          && actorAfter.cooldowns[skillDefinitionId] === cooldownReadyTick,
+        'OUTBOX_FACT_MISMATCH',
+        'commit',
+        'SkillCommitted must match its command, skill source, mana transition, and cooldown mutation.',
         {
-          eventId: event.eventId,
-          targetId: targetId ?? null,
-          expectedHpAfter: entity?.resources.hp ?? null,
-          actualHpAfter: payload?.targetHpAfter ?? null,
-          expectedShieldAfter: entity?.resources.shield ?? null,
-          actualShieldAfter: payload?.targetShieldAfter ?? null,
+          actorId,
+          targetId,
+          skillDefinitionId,
+          sourceId,
+          manaSpent,
+          cooldownReadyTick,
+          manaOperationCount: manaOperations.length,
+          cooldownOperationCount: cooldownOperations.length,
         },
       );
     },
-    StatusApplied(event, workingState) {
+    DamageCommitted(event, workingState, transition) {
+      validateDamageFact(event, workingState, transition, 'Hit');
+    },
+    DamageMissed(event, workingState, transition) {
+      validateDamageFact(event, workingState, transition, 'Miss');
+    },
+    StatusApplied(event, workingState, transition) {
       const payload = event.payload;
-      const targetId = payload?.targetId;
-      const statusInstanceId = payload?.status?.instanceId;
-      const entity = findWorkingEntity(workingState, targetId);
+      const fields = ['targetId', 'status'];
+      requireObjectFields(payload, {
+        label: 'StatusApplied payload',
+        required: fields,
+        allowed: fields,
+        code: 'OUTBOX_FACT_MISMATCH',
+        stage: 'commit',
+      });
+      const targetId = requireId(payload.targetId, 'StatusApplied.targetId');
+      const status = payload.status;
+      const statusInstanceId = status?.instanceId;
+      validateStatusInstance(
+        status,
+        targetId,
+        'StatusApplied.status',
+      );
+      const before = findWorkingEntity(transition?.preState ?? {}, targetId);
+      const after = findWorkingEntity(workingState, targetId);
+      const command = transition?.command;
+      const addOperations = (transition?.operations ?? []).filter(operation =>
+        operation.kind === 'status.add'
+        && operation.entityId === targetId
+        && operation.status?.instanceId === statusInstanceId);
+      const committedStatus = after?.statuses?.[statusInstanceId];
       domainAssert(
-        Boolean(entity && statusInstanceId && Object.hasOwn(entity.statuses, statusInstanceId)),
+        Boolean(command)
+          && Boolean(before)
+          && Boolean(after)
+          && !Object.hasOwn(before.statuses, statusInstanceId)
+          && Boolean(committedStatus)
+          && canonicalStringify(committedStatus)
+            === canonicalStringify(status)
+          && addOperations.length === 1
+          && canonicalStringify(addOperations[0].status)
+            === canonicalStringify(status)
+          && command.actorId === status.actorId
+          && command.correlationId === status.correlationId
+          && command.causationId === status.applicationCausationId
+          && command.dataVersion === status.dataVersion
+          && command.payload.targetId === targetId
+          && canonicalStringify(command.payload.status)
+            === canonicalStringify(status)
+          && event.correlationId === command.correlationId
+          && event.causationId === command.commandId
+          && event.eventId === status.lastTransitionEventId,
         'OUTBOX_FACT_MISMATCH',
         'commit',
-        'StatusApplied must reference an instance present in committed state.',
-        { eventId: event.eventId, targetId: targetId ?? null, statusInstanceId: statusInstanceId ?? null },
+        'StatusApplied must exactly match one status.add transition, committed instance, command provenance, and event identity.',
+        {
+          eventId: event.eventId,
+          targetId,
+          statusInstanceId,
+          addOperationCount: addOperations.length,
+        },
       );
     },
-    StatusExpired(event, workingState) {
+    StatusTicked(event, workingState, transition) {
       const payload = event.payload;
-      const targetId = payload?.targetId;
-      const statusInstanceId = payload?.statusInstanceId;
-      const entity = findWorkingEntity(workingState, targetId);
+      const fields = [
+        'actorId', 'applicationSourceId', 'applicationSourceRef',
+        'sourceId', 'sourceRef', 'targetId', 'statusInstanceId',
+        'definitionId', 'rawDamage', 'resolvedDamage', 'shieldAbsorbed',
+        'finalHpDamage', 'tickAt', 'triggerEventId',
+      ];
+      requireObjectFields(payload, {
+        label: 'StatusTicked payload',
+        required: fields,
+        allowed: fields,
+        code: 'OUTBOX_FACT_MISMATCH',
+        stage: 'commit',
+      });
+      const targetId = requireId(payload.targetId, 'StatusTicked.targetId');
+      const statusInstanceId = requireId(
+        payload.statusInstanceId,
+        'StatusTicked.statusInstanceId',
+      );
+      const definitionId = requireId(
+        payload.definitionId,
+        'StatusTicked.definitionId',
+      );
+      const actorId = requireId(payload.actorId, 'StatusTicked.actorId');
+      const applicationSourceId = requireId(
+        payload.applicationSourceId,
+        'StatusTicked.applicationSourceId',
+      );
+      const applicationSourceRef = createSourceRef(
+        payload.applicationSourceRef,
+      );
+      const sourceId = requireId(payload.sourceId, 'StatusTicked.sourceId');
+      const sourceRef = createSourceRef(payload.sourceRef);
+      const rawDamage = requireInteger(
+        payload.rawDamage,
+        'StatusTicked.rawDamage',
+        0,
+      );
+      const resolvedDamage = requireInteger(
+        payload.resolvedDamage,
+        'StatusTicked.resolvedDamage',
+        0,
+      );
+      const shieldAbsorbed = requireInteger(
+        payload.shieldAbsorbed,
+        'StatusTicked.shieldAbsorbed',
+        0,
+      );
+      const finalHpDamage = requireInteger(
+        payload.finalHpDamage,
+        'StatusTicked.finalHpDamage',
+        0,
+      );
+      const tickAt = requireInteger(payload.tickAt, 'StatusTicked.tickAt', 0);
+      const triggerEventId = requireId(
+        payload.triggerEventId,
+        'StatusTicked.triggerEventId',
+      );
+      const before = findWorkingEntity(transition?.preState ?? {}, targetId);
+      const after = findWorkingEntity(workingState, targetId);
+      const status = before?.statuses?.[statusInstanceId];
+      const afterStatus = after?.statuses?.[statusInstanceId] ?? null;
+      const command = transition?.command;
+      const operations = transition?.operations ?? [];
+      const statusOperations = operations.filter(operation =>
+        operation.entityId === targetId
+        && (operation.kind === 'status.patch'
+          || operation.kind === 'status.remove')
+        && operation.instanceId === statusInstanceId);
+      const siblingDamage = (transition?.events ?? []).filter(candidate =>
+        candidate.type === 'DamageCommitted'
+        && candidate.payload?.periodic === true
+        && candidate.payload?.statusInstanceId === statusInstanceId
+        && candidate.payload?.targetId === targetId);
+      const damage = siblingDamage[0]?.payload;
+      const canonicalApplicationSourceId =
+        applicationSourceRef.instanceId ?? applicationSourceRef.definitionId;
+      const canonicalSourceId = sourceRef.instanceId ?? sourceRef.definitionId;
+      const statusTransitionMatches = statusOperations.length === 1
+        && (
+          (statusOperations[0].kind === 'status.patch'
+            && Boolean(afterStatus)
+            && afterStatus.nextTickAt === status.nextTickAt + status.intervalTicks
+            && afterStatus.lastTransitionEventId === event.eventId)
+          || (statusOperations[0].kind === 'status.remove'
+            && afterStatus === null)
+        );
       domainAssert(
-        Boolean(entity && statusInstanceId && !Object.hasOwn(entity.statuses, statusInstanceId)),
+        Boolean(command)
+          && Boolean(status)
+          && Boolean(after)
+          && siblingDamage.length === 1
+          && statusTransitionMatches
+          && actorId === status.actorId
+          && applicationSourceId === status.applicationSourceId
+          && canonicalApplicationSourceId === applicationSourceId
+          && canonicalStringify(applicationSourceRef)
+            === canonicalStringify(status.applicationSourceRef)
+          && sourceId === status.instanceId
+          && canonicalSourceId === sourceId
+          && sourceRef.kind === 'status'
+          && sourceRef.definitionId === definitionId
+          && sourceRef.instanceId === statusInstanceId
+          && definitionId === status.definitionId
+          && status.targetId === targetId
+          && status.nextTickAt === tickAt
+          && status.lastTransitionEventId === triggerEventId
+          && event.occurredTick
+            === Math.max(tickAt, transition.preState.tick)
+          && command.actorId === actorId
+          && command.correlationId === status.correlationId
+          && command.causationId === triggerEventId
+          && command.dataVersion === status.dataVersion
+          && command.payload.targetId === targetId
+          && command.payload.statusInstanceId === statusInstanceId
+          && command.payload.applicationSourceId === applicationSourceId
+          && canonicalStringify(command.payload.applicationSourceRef)
+            === canonicalStringify(applicationSourceRef)
+          && command.payload.sourceId === sourceId
+          && canonicalStringify(command.payload.sourceRef)
+            === canonicalStringify(sourceRef)
+          && damage.rawDamage === rawDamage
+          && damage.resolvedDamage === resolvedDamage
+          && damage.shieldAbsorbed === shieldAbsorbed
+          && damage.finalHpDamage === finalHpDamage
+          && damage.actorId === actorId
+          && damage.sourceId === sourceId
+          && canonicalStringify(damage.sourceRef)
+            === canonicalStringify(sourceRef)
+          && damage.targetId === targetId
+          && damage.damageType === 'fire'
+          && damage.statusDefinitionId === definitionId
+          && damage.tickAt === tickAt
+          && damage.triggerEventId === triggerEventId,
         'OUTBOX_FACT_MISMATCH',
         'commit',
-        'StatusExpired must reference an instance absent from committed state.',
-        { eventId: event.eventId, targetId: targetId ?? null, statusInstanceId: statusInstanceId ?? null },
+        'StatusTicked must match its pre-commit status, periodic DamageCommitted sibling, command provenance, and patch/remove transition.',
+        {
+          eventId: event.eventId,
+          targetId,
+          statusInstanceId,
+          siblingDamageCount: siblingDamage.length,
+          statusOperationCount: statusOperations.length,
+        },
       );
     },
-    EntityDefeated(event, workingState) {
-      const targetId = event.payload?.targetId;
-      const entity = findWorkingEntity(workingState, targetId);
+    StatusExpired(event, workingState, transition) {
+      const payload = event.payload;
+      const baseFields = [
+        'actorId', 'applicationSourceId', 'applicationSourceRef',
+        'sourceId', 'sourceRef', 'targetId', 'statusInstanceId',
+        'definitionId', 'expireTick', 'scheduledExpireTick', 'endedTick',
+        'reason', 'triggerEventId',
+      ];
+      const allowedFields = [...baseFields, 'catchUpLimited'];
+      requireObjectFields(payload, {
+        label: 'StatusExpired payload',
+        required: baseFields,
+        allowed: allowedFields,
+        code: 'OUTBOX_FACT_MISMATCH',
+        stage: 'commit',
+      });
+      const targetId = requireId(payload.targetId, 'StatusExpired.targetId');
+      const statusInstanceId = requireId(
+        payload.statusInstanceId,
+        'StatusExpired.statusInstanceId',
+      );
+      const definitionId = requireId(
+        payload.definitionId,
+        'StatusExpired.definitionId',
+      );
+      const actorId = requireId(payload.actorId, 'StatusExpired.actorId');
+      const applicationSourceId = requireId(
+        payload.applicationSourceId,
+        'StatusExpired.applicationSourceId',
+      );
+      const applicationSourceRef = createSourceRef(
+        payload.applicationSourceRef,
+      );
+      const sourceId = requireId(payload.sourceId, 'StatusExpired.sourceId');
+      const sourceRef = createSourceRef(payload.sourceRef);
+      const expireTick = requireInteger(
+        payload.expireTick,
+        'StatusExpired.expireTick',
+        0,
+      );
+      const scheduledExpireTick = requireInteger(
+        payload.scheduledExpireTick,
+        'StatusExpired.scheduledExpireTick',
+        0,
+      );
+      const endedTick = requireInteger(
+        payload.endedTick,
+        'StatusExpired.endedTick',
+        0,
+      );
+      const reason = requireString(payload.reason, 'StatusExpired.reason');
+      const triggerEventId = requireId(
+        payload.triggerEventId,
+        'StatusExpired.triggerEventId',
+      );
+      const hasCatchUpLimited = Object.hasOwn(payload, 'catchUpLimited');
+      if (hasCatchUpLimited) {
+        domainAssert(
+          requireFactBoolean(
+            payload.catchUpLimited,
+            'StatusExpired.catchUpLimited',
+          ) === true,
+          'OUTBOX_FACT_MISMATCH',
+          'commit',
+          'StatusExpired.catchUpLimited, when present, must be true.',
+        );
+      }
+      const before = findWorkingEntity(transition?.preState ?? {}, targetId);
+      const after = findWorkingEntity(workingState, targetId);
+      const status = before?.statuses?.[statusInstanceId];
+      const command = transition?.command;
+      const removeOperations = (transition?.operations ?? []).filter(
+        operation =>
+          operation.kind === 'status.remove'
+          && operation.entityId === targetId
+          && operation.instanceId === statusInstanceId,
+      );
+      const siblingStatusTicks = (transition?.events ?? []).filter(candidate =>
+        candidate.type === 'StatusTicked'
+        && candidate.payload?.targetId === targetId
+        && candidate.payload?.statusInstanceId === statusInstanceId);
+      const canonicalApplicationSourceId =
+        applicationSourceRef.instanceId ?? applicationSourceRef.definitionId;
+      const canonicalSourceId = sourceRef.instanceId ?? sourceRef.definitionId;
+      const allowedReasons = [
+        'duration-expired', 'catch-up-limited', 'target-defeated',
+      ];
       domainAssert(
-        Boolean(entity) && entity.resources.hp === 0,
+        Boolean(command)
+          && Boolean(status)
+          && Boolean(after)
+          && !Object.hasOwn(after.statuses, statusInstanceId)
+          && removeOperations.length === 1
+          && actorId === status.actorId
+          && applicationSourceId === status.applicationSourceId
+          && canonicalApplicationSourceId === applicationSourceId
+          && canonicalStringify(applicationSourceRef)
+            === canonicalStringify(status.applicationSourceRef)
+          && sourceId === status.instanceId
+          && canonicalSourceId === sourceId
+          && sourceRef.kind === 'status'
+          && sourceRef.definitionId === definitionId
+          && sourceRef.instanceId === statusInstanceId
+          && definitionId === status.definitionId
+          && status.targetId === targetId
+          && expireTick === status.expireTick
+          && scheduledExpireTick === status.expireTick
+          && endedTick === event.occurredTick
+          && allowedReasons.includes(reason)
+          && (reason === 'catch-up-limited') === hasCatchUpLimited
+          && (reason === 'target-defeated'
+            || endedTick
+              === Math.max(scheduledExpireTick, transition.preState.tick))
+          && (reason !== 'target-defeated'
+            || after.resources.hp === 0)
+          && (reason === 'target-defeated'
+            || triggerEventId === status.lastTransitionEventId)
+          && command.actorId === actorId
+          && command.correlationId === status.correlationId
+          && command.causationId === triggerEventId
+          && command.dataVersion === status.dataVersion
+          && command.payload.targetId === targetId
+          && command.payload.statusInstanceId === statusInstanceId
+          && command.payload.applicationSourceId === applicationSourceId
+          && canonicalStringify(command.payload.applicationSourceRef)
+            === canonicalStringify(applicationSourceRef)
+          && command.payload.sourceId === sourceId
+          && canonicalStringify(command.payload.sourceRef)
+            === canonicalStringify(sourceRef)
+          && (siblingStatusTicks.length === 1
+            ? !Object.hasOwn(command.payload, 'reason')
+            : command.payload.reason === reason),
         'OUTBOX_FACT_MISMATCH',
         'commit',
-        'EntityDefeated must reference a target with zero committed HP.',
-        { eventId: event.eventId, targetId: targetId ?? null, committedHp: entity?.resources.hp ?? null },
+        'StatusExpired must match one removed pre-commit status, its schedule, source, and command provenance.',
+        {
+          eventId: event.eventId,
+          targetId,
+          statusInstanceId,
+          reason,
+          removeOperationCount: removeOperations.length,
+          siblingStatusTickCount: siblingStatusTicks.length,
+        },
+      );
+    },
+    EntityDefeated(event, workingState, transition) {
+      const payload = event.payload;
+      const periodic = payload?.periodic === true;
+      const baseFields = [
+        'entityId', 'targetId', 'actorId', 'sourceId', 'sourceRef',
+        'damageType', 'periodic',
+      ];
+      const periodicFields = ['statusInstanceId', 'statusDefinitionId'];
+      const fields = periodic
+        ? [...baseFields, ...periodicFields]
+        : baseFields;
+      requireObjectFields(payload, {
+        label: 'EntityDefeated payload',
+        required: fields,
+        allowed: fields,
+        code: 'OUTBOX_FACT_MISMATCH',
+        stage: 'commit',
+      });
+      const targetId = requireId(payload.targetId, 'EntityDefeated.targetId');
+      const entityId = requireId(payload.entityId, 'EntityDefeated.entityId');
+      const { actorId, sourceId, sourceRef } = validateFactSource(
+        payload,
+        'EntityDefeated',
+      );
+      requireString(payload.damageType, 'EntityDefeated.damageType');
+      requireFactBoolean(payload.periodic, 'EntityDefeated.periodic');
+      const before = findWorkingEntity(transition?.preState ?? {}, targetId);
+      const after = findWorkingEntity(workingState, targetId);
+      const command = transition?.command;
+      const hpOperations = (transition?.operations ?? []).filter(operation =>
+        operation.kind === 'resource.delta'
+        && operation.entityId === targetId
+        && operation.resource === 'hp');
+      const siblingDamage = (transition?.events ?? []).filter(candidate =>
+        candidate.type === 'DamageCommitted'
+        && candidate.payload?.targetId === targetId
+        && candidate.payload?.sourceId === sourceId);
+      const siblingDamagePayload = siblingDamage[0]?.payload;
+      const damageRequired =
+        sourceRef.kind === 'skill-execution' || sourceRef.kind === 'status';
+      const systemSourceMatchesCommand = sourceRef.kind !== 'system'
+        || canonicalStringify(command?.payload)
+          === canonicalStringify(payload);
+      domainAssert(
+        Boolean(command)
+          && entityId === targetId
+          && command.actorId === actorId
+          && event.correlationId === command.correlationId
+          && event.causationId === command.commandId
+          && Boolean(before)
+          && Boolean(after)
+          && before.resources.hp > 0
+          && after.resources.hp === 0
+          && hpOperations.length === 1
+          && hpOperations[0].delta === -before.resources.hp
+          && systemSourceMatchesCommand
+          && (!damageRequired
+            || (siblingDamage.length === 1
+              && siblingDamagePayload.targetHpAfter === 0
+              && siblingDamagePayload.actorId === actorId
+              && siblingDamagePayload.damageType === payload.damageType
+              && (siblingDamagePayload.periodic === true) === periodic
+              && canonicalStringify(siblingDamagePayload.sourceRef)
+                === canonicalStringify(sourceRef))),
+        'OUTBOX_FACT_MISMATCH',
+        'commit',
+        'EntityDefeated must match the lethal HP transition, source, command, and authoritative damage fact when damage-caused.',
+        {
+          eventId: event.eventId,
+          targetId,
+          sourceId,
+          hpOperationCount: hpOperations.length,
+          siblingDamageCount: siblingDamage.length,
+        },
+      );
+      if (periodic) {
+        const statusInstanceId = requireId(
+          payload.statusInstanceId,
+          'EntityDefeated.statusInstanceId',
+        );
+        const statusDefinitionId = requireId(
+          payload.statusDefinitionId,
+          'EntityDefeated.statusDefinitionId',
+        );
+        domainAssert(
+          sourceRef.kind === 'status'
+            && sourceRef.instanceId === statusInstanceId
+            && sourceRef.definitionId === statusDefinitionId
+            && siblingDamagePayload?.statusInstanceId === statusInstanceId
+            && siblingDamagePayload?.statusDefinitionId === statusDefinitionId,
+          'OUTBOX_FACT_MISMATCH',
+          'commit',
+          'Periodic EntityDefeated provenance must identify its StatusInstance.',
+          { statusInstanceId, statusDefinitionId },
+        );
+      }
+    },
+    ExternalStateChanged(event, workingState, transition) {
+      const payload = event.payload;
+      const fields = ['targetId', 'resource', 'delta'];
+      requireObjectFields(payload, {
+        label: 'ExternalStateChanged payload',
+        required: fields,
+        allowed: fields,
+        code: 'OUTBOX_FACT_MISMATCH',
+        stage: 'commit',
+      });
+      const targetId = requireId(
+        payload.targetId,
+        'ExternalStateChanged.targetId',
+      );
+      const resource = requireString(
+        payload.resource,
+        'ExternalStateChanged.resource',
+      );
+      const delta = requireInteger(
+        payload.delta,
+        'ExternalStateChanged.delta',
+      );
+      const command = transition?.command;
+      const before = findWorkingEntity(transition?.preState ?? {}, targetId);
+      const after = findWorkingEntity(workingState, targetId);
+      const matchingOperations = (transition?.operations ?? []).filter(
+        operation =>
+          operation.kind === 'resource.delta'
+          && operation.entityId === targetId
+          && operation.resource === resource
+          && operation.delta === delta,
+      );
+      domainAssert(
+        Boolean(command)
+          && event.correlationId === command.correlationId
+          && event.causationId === command.commandId
+          && command.payload.targetId === targetId
+          && command.payload.resource === resource
+          && command.payload.delta === delta
+          && Boolean(before)
+          && Boolean(after)
+          && Object.hasOwn(before.resources, resource)
+          && matchingOperations.length === 1
+          && after.resources[resource] - before.resources[resource] === delta,
+        'OUTBOX_FACT_MISMATCH',
+        'commit',
+        'ExternalStateChanged is a closed concurrency-probe fact and must match one resource transition.',
+        { targetId, resource, delta, operationCount: matchingOperations.length },
+      );
+    },
+    ExternalCooldownChanged(event, workingState, transition) {
+      const payload = event.payload;
+      const fields = ['actorId', 'skillDefinitionId', 'readyTick'];
+      requireObjectFields(payload, {
+        label: 'ExternalCooldownChanged payload',
+        required: fields,
+        allowed: fields,
+        code: 'OUTBOX_FACT_MISMATCH',
+        stage: 'commit',
+      });
+      const actorId = requireId(
+        payload.actorId,
+        'ExternalCooldownChanged.actorId',
+      );
+      const skillDefinitionId = requireId(
+        payload.skillDefinitionId,
+        'ExternalCooldownChanged.skillDefinitionId',
+      );
+      const readyTick = requireInteger(
+        payload.readyTick,
+        'ExternalCooldownChanged.readyTick',
+        0,
+      );
+      const command = transition?.command;
+      const actorAfter = findWorkingEntity(workingState, actorId);
+      const matchingOperations = (transition?.operations ?? []).filter(
+        operation =>
+          operation.kind === 'cooldown.set'
+          && operation.entityId === actorId
+          && operation.definitionId === skillDefinitionId
+          && operation.readyTick === readyTick,
+      );
+      domainAssert(
+        Boolean(command)
+          && command.actorId === actorId
+          && event.correlationId === command.correlationId
+          && event.causationId === command.commandId
+          && command.payload.actorId === actorId
+          && command.payload.skillDefinitionId === skillDefinitionId
+          && command.payload.readyTick === readyTick
+          && Boolean(actorAfter)
+          && matchingOperations.length === 1
+          && actorAfter.cooldowns[skillDefinitionId] === readyTick,
+        'OUTBOX_FACT_MISMATCH',
+        'commit',
+        'ExternalCooldownChanged is a closed concurrency-probe fact and must match one cooldown transition.',
+        {
+          actorId,
+          skillDefinitionId,
+          readyTick,
+          operationCount: matchingOperations.length,
+        },
       );
     },
   });
 
-  function validateTruthfulOutbox(events, workingState) {
+  function validateTruthfulOutbox(events, workingState, transition = null) {
+    const validatedFactKeys = new Set();
+    const validationContext = transition
+      ? { ...transition, events }
+      : { events };
     for (const event of events) {
       const validator = Object.hasOwn(OUTBOX_STATE_VALIDATORS, event.type)
         ? OUTBOX_STATE_VALIDATORS[event.type]
         : null;
-      if (validator) validator(event, workingState);
+      domainAssert(
+        Boolean(validator),
+        'UNSUPPORTED_EVENT_TYPE',
+        'commit',
+        'The reference kernel publishes only its closed, explicitly validated event taxonomy.',
+        { eventType: event.type },
+      );
+      const factKey = canonicalStringify([
+        event.type,
+        event.payload?.targetId ?? null,
+        event.payload?.sourceId ?? null,
+        event.payload?.statusInstanceId ?? null,
+        event.payload?.skillDefinitionId ?? null,
+      ]);
+      domainAssert(
+        !validatedFactKeys.has(factKey),
+        'OUTBOX_FACT_MISMATCH',
+        'commit',
+        'A commit cannot publish the same authoritative fact identity twice.',
+        { eventType: event.type, factKey },
+      );
+      validatedFactKeys.add(factKey);
+      validator(event, workingState, validationContext);
     }
   }
 
@@ -1044,7 +2141,11 @@
         occurredTick: commitTick,
         payload: blueprint.payload,
       }));
-      validateTruthfulOutbox(events, working);
+      validateTruthfulOutbox(events, working, {
+        command: canonicalCommand,
+        operations,
+        preState: this.#state,
+      });
       this.#state = deepFreeze(working);
       this.#tick = working.tick;
       this.#processedCommands.add(commandId);
@@ -1093,7 +2194,8 @@
     for (const value of ['hp', 'maxHp', 'mana', 'maxMana', 'spellPower']) requireInteger(input.caster[value], `caster.${value}`, 0);
     for (const value of ['hp', 'maxHp', 'shield', 'maxShield', 'fireResistanceBps']) requireInteger(input.target[value], `target.${value}`, 0, value === 'fireResistanceBps' ? BASIS_POINTS : Number.MAX_SAFE_INTEGER);
     for (const value of ['baseDamage', 'manaCost', 'cooldownTicks']) requireInteger(input.skill[value], `skill.${value}`, 0);
-    for (const value of ['coefficientBps', 'critMultiplierBps']) requireInteger(input.skill[value], `skill.${value}`, 0, 100_000);
+    requireInteger(input.skill.coefficientBps, 'skill.coefficientBps', 0, 100_000);
+    requireInteger(input.skill.critMultiplierBps, 'skill.critMultiplierBps', BASIS_POINTS, 100_000);
     for (const value of ['hitChanceBps', 'critChanceBps']) requireInteger(input.skill[value], `skill.${value}`, 0, BASIS_POINTS);
     for (const value of ['ratioBps', 'durationTicks', 'intervalTicks', 'maxCatchUpTicks']) requireInteger(input.burn[value], `burn.${value}`, value === 'intervalTicks' || value === 'maxCatchUpTicks' ? 1 : 0, value === 'ratioBps' ? 100_000 : Number.MAX_SAFE_INTEGER);
     domainAssert(input.caster.hp <= input.caster.maxHp && input.caster.mana <= input.caster.maxMana, 'INVALID_INITIAL_RESOURCE', 'input', 'Caster resources exceed maxima.');
@@ -1128,7 +2230,52 @@
     });
   }
 
-  function resolveDamageAgainstTarget({ actorId, sourceId, sourceRef, target, damageType, rawDamage, hitOutcome = 'Hit' }) {
+  function bindFireballCommandToInput(rawCommand, input) {
+    const command = parseCommandEnvelope(rawCommand);
+    const payloadFields = ['targetId', 'skillDefinitionId'];
+    requireObjectFields(command.payload, {
+      label: 'Fireball command payload',
+      required: payloadFields,
+      allowed: payloadFields,
+      code: 'COMMAND_INPUT_MISMATCH',
+      stage: 'resolve',
+    });
+    const expected = {
+      actorId: input.caster.id,
+      requestedTick: input.tick,
+      dataVersion: input.dataVersion,
+      targetId: input.target.id,
+      skillDefinitionId: input.skill.definitionId,
+    };
+    const actual = {
+      actorId: command.actorId,
+      requestedTick: command.requestedTick,
+      dataVersion: command.dataVersion,
+      targetId: command.payload.targetId,
+      skillDefinitionId: command.payload.skillDefinitionId,
+    };
+    const mismatches = Object.keys(expected)
+      .filter(field => actual[field] !== expected[field]);
+    domainAssert(
+      mismatches.length === 0,
+      'COMMAND_INPUT_MISMATCH',
+      'resolve',
+      'Fireball command identity and version fields must match the authoritative resolver input.',
+      { mismatches, expected, actual },
+    );
+    return command;
+  }
+
+  function resolveDamageAgainstTarget({
+    actorId,
+    sourceId,
+    sourceRef,
+    target,
+    damageType,
+    rawDamage,
+    exactRawDamage = null,
+    hitOutcome = 'Hit',
+  }) {
     requireId(actorId, 'damage.actorId');
     requireId(sourceId, 'damage.sourceId');
     const normalizedSourceRef = createSourceRef(sourceRef);
@@ -1139,10 +2286,41 @@
     requireString(damageType, 'damage.damageType');
     requireInteger(rawDamage, 'damage.rawDamage', 0);
     domainAssert(HIT_OUTCOMES.includes(hitOutcome), 'INVALID_HIT_OUTCOME', 'resolve', 'Damage hitOutcome is not canonical.', { hitOutcome });
-    const effectiveRawDamage = hitOutcome === 'Hit' ? rawDamage : 0;
+    const suppliedExactRawDamage = exactRawDamage == null
+      ? exactRationalFromInteger(rawDamage)
+      : parseExactDamageScalar(
+        exactRawDamage,
+        'damage.exactRawDamage',
+        'INVALID_EXACT_DAMAGE',
+        'resolve',
+      );
+    const authoritativeExactRawDamage = hitOutcome === 'Hit'
+      ? suppliedExactRawDamage
+      : exactRationalFromInteger(0);
+    const effectiveRawDamage = roundExactRationalAwayFromZero(
+      authoritativeExactRawDamage,
+      'damage.rawDamage',
+    );
+    domainAssert(
+      hitOutcome !== 'Hit' || effectiveRawDamage === rawDamage,
+      'EXACT_DAMAGE_MISMATCH',
+      'resolve',
+      'damage.rawDamage must be the half-away-from-zero reporting projection of damage.exactRawDamage.',
+      {
+        rawDamage,
+        expectedRawDamage: effectiveRawDamage,
+        exactRawDamage: serializeExactDamageScalar(authoritativeExactRawDamage),
+      },
+    );
     const resistanceStat = `${damageType}ResistanceBps`;
     const resistanceBps = requireInteger(target.stats?.[resistanceStat] ?? 0, `damage.${resistanceStat}`, 0, BASIS_POINTS);
-    const resolvedDamage = multiplyBps(effectiveRawDamage, BASIS_POINTS - resistanceBps);
+    const resolvedDamage = roundExactRationalAwayFromZero(
+      multiplyExactRationalBps(
+        authoritativeExactRawDamage,
+        BASIS_POINTS - resistanceBps,
+      ),
+      'damage.resolvedDamage',
+    );
     const shieldAbsorbed = Math.min(target.resources.shield, resolvedDamage);
     const remaining = Math.max(0, resolvedDamage - shieldAbsorbed);
     const finalHpDamage = Math.min(target.resources.hp, remaining);
@@ -1153,6 +2331,7 @@
       targetId: target.id,
       hitOutcome,
       damageType,
+      exactRawDamage: serializeExactDamageScalar(authoritativeExactRawDamage),
       rawDamage: effectiveRawDamage,
       resistanceBps,
       resolvedDamage,
@@ -1177,10 +2356,14 @@
   }
 
   function resolveFireball({ snapshot, command, input, rng, trace = null }) {
+    input = normalizeScenarioInput(input);
+    command = bindFireballCommandToInput(command, input);
     const caster = snapshot.entities[input.caster.id];
     const target = snapshot.entities[input.target.id];
     domainAssert(Boolean(caster && target), 'INVALID_SNAPSHOT', 'resolve', 'Caster and target must be present.');
     domainAssert(target.resources.hp > 0, 'TARGET_NOT_ALIVE', 'resolve', 'Target must be alive before skill resolution.', { targetId: target.id });
+    const cooldownReadyTick = requireInteger(caster.cooldowns[input.skill.definitionId] ?? 0, 'cooldownReadyTick', 0);
+    domainAssert(cooldownReadyTick <= input.tick, 'COOLDOWN_ACTIVE', 'resolve', 'Skill cooldown is not ready at the execution tick.', { actorId: caster.id, skillDefinitionId: input.skill.definitionId, cooldownReadyTick, executionTick: input.tick });
     domainAssert(caster.resources.mana >= input.skill.manaCost, 'INSUFFICIENT_MANA', 'resolve', 'Caster lacks mana.');
     const hitKey = [command.correlationId, 'fireball.hit', target.id];
     const critKey = [command.correlationId, 'fireball.critical', target.id];
@@ -1189,16 +2372,63 @@
     const hitOutcome = hitRollBps < input.skill.hitChanceBps ? 'Hit' : 'Miss';
     const hit = hitOutcome === 'Hit';
     const critical = hit && critRollBps < input.skill.critChanceBps;
-    let rawDamage = hit ? input.skill.baseDamage + multiplyBps(caster.stats.spellPower, input.skill.coefficientBps) : 0;
-    if (critical) rawDamage = multiplyBps(rawDamage, input.skill.critMultiplierBps);
+    const zeroExactDamage = exactRationalFromInteger(0);
+    const scalingDamageExact = hit
+      ? multiplyExactRationalBps(
+        exactRationalFromInteger(caster.stats.spellPower),
+        input.skill.coefficientBps,
+      )
+      : zeroExactDamage;
+    const formulaDamageExact = hit
+      ? addExactRationals(
+        exactRationalFromInteger(input.skill.baseDamage),
+        scalingDamageExact,
+      )
+      : zeroExactDamage;
+    const rawDamageExact = critical
+      ? multiplyExactRationalBps(
+        formulaDamageExact,
+        input.skill.critMultiplierBps,
+      )
+      : formulaDamageExact;
+    const scalingDamageProjection = roundExactRationalAwayFromZero(
+      scalingDamageExact,
+      'fireball.scalingDamageProjection',
+    );
+    const formulaDamageProjection = roundExactRationalAwayFromZero(
+      formulaDamageExact,
+      'fireball.formulaDamageProjection',
+    );
+    const rawDamage = roundExactRationalAwayFromZero(
+      rawDamageExact,
+      'fireball.rawDamage',
+    );
     const sourceRef = createSourceRef({ kind: 'skill-execution', definitionId: input.skill.definitionId, instanceId: command.commandId });
-    const damage = resolveDamageAgainstTarget({ actorId: caster.id, sourceId: command.commandId, sourceRef, target, damageType: 'fire', rawDamage, hitOutcome });
+    const damage = resolveDamageAgainstTarget({
+      actorId: caster.id,
+      sourceId: command.commandId,
+      sourceRef,
+      target,
+      damageType: 'fire',
+      rawDamage,
+      exactRawDamage: serializeExactDamageScalar(rawDamageExact),
+      hitOutcome,
+    });
     const burnRawTickDamage = hit && rawDamage > 0 && input.burn.ratioBps > 0 ? Math.max(1, multiplyBps(rawDamage, input.burn.ratioBps)) : 0;
     const outcome = deepFreeze({
       ...deepClone(damage),
       skillDefinitionId: input.skill.definitionId,
       critical,
-      burn: { definitionId: input.burn.definitionId, rawTickDamage: burnRawTickDamage, durationTicks: input.burn.durationTicks, intervalTicks: input.burn.intervalTicks, applyWhenTargetAlive: hit && burnRawTickDamage > 0 && damage.targetHpAfter > 0 },
+      burn: {
+        definitionId: input.burn.definitionId,
+        rawTickDamage: burnRawTickDamage,
+        durationTicks: input.burn.durationTicks,
+        intervalTicks: input.burn.intervalTicks,
+        maxCatchUpTicks: input.burn.maxCatchUpTicks,
+        dataVersion: input.dataVersion,
+        applyWhenTargetAlive:
+          hit && burnRawTickDamage > 0 && damage.targetHpAfter > 0,
+      },
     });
     const operations = [
       { order: 10, kind: 'resource.delta', entityId: caster.id, resource: 'mana', delta: -input.skill.manaCost, key: 'cost' },
@@ -1207,13 +2437,27 @@
     if (damage.shieldAbsorbed) operations.push({ order: 30, kind: 'resource.delta', entityId: target.id, resource: 'shield', delta: -damage.shieldAbsorbed, key: 'shield' });
     if (damage.finalHpDamage) operations.push({ order: 40, kind: 'resource.delta', entityId: target.id, resource: 'hp', delta: -damage.finalHpDamage, key: 'hp' });
     const eventBlueprints = [
-      { type: 'SkillCommitted', payload: { actorId: caster.id, sourceId: command.commandId, sourceRef: deepClone(sourceRef), targetId: target.id, skillDefinitionId: input.skill.definitionId, cooldownReadyTick: input.tick + input.skill.cooldownTicks } },
+      { type: 'SkillCommitted', payload: { actorId: caster.id, sourceId: command.commandId, sourceRef: deepClone(sourceRef), targetId: target.id, skillDefinitionId: input.skill.definitionId, manaSpent: input.skill.manaCost, cooldownReadyTick: input.tick + input.skill.cooldownTicks } },
       { type: hitOutcome === 'Hit' ? 'DamageCommitted' : 'DamageMissed', payload: { ...deepClone(outcome) } },
     ];
     if (target.resources.hp > 0 && damage.targetHpAfter === 0) eventBlueprints.push({ type: 'EntityDefeated', payload: createDefeatPayload(outcome, { periodic: false }) });
     const planBase = { schemaVersion: CONTRACT_SCHEMA_VERSION, commandId: command.commandId, commitTick: input.tick, preconditions: [{ entityId: caster.id, expectedVersion: caster.version }, { entityId: target.id, expectedVersion: target.version }], operations, eventBlueprints };
     const plan = deepFreeze({ ...planBase, planId: `plan.${hashHex(planBase)}` });
     recordTraceSafely(trace, 'random_decisions', input.tick, { hitRollBps, critRollBps, hitOutcome, critical, hitKey, critKey });
+    recordTraceSafely(trace, 'damage_calculated', input.tick, {
+      phase: 'primary',
+      formulaVersion: input.formulaVersion,
+      baseDamage: hit ? input.skill.baseDamage : 0,
+      scalingDamageProjection,
+      scalingDamageExact: serializeExactDamageScalar(scalingDamageExact),
+      formulaDamageProjection,
+      formulaDamageExact: serializeExactDamageScalar(formulaDamageExact),
+      criticalMultiplierBps: critical ? input.skill.critMultiplierBps : 10_000,
+      rawDamage,
+      rawDamageExact: serializeExactDamageScalar(rawDamageExact),
+      resistanceBps: damage.resistanceBps,
+      resolvedDamage: damage.resolvedDamage,
+    });
     recordTraceSafely(trace, 'resolution_completed', input.tick, { outcome, operationCount: operations.length, planId: plan.planId });
     return deepFreeze({ decisions: { hitRollBps, critRollBps, hitKey, critKey }, outcome, plan });
   }
@@ -1229,26 +2473,195 @@
     return { store, command, resolution, commit };
   }
 
-  function enqueueReactions(events, input, queue, trace = null) {
-    for (const event of events) {
-      if (event.type !== 'DamageCommitted') continue;
-      const burn = event.payload.burn;
-      if (!burn?.applyWhenTargetAlive) continue;
-      const reactionId = `reaction.${hashHex([event.eventId, 'apply-burn'])}`;
-      queue.enqueue({ reactionId, idempotencyKey: `idempotency.${hashHex([event.eventId, input.burn.definitionId])}`, kind: 'apply-status', priority: 100, stableOrderKey: `${event.payload.targetId}:${input.burn.definitionId}`, depth: 1, budgetCost: 1, payload: { actorId: event.payload.actorId, sourceId: event.payload.sourceId, sourceRef: deepClone(event.payload.sourceRef), targetId: event.payload.targetId, definitionId: input.burn.definitionId, rawTickDamage: burn.rawTickDamage, durationTicks: burn.durationTicks, intervalTicks: burn.intervalTicks, maxCatchUpTicks: input.burn.maxCatchUpTicks, correlationId: event.correlationId, causationId: event.eventId, dataVersion: input.dataVersion } });
-      recordTraceSafely(trace, 'reaction_enqueued', event.occurredTick, { reactionId, kind: 'apply-status' });
+  function createApplyStatusReactionFromDamageEvent(rawEvent) {
+    const event = parseDomainEventEnvelope(rawEvent, 'reaction source event');
+    if (event.type !== 'DamageCommitted') return null;
+    const burn = event.payload.burn;
+    if (!burn?.applyWhenTargetAlive) return null;
+    const reactionId = `reaction.${hashHex([event.eventId, 'apply-burn'])}`;
+    const reaction = canonicalizeApplyStatusReaction({
+      reactionId,
+      idempotencyKey: `idempotency.${hashHex([event.eventId, burn.definitionId])}`,
+      kind: 'apply-status',
+      priority: 100,
+      stableOrderKey: `${event.payload.targetId}:${burn.definitionId}`,
+      depth: 1,
+      budgetCost: 1,
+      payload: {
+        actorId: event.payload.actorId,
+        sourceId: event.payload.sourceId,
+        sourceRef: deepClone(event.payload.sourceRef),
+        targetId: event.payload.targetId,
+        definitionId: burn.definitionId,
+        rawTickDamage: burn.rawTickDamage,
+        durationTicks: burn.durationTicks,
+        intervalTicks: burn.intervalTicks,
+        maxCatchUpTicks: burn.maxCatchUpTicks,
+        correlationId: event.correlationId,
+        causationId: event.eventId,
+        dataVersion: burn.dataVersion,
+      },
+    });
+    return deepFreeze({ event, reaction });
+  }
+
+  function enqueueReactions(events, queue, trace = null) {
+    for (const rawEvent of events) {
+      const projection = createApplyStatusReactionFromDamageEvent(rawEvent);
+      if (projection === null) continue;
+      queue.enqueue(projection.reaction);
+      recordTraceSafely(
+        trace,
+        'reaction_enqueued',
+        projection.event.occurredTick,
+        { reactionId: projection.reaction.reactionId, kind: 'apply-status' },
+      );
     }
   }
 
-  function applyStatusReaction(store, reaction, trace = null) {
-    domainAssert(reaction.kind === 'apply-status', 'UNSUPPORTED_REACTION', 'reaction', 'Reference handler only supports apply-status.');
+  function reactionSourceBinding(reaction) {
+    const binding = deepClone(reaction);
+    // Causal depth belongs to ReactionQueue. During dispatch it is rewritten
+    // from the active parent, so it is not a fact carried by DamageCommitted.
+    delete binding.depth;
+    return deepFreeze(binding);
+  }
+
+  function canonicalizeApplyStatusReaction(rawReaction) {
+    domainAssert(
+      isPlainObject(rawReaction),
+      'INVALID_REACTION',
+      'reaction',
+      'An apply-status reaction must be a plain object.',
+    );
+    const reaction = deepFreeze(deepClone(rawReaction));
+    const reactionFields = [
+      'reactionId', 'idempotencyKey', 'kind', 'priority',
+      'stableOrderKey', 'depth', 'budgetCost', 'payload',
+    ];
+    requireObjectFields(reaction, {
+      label: 'apply-status reaction',
+      required: reactionFields,
+      code: 'INVALID_REACTION',
+      stage: 'reaction',
+    });
+    requireId(reaction.reactionId, 'reaction.reactionId');
+    requireId(reaction.idempotencyKey, 'reaction.idempotencyKey');
+    requireString(reaction.kind, 'reaction.kind');
+    domainAssert(
+      reaction.kind === 'apply-status',
+      'UNSUPPORTED_REACTION',
+      'reaction',
+      'Reference handler only supports apply-status.',
+    );
+    requireInteger(reaction.priority, 'reaction.priority');
+    requireString(reaction.stableOrderKey, 'reaction.stableOrderKey');
+    requireInteger(reaction.depth, 'reaction.depth', 0);
+    requireInteger(reaction.budgetCost, 'reaction.budgetCost', 1);
+
+    const payloadFields = [
+      'actorId', 'sourceId', 'sourceRef', 'targetId', 'definitionId',
+      'rawTickDamage', 'durationTicks', 'intervalTicks', 'maxCatchUpTicks',
+      'correlationId', 'causationId', 'dataVersion',
+    ];
+    requireObjectFields(reaction.payload, {
+      label: 'apply-status reaction payload',
+      required: payloadFields,
+      code: 'INVALID_REACTION_PAYLOAD',
+      stage: 'reaction',
+    });
     const payload = reaction.payload;
+    requireId(payload.actorId, 'reaction.payload.actorId');
+    requireId(payload.sourceId, 'reaction.payload.sourceId');
+    const sourceRef = createSourceRef(payload.sourceRef);
+    const canonicalSourceId = sourceRef.instanceId ?? sourceRef.definitionId;
+    domainAssert(
+      payload.sourceId === canonicalSourceId,
+      'INVALID_REACTION_PAYLOAD',
+      'reaction',
+      'sourceId must flatten sourceRef.instanceId or an uninstanced System definitionId.',
+      { sourceId: payload.sourceId, canonicalSourceId },
+    );
+    requireId(payload.targetId, 'reaction.payload.targetId');
+    requireId(payload.definitionId, 'reaction.payload.definitionId');
+    requireInteger(payload.rawTickDamage, 'reaction.payload.rawTickDamage', 0);
+    requireInteger(payload.durationTicks, 'reaction.payload.durationTicks', 0);
+    requireInteger(payload.intervalTicks, 'reaction.payload.intervalTicks', 1);
+    requireInteger(payload.maxCatchUpTicks, 'reaction.payload.maxCatchUpTicks', 1);
+    requireId(payload.correlationId, 'reaction.payload.correlationId');
+    requireId(payload.causationId, 'reaction.payload.causationId');
+    requireString(payload.dataVersion, 'reaction.payload.dataVersion');
+    return deepFreeze({
+      ...reaction,
+      payload: {
+        ...payload,
+        sourceRef,
+      },
+    });
+  }
+
+  function applyStatusReaction(store, reaction, trace = null) {
+    domainAssert(
+      store instanceof StateStore,
+      'INVALID_STATE_STORE',
+      'reaction',
+      'applyStatusReaction requires a canonical StateStore instance.',
+    );
+    const canonicalReaction = canonicalizeApplyStatusReaction(reaction);
+    domainAssert(
+      ACTIVE_REACTION_DISPATCHES.has(reaction),
+      'REACTION_DISPATCH_REQUIRED',
+      'reaction',
+      'applyStatusReaction must run synchronously inside the ReactionQueue handler that owns this reaction.',
+      { reactionId: canonicalReaction.reactionId },
+    );
+    const payload = canonicalReaction.payload;
+    const committedSources = store.outbox.filter(
+      event => event.eventId === payload.causationId,
+    );
+    domainAssert(
+      committedSources.length === 1
+        && committedSources[0].type === 'DamageCommitted',
+      'REACTION_SOURCE_NOT_COMMITTED',
+      'reaction',
+      'An apply-status reaction must be caused by one DamageCommitted event in this store outbox.',
+      {
+        causationId: payload.causationId,
+        matchCount: committedSources.length,
+        matchedType: committedSources[0]?.type ?? null,
+      },
+    );
+    const expectedProjection = createApplyStatusReactionFromDamageEvent(
+      committedSources[0],
+    );
+    domainAssert(
+      expectedProjection !== null
+        && canonicalReaction.depth
+          >= expectedProjection.reaction.depth
+        && canonicalStringify(reactionSourceBinding(canonicalReaction))
+          === canonicalStringify(
+            reactionSourceBinding(expectedProjection.reaction),
+          ),
+      'REACTION_SOURCE_MISMATCH',
+      'reaction',
+      'The apply-status reaction must match every event-owned field and cannot undercut the event-derived root depth; greater causal depth remains queue-owned.',
+      {
+        causationId: payload.causationId,
+        reactionId: canonicalReaction.reactionId,
+      },
+    );
     const target = store.getEntity(payload.targetId);
+    // committed event의 과거 생존 정보 대신 dispatch 시점의 실제 상태를 다시 확인한다.
+    if (target.resources.hp <= 0) {
+      const result = deepFreeze({ outcome: 'NotApplicable', reason: 'TARGET_NOT_ALIVE', reactionId: canonicalReaction.reactionId, targetId: target.id, stateChanged: false, events: [] });
+      recordTraceSafely(trace, 'reaction_not_applicable', store.tick, result);
+      return result;
+    }
     const appliedTick = store.tick;
-    const instanceId = `status-instance.${hashHex([reaction.reactionId, payload.targetId, appliedTick])}`;
+    const instanceId = `status-instance.${hashHex([canonicalReaction.reactionId, payload.targetId, appliedTick])}`;
     const applicationSourceRef = createSourceRef(payload.sourceRef);
     const statusSourceRef = createSourceRef({ kind: 'status', definitionId: payload.definitionId, instanceId });
-    const commandId = `command.${hashHex([reaction.reactionId, 'status-apply'])}`;
+    const commandId = `command.${hashHex([canonicalReaction.reactionId, 'status-apply'])}`;
     const status = { instanceId, definitionId: payload.definitionId, actorId: payload.actorId, applicationSourceId: payload.sourceId, applicationSourceRef, applicationCausationId: payload.causationId, sourceId: instanceId, sourceRef: statusSourceRef, targetId: payload.targetId, correlationId: payload.correlationId, lastTransitionEventId: deriveEventId(commandId, 'StatusApplied', 0, appliedTick), dataVersion: payload.dataVersion, appliedTick, nextTickAt: appliedTick + payload.intervalTicks, expireTick: appliedTick + payload.durationTicks, intervalTicks: payload.intervalTicks, rawTickDamage: payload.rawTickDamage, maxCatchUpTicks: payload.maxCatchUpTicks };
     const command = createCommandEnvelope({ commandId, actorId: payload.actorId, requestedTick: appliedTick, correlationId: payload.correlationId, causationId: payload.causationId, dataVersion: payload.dataVersion, payload: { targetId: payload.targetId, status } });
     const planBase = { schemaVersion: CONTRACT_SCHEMA_VERSION, commandId: command.commandId, commitTick: appliedTick, preconditions: [{ entityId: target.id, expectedVersion: target.version }], operations: [{ order: 10, kind: 'status.add', entityId: target.id, status, key: instanceId }], eventBlueprints: [{ type: 'StatusApplied', payload: { targetId: target.id, status } }] };
@@ -1348,6 +2761,7 @@
       }
       const count = perStatusCount.get(status.instanceId) ?? 0;
       const damage = resolveDamageAgainstTarget({ actorId: status.actorId, sourceId: status.instanceId, sourceRef: statusSourceRef, target: entity, damageType: 'fire', rawDamage: status.rawTickDamage });
+      recordTraceSafely(trace, 'damage_calculated', commitTick, { phase: 'periodic', statusInstanceId: status.instanceId, rawDamage: damage.rawDamage, resistanceBps: damage.resistanceBps, resolvedDamage: damage.resolvedDamage });
       const defeated = entity.resources.hp > 0 && damage.targetHpAfter === 0;
       const shouldExpire = status.nextTickAt >= status.expireTick || defeated;
       const command = createCommandEnvelope({ commandId: `command.${hashHex([status.instanceId, 'tick', status.nextTickAt])}`, actorId: status.actorId, requestedTick: commitTick, correlationId: status.correlationId, causationId: triggerEventId, dataVersion: status.dataVersion, payload: { targetId: entity.id, statusInstanceId: status.instanceId, applicationSourceId, applicationSourceRef, sourceId: status.instanceId, sourceRef: statusSourceRef } });
@@ -1382,7 +2796,7 @@
     trace.record('replay_started', input.tick, { runtimeVersion: RUNTIME_VERSION, rootSeed: input.rootSeed });
     const impact = executeImpact(input, trace);
     const queue = new ReactionQueue({ maxDepth: 8, maxReactions: 32, maxBudget: 64 });
-    enqueueReactions(impact.commit.events, input, queue, trace);
+    enqueueReactions(impact.commit.events, queue, trace);
     const reactions = queue.drain(reaction => applyStatusReaction(impact.store, reaction, trace), trace, input.tick);
     const statusAdvance = input.simulateStatusTicks
       ? advanceStatuses(impact.store, input.tick + input.burn.durationTicks, trace)
@@ -1446,9 +2860,15 @@
     const snapshot = store.snapshot([input.caster.id, input.target.id]);
     const resolution = resolveFireball({ snapshot, command, input, rng: new KeyedRandom(input.rootSeed) });
     const target = store.getEntity(input.target.id);
-    const external = createCommandEnvelope({ commandId: 'command.external.shield-adjust.0001', actorId: target.id, requestedTick: input.tick, correlationId: 'correlation.external.shield-adjust.0001', dataVersion: input.dataVersion, payload: {} });
-    const operations = target.resources.shield > 0 ? [{ order: 10, kind: 'resource.delta', entityId: target.id, resource: 'shield', delta: -1, key: 'external' }] : [];
-    const externalBase = { schemaVersion: CONTRACT_SCHEMA_VERSION, commandId: external.commandId, commitTick: input.tick, preconditions: [{ entityId: target.id, expectedVersion: target.version }], operations, eventBlueprints: [{ type: 'ExternalStateChanged', payload: { targetId: target.id } }] };
+    const externalSkillDefinitionId = 'skill.external-version-probe';
+    const externalPayload = {
+      actorId: target.id,
+      skillDefinitionId: externalSkillDefinitionId,
+      readyTick: input.tick + 1,
+    };
+    const external = createCommandEnvelope({ commandId: 'command.external.target-touch.0001', actorId: target.id, requestedTick: input.tick, correlationId: 'correlation.external.target-touch.0001', dataVersion: input.dataVersion, payload: externalPayload });
+    const operations = [{ order: 10, kind: 'cooldown.set', entityId: target.id, definitionId: externalSkillDefinitionId, readyTick: input.tick + 1, key: 'external' }];
+    const externalBase = { schemaVersion: CONTRACT_SCHEMA_VERSION, commandId: external.commandId, commitTick: input.tick, preconditions: [{ entityId: target.id, expectedVersion: target.version }], operations, eventBlueprints: [{ type: 'ExternalCooldownChanged', payload: externalPayload }] };
     store.commit(external, { ...externalBase, planId: `plan.${hashHex(externalBase)}` });
     const before = store.exportState();
     let error = null;

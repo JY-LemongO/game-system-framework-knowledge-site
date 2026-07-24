@@ -2,7 +2,7 @@
 from pathlib import Path
 from urllib.parse import unquote
 from bs4 import BeautifulSoup
-import json, re, sys
+import html, json, re, sys
 
 ROOT = Path(__file__).resolve().parents[2]
 errors = []
@@ -245,8 +245,8 @@ for path in html_paths:
             ):
                 error(f'{relative_file} checkpoint must appear immediately before #{expected_next_section}')
             questions = checkpoint.select('details[data-checkpoint-question]')
-            if len(questions) != 3:
-                error(f'{relative_file} expected three checkpoint questions, got {len(questions)}')
+            if len(questions) < 3:
+                error(f'{relative_file} expected at least three checkpoint questions, got {len(questions)}')
             question_ids = []
             question_texts = []
             answer_texts = []
@@ -311,6 +311,53 @@ for path in html_paths:
             if target_soup.find(id=fragment) is None:
                 error(f'{path.relative_to(ROOT)} missing fragment target: {raw}')
 
+# The copyable Fireball command must stay on the same contract lane as the
+# executable command schema and its replay header. The explicit marker makes
+# this public teaching boundary discoverable and prevents silent v1 regressions.
+fireball_soup = soups.get(ROOT/'modules/fireball-case-study.html')
+public_command_examples = (
+    fireball_soup.select('[data-public-command-schema-version]')
+    if fireball_soup else []
+)
+if len(public_command_examples) != 1:
+    error(
+        'modules/fireball-case-study.html expected one '
+        'data-public-command-schema-version marker'
+    )
+else:
+    public_command_example = public_command_examples[0]
+    command_schema = json.loads(
+        (ROOT/'source/contracts/command-envelope.schema.json').read_text(encoding='utf-8')
+    )
+    expected_command_schema_version = (
+        command_schema.get('properties', {}).get('schemaVersion', {}).get('const')
+    )
+    marker_version = public_command_example.get('data-public-command-schema-version')
+    if marker_version != str(expected_command_schema_version):
+        error(
+            'public Fireball command schema marker differs from the executable '
+            f'contract: marker={marker_version!r}, expected={expected_command_schema_version!r}'
+        )
+    public_command_block = public_command_example.select_one('code.language-json')
+    try:
+        public_command_payload = json.loads(public_command_block.get_text())
+        public_command_version = public_command_payload['command']['schemaVersion']
+        replay_contract_version = public_command_payload['replayHeader']['contractSchemaVersion']
+    except (AttributeError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        error(f'public Fireball command example is not parseable: {exc}')
+    else:
+        if public_command_version != expected_command_schema_version:
+            error(
+                'public Fireball command schemaVersion differs from the executable '
+                f'contract: actual={public_command_version!r}, expected={expected_command_schema_version!r}'
+            )
+        if replay_contract_version != expected_command_schema_version:
+            error(
+                'public Fireball replay header contractSchemaVersion differs from '
+                f'the executable contract: actual={replay_contract_version!r}, '
+                f'expected={expected_command_schema_version!r}'
+            )
+
 # Repeated public C# contracts must stay byte-for-byte equivalent after whitespace normalization.
 contract_pairs = [
     ('public interface IEffectExecutor', 'modules/effect-system.html', 'modules/integration-map.html'),
@@ -339,7 +386,7 @@ elif 'DurationScale' in status_contract or 'SourceId' in status_contract:
     error('ApplyStatusRequest must not mix definition policy fields with the runtime request')
 
 canonical_property_sets = [
-    ('public sealed class SkillRequest', 'modules/skill-action-system.html', {'CasterId', 'SkillId', 'TargetId', 'RequestedTick', 'RootSeed'}),
+    ('public sealed class SkillRequest', 'modules/skill-action-system.html', {'CommandId', 'CasterId', 'SkillId', 'TargetId', 'RequestedTick', 'RootSeed'}),
     ('public sealed class SkillResult', 'modules/skill-action-system.html', {'Succeeded', 'FailureReason', 'Effects'}),
     ('public sealed class DamageResult', 'modules/combat-resolution-system.html', {'Outcome', 'Critical', 'RawDamage', 'ResolvedDamage', 'ShieldAbsorbed', 'FinalHpDamage', 'Overkill'}),
 ]
@@ -377,19 +424,29 @@ for retired_source_shape in ('"kind": "status-instance"', '"sourceId": "status-i
 stat_page_source = soups.get(ROOT/'modules/stat-system.html').select_one('#article-content').get_text('\n')
 if 'decimal GetValue(EntityId ownerId, EntityId statId, StatContext context)' not in stat_page_source:
     error('public IStatQuery must use strong EntityId owner/stat identifiers')
-for token in ('SourceRef Source', 'EntityId StackRuleId', 'EntityId SkillId', 'ReadOnlyCollection<EntityId> TargetStatuses'):
+for token in (
+    'SourceRef Source', 'EntityId StackRuleId',
+    'EntityId? SkillId', 'TagSet SkillTags', 'TagSet TargetTags',
+    'IReadOnlyList<EntityId> TargetStatuses',
+):
     if token not in stat_page_source:
         error(f'public Stat model missing strong-type token: {token}')
 for token in (
+    'EntityId? targetId', 'EntityId? skillId',
     'IEnumerable<string>? skillTags = null',
     'IEnumerable<string>? targetTags = null',
     'IEnumerable<EntityId>? targetStatuses = null',
     'decimal distance = 0m', 'string moment = "default"',
     'distance < 0m', 'string.IsNullOrWhiteSpace(moment)',
-    'CopyTags', 'Stat context tags cannot be empty.',
+    'TagSet.Empty', 'new TagSet(skillTags)', 'new TagSet(targetTags)',
+    'targetStatuses ?? Enumerable.Empty<EntityId>()',
+    'Array.AsReadOnly(targetStatusCopy)',
 ):
     if token not in stat_page_source:
         error(f'public StatContext snippet missing actual contract token: {token}')
+for retired_stat_context_token in ('CopyTags', 'Stat context tags cannot be empty.'):
+    if retired_stat_context_token in stat_page_source:
+        error(f'public StatContext retains retired tag policy: {retired_stat_context_token}')
 if any(token not in stat_page_source for token in ('질의 불변식', 'ownerId', 'context.OwnerId')):
     error('public Stat query must state the owner/context invariant')
 status_page_source = soups.get(ROOT/'modules/status-system.html').select_one('#article-content').get_text('\n')
@@ -419,6 +476,24 @@ for token in (
 for token in ('DamageRequest request = new(', 'SourceRef.SkillExecution', 'formulaId'):
     if token not in effect_page_source:
         error(f'public Effect DamageRequest handoff missing canonical token: {token}')
+for token in (
+    'resolver는 이 동결 입력을 받아 mode·필수 snapshot을 확인하고',
+    '팀·거리·시야를 다시 판정하지 않는다',
+    '실제 commit 이후 dispatch는 외부 dispatcher 책임',
+):
+    if token not in effect_page_source:
+        error(f'public Effect ownership boundary missing token: {token}')
+for token in (
+    'Conceptual observability example',
+    'EffectCompleted (conceptual product fact)',
+    '현재 C# reference는 이 영속 데이터·trace 저장소를 구현하지 않는다',
+    'TargetMetricPolicyVersion',
+    'float→integer midpoint rounding',
+):
+    if token not in effect_page_source and token not in (
+        ROOT/'source/adr/ADR-006-effect-targeting-and-commit-composition.md'
+    ).read_text(encoding='utf-8'):
+        error(f'public Effect evidence or metric-policy qualification missing token: {token}')
 effect_page_soup = soups.get(ROOT/'modules/effect-system.html')
 if effect_page_soup.select_one(
     'a[href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Combat.cs"]'
@@ -450,6 +525,40 @@ fireball_source = soups.get(ROOT/'modules/fireball-case-study.html').select_one(
 fireball_trace_tokens = ('DamageCalculated trace', 'Atomic commit', 'outboxOrder=SkillCommitted → DamageCommitted')
 if any(token not in fireball_source for token in fireball_trace_tokens):
     error('public Fireball trace must place calculation before the ordered atomic outbox')
+for token in ('exactRawDamage', 'MidpointRounding.AwayFromZero', 'DamageMissed', 'Outcome=Miss'):
+    if token not in fireball_source:
+        error(f'public Fireball evidence missing cross-runtime or rounding token: {token}')
+fireball_flat = ' '.join(fireball_source.split())
+for token in (
+    'REACTION_SOURCE_NOT_COMMITTED',
+    'REACTION_SOURCE_MISMATCH',
+    '같은 StateStore outbox의 유일한 DamageCommitted',
+    'parent.depth + 1',
+    'depth=1',
+    '직접 호출로 budget을 건너뛸 수 없다',
+    'CommittedOutboxEvent',
+    '특정 committer receipt의 소속을 capability로 증명하지는 않는다',
+):
+    if token not in fireball_flat:
+        error(f'public Fireball reaction authority boundary missing token: {token}')
+if 'MultiplyBpsHalfUp' in fireball_source:
+    error('public Fireball example must not round intermediate BPS stages')
+
+runtime_learning_source = (
+    soups.get(ROOT/'modules/runtime-reference.html')
+    .select_one('#article-content')
+    .get_text('\n')
+)
+for token in (
+    'enqueueReactions',
+    '그 자체는 권위 경계가 아니다',
+    'applyStatusReaction',
+    '동일 reaction object',
+    '직접 호출로 wave budget을 우회할 수 없다',
+    '외부 wire나 저장소에서 읽은 event의 인증',
+):
+    if token not in runtime_learning_source:
+        error(f'public Runtime reaction/restore trust boundary missing token: {token}')
 
 fireball = soups.get(ROOT/'modules/fireball-case-study.html')
 fireball_orchestration = [
@@ -557,7 +666,8 @@ diagram_contract_requirements = {
         'Stat Mutation Commit', 'state + outbox atomic', 'committed facts',
     ),
     'source/diagrams/04_calculation_activity_diagram.dot': (
-        'filter expired without mutation', 'Return StatValue',
+        'dependency-first topological order', 'formula(base, dependencies, context)',
+        'Operation -> Priority -> ModifierId Ordinal', 'Return requested StatScalar.Value (decimal)',
     ),
     'source/diagrams/06_modifier_application_sequence_diagram.dot': (
         'RuntimeCommitter', 'pure query', 'no domain event',
@@ -574,14 +684,31 @@ diagram_contract_requirements = {
         'EffectOperation', 'CommitThenReact', 'EffectResult',
     ),
     'source/diagrams/11_effect_execution_sequence_diagram.dot': (
-        'RuntimeCommitter', '원자적 commit', 'ReactionQueue',
+        'ReferenceEffectSpecification', 'CanonicalTargetSnapshot',
+        'no team · distance · LOS recheck', 'ResolvedEffectOperation',
+        'EffectOperationOutcome', 'CommitPlanFragment',
+        'DeterministicEffectCommitPlanComposer', 'RuntimeCommitter',
+        'state + outbox atomic commit', 'External dispatcher', 'ReactionQueue',
+    ),
+    'source/diagrams/12_target_selection_activity_diagram.dot': (
+        'eligibility 판정 · 정수 metric 값 계산',
+        'EffectTargetCandidate: metric guard',
+        'CanonicalTargetSnapshot: null/duplicate guard',
+        'canonical total order', 'eligibility 재검증 안 함',
+        'resolver keeps canonical order', 'applies MaxTargets',
     ),
     'source/diagrams/13_effect_data_model_diagram.dot': (
         'primaryEffectIds[]', 'reactionIds[]', 'commit_then_react',
         'stableOrderKey', 'idempotencyKey',
     ),
     'source/diagrams/14_effect_lifecycle_state_diagram.dot': (
-        'Planning', 'Prepared', 'Atomic Commit', 'Reaction Queued',
+        'Conceptual product lifecycle', 'ReferenceEffectSpecification',
+        'immutable CandidateSnapshot', 'no eligibility recheck',
+        'ResolvedEffectOperation', 'CommitPlanFragment',
+        'Composition status?', 'CommitPlan exists',
+        'NoChanges', 'no commit · no outbox',
+        'Rejected · no commit', 'Atomic Commit',
+        'Reaction Queued', 'product extension',
     ),
     'source/diagrams/15_fireball_effect_integration_diagram.dot': (
         'Mana 20', 'explicit single target', 'CommitThenReact', 'base 24',
@@ -650,7 +777,7 @@ for relative_path, required_tokens in diagram_contract_requirements.items():
     if missing:
         error(f'{relative_path} missing contract labels: {missing}')
     rendered_svg = ROOT/'assets/diagrams'/f'{Path(relative_path).stem}.svg'
-    rendered_text = rendered_svg.read_text(encoding='utf-8')
+    rendered_text = html.unescape(rendered_svg.read_text(encoding='utf-8'))
     rendered_missing = [token for token in required_tokens if token not in rendered_text]
     if rendered_missing:
         error(f'{rendered_svg.relative_to(ROOT)} is stale or missing labels: {rendered_missing}')
@@ -658,9 +785,23 @@ for relative_path, required_tokens in diagram_contract_requirements.items():
 gallery = soups.get(ROOT/'modules/diagram-gallery.html')
 if gallery:
     gallery_path = ROOT/'modules/diagram-gallery.html'
-    gallery_cards = gallery.select('.gallery .thumb')
+    gallery_section = gallery.select_one('.gallery[data-group="diagrams"]')
+    allowed_evidence_scopes = {'executable', 'conceptual', 'conceptual-mixed'}
+    default_evidence_scope = (
+        gallery_section.get('data-default-evidence-scope')
+        if gallery_section else None
+    )
+    if default_evidence_scope != 'conceptual-mixed':
+        error('diagram gallery must default every unclassified card to conceptual-mixed')
+    gallery_cards = gallery_section.select('.thumb') if gallery_section else []
     gallery_stems = []
     for index, card in enumerate(gallery_cards, start=1):
+        effective_evidence_scope = card.get('data-evidence-scope') or default_evidence_scope
+        if effective_evidence_scope not in allowed_evidence_scopes:
+            error(
+                f'diagram gallery card {index} has no valid effective evidence scope: '
+                f'{effective_evidence_scope!r}'
+            )
         references = []
         image = card.select_one('img[src]')
         svg_link = card.select_one('a[href$=".svg"]')
@@ -713,6 +854,7 @@ else:
         'order-dependent-rng', 'reaction-rolls-back-primary', 'indirect-causation',
         'broken-status-provenance', 'ambiguous-status-time',
         'deterministic-reaction-order', 'retainedReactionIdempotencyKeys',
+        "REACTION_RETRY_POLICY = 'same-business-keys-per-reaction-disposition-retry'",
         'REACTION_WAVE_LIMIT_EXCEEDED', 'BUDGET_EXCEEDED',
         'contractSchemaVersion', 'replayFormatVersion', 'dataVersion',
         'targetOrderPolicyVersion',
@@ -735,6 +877,19 @@ for token in (
     'validateCommandEnvelope', 'validateCommitPlan', 'validateInitialState',
     'parseCommandEnvelope', 'parseDomainEventEnvelope',
     'OUTBOX_STATE_VALIDATORS', 'validateTruthfulOutbox', 'OUTBOX_FACT_MISMATCH',
+    'bindFireballCommandToInput', 'COMMAND_INPUT_MISMATCH',
+    'validateDamageFact', 'committedResistanceBps', 'UNSUPPORTED_EVENT_TYPE',
+    'exactRawDamage', 'multiplyExactRationalBps',
+    'roundExactRationalAwayFromZero', 'EXACT_DAMAGE_MISMATCH',
+    'function createApplyStatusReactionFromDamageEvent',
+    'function reactionSourceBinding',
+    'delete binding.depth',
+    'ACTIVE_REACTION_DISPATCHES',
+    'REACTION_DISPATCH_REQUIRED',
+    '>= expectedProjection.reaction.depth',
+    'function enqueueReactions(events, queue',
+    'REACTION_SOURCE_NOT_COMMITTED', 'REACTION_SOURCE_MISMATCH',
+    'Math.max(tickAt, transition.preState.tick)',
     '#state', '#processedCommands', '#outbox', '#isCommitting',
     'STORE_CLOCK_ADVANCERS', 'Object.preventExtensions(this)',
     '#isRecordingTrace', 'REACTION_TRACE_SIDE_EFFECT', 'STATUS_TIME_REGRESSION',
@@ -744,6 +899,23 @@ for token in (
 ):
     if token not in kernel_text:
         error(f'runtime kernel missing hardened public-boundary token: {token}')
+runtime_regression_text = (
+    ROOT/'source/runtime/tests/runtime-kernel.test.cjs'
+).read_text(encoding='utf-8')
+for token in (
+    'event.forged.damage.0001',
+    "error.code === 'REACTION_SOURCE_NOT_COMMITTED'",
+    "error.code === 'REACTION_SOURCE_MISMATCH'",
+    "error.code === 'REACTION_DISPATCH_REQUIRED'",
+    'wrongCommittedType',
+    'tamperCases',
+    'depthUnderflow',
+    'maxDepth: 0',
+    'probe-parent',
+    "['apply-status', 2]",
+):
+    if token not in runtime_regression_text:
+        error(f'runtime reaction provenance regression missing token: {token}')
 contracts = sorted((ROOT/'source/contracts').glob('*.schema.json'))
 adrs = sorted((ROOT/'source/adr').glob('ADR-*.md'))
 required_contracts = {
@@ -773,27 +945,78 @@ if capstone_contract_path.is_file():
     for token in (
         'reject-request', 'keyed-per-target', 'state-and-outbox-atomic',
         'keep-primary-and-dispatched-discard-undispatched-diagnostic-trace',
-        'new-command-and-idempotency-keys-or-explicit-operator-policy',
+        'same-business-keys-per-reaction-disposition-retry',
         'last-transition-event', 'damage-tick-expire-status-remove-atomic',
         'targetOrderPolicyVersion', 'rollback-primary', 'sequential-consumption',
     ):
         if token not in capstone_contract_text:
             error(f'capstone submission schema missing discoverable candidate token: {token}')
-if len(adrs) != 5: error(f'expected 5 ADRs, got {len(adrs)}')
+required_adrs = {
+    'ADR-001-deterministic-numeric-and-rng.md',
+    'ADR-002-pure-resolve-atomic-commit.md',
+    'ADR-003-bounded-reaction-queue.md',
+    'ADR-004-contextual-stat-cache.md',
+    'ADR-005-sequential-schema-migration.md',
+    'ADR-006-effect-targeting-and-commit-composition.md',
+}
+adr_names = {adr.name for adr in adrs}
+missing_adrs = sorted(required_adrs - adr_names)
+if missing_adrs:
+    error(f'missing required ADRs: {missing_adrs}')
+if len(adrs) < len(required_adrs):
+    error(f'expected at least {len(required_adrs)} ADRs, got {len(adrs)}')
+commit_adr = (
+    ROOT/'source/adr/ADR-002-pure-resolve-atomic-commit.md'
+).read_text(encoding='utf-8')
+for token in (
+    '유일한 `DamageCommitted`',
+    'event membership',
+    '전체 deterministic projection',
+    '최소 causal depth',
+    '동일 reaction object',
+):
+    if token not in commit_adr:
+        error(f'ADR-002 reaction authority decision missing token: {token}')
 for envelope_name in ('command-envelope.schema.json', 'domain-event-envelope.schema.json'):
     envelope_schema = json.loads((ROOT/'source/contracts'/envelope_name).read_text(encoding='utf-8'))
     if envelope_schema.get('additionalProperties') is not False:
         error(f'{envelope_name} must reject unknown top-level fields')
-    if envelope_schema.get('properties', {}).get('schemaVersion', {}).get('const') != 1:
-        error(f'{envelope_name} must accept only schemaVersion 1')
+    if envelope_schema.get('properties', {}).get('schemaVersion', {}).get('const') != 2:
+        error(f'{envelope_name} must accept only schemaVersion 2')
 commit_plan_schema = json.loads((ROOT/'source/contracts/commit-plan.schema.json').read_text(encoding='utf-8'))
 canonical_plan_fields = {'schemaVersion', 'planId', 'commandId', 'commitTick', 'preconditions', 'operations', 'eventBlueprints'}
 if set(commit_plan_schema.get('required', [])) != canonical_plan_fields:
     error('CommitPlan schema required fields differ from the runtime contract')
 if commit_plan_schema.get('additionalProperties') is not False:
     error('CommitPlan schema must reject unknown top-level fields')
-if commit_plan_schema.get('properties', {}).get('schemaVersion', {}).get('const') != 1:
-    error('CommitPlan schema must accept only schemaVersion 1')
+if commit_plan_schema.get('properties', {}).get('schemaVersion', {}).get('const') != 2:
+    error('CommitPlan schema must accept only schemaVersion 2')
+runtime_event_types = {
+    'SkillCommitted', 'DamageCommitted', 'DamageMissed', 'StatusApplied',
+    'StatusTicked', 'StatusExpired', 'EntityDefeated',
+    'ExternalStateChanged', 'ExternalCooldownChanged',
+}
+schema_event_types = set(
+    commit_plan_schema.get('properties', {})
+    .get('eventBlueprints', {})
+    .get('items', {})
+    .get('properties', {})
+    .get('type', {})
+    .get('enum', [])
+)
+if schema_event_types != runtime_event_types:
+    error('CommitPlan schema event taxonomy differs from the closed runtime taxonomy')
+replay_fixture_schema = json.loads((ROOT/'source/contracts/replay-fixture.schema.json').read_text(encoding='utf-8'))
+if replay_fixture_schema.get('properties', {}).get('fixtureVersion', {}).get('const') != 2:
+    error('Replay fixture schema must accept only fixtureVersion 2')
+replay_outcome_schema = (
+    replay_fixture_schema.get('properties', {})
+    .get('expected', {})
+    .get('properties', {})
+    .get('outcome', {})
+)
+if 'exactRawDamage' not in replay_outcome_schema.get('required', []):
+    error('Replay fixture v2 must require exactRawDamage in the expected outcome')
 operation_variants = commit_plan_schema.get('$defs', {}).get('operation', {}).get('oneOf', [])
 if len(operation_variants) != 5:
     error('CommitPlan schema must define five canonical operation variants')
@@ -820,12 +1043,14 @@ for item in contracts + runtime_fixtures:
                 error(f'{item.relative_to(ROOT)} has non-canonical ID {json_path}={identifier!r}')
     except Exception as exc:
         error(f'invalid JSON {item.relative_to(ROOT)}: {exc}')
-golden = json.loads((ROOT/'source/runtime/fixtures/fireball-golden-v1.json').read_text(encoding='utf-8'))
+golden = json.loads((ROOT/'source/runtime/fixtures/fireball-golden-v2.json').read_text(encoding='utf-8'))
 golden_outcome = golden.get('expected', {}).get('outcome', {})
 if golden_outcome.get('hitOutcome') != 'Hit' or 'hit' in golden_outcome:
     error('Fireball golden fixture must use canonical hitOutcome instead of a hit boolean')
 if golden_outcome.get('finalHpDamage') != 162 or 'hpDamage' in golden_outcome:
     error('Fireball golden fixture must use canonical finalHpDamage=162')
+if golden_outcome.get('exactRawDamage') != {'numerator': '252', 'denominator': '1'}:
+    error('Fireball golden fixture must preserve the exact raw-damage scalar')
 try:
     golden_input = golden['input']
     golden_expected = golden['expected']
@@ -840,7 +1065,7 @@ try:
         (10_000 - golden_input['target']['fireResistanceBps']) + 5_000
     ) // 10_000
     fireball_golden_markers = {
-        'formulaDamage': golden_formula_damage,
+        'formulaDamageProjection': golden_formula_damage,
         'rawDamage': golden_outcome['rawDamage'],
         'resolvedDamage': golden_outcome['resolvedDamage'],
         'shieldAbsorbed': golden_outcome['shieldAbsorbed'],
@@ -858,8 +1083,8 @@ else:
 runtime_types = (ROOT/'source/runtime/runtime-kernel.d.ts').read_text(encoding='utf-8')
 if "hitOutcome: 'Hit' | 'Miss' | 'Blocked' | 'Immune' | 'Rejected'" not in runtime_types:
     error('runtime declarations must expose the canonical HitOutcome union')
-if runtime_types.count("hitOutcome: 'Hit' | 'Miss' | 'Blocked' | 'Immune' | 'Rejected'") < 2:
-    error('runtime declarations must expose hitOutcome on resolved and committed damage')
+if "hitOutcome: 'Hit' | 'Miss';" not in runtime_types:
+    error('Fireball DamageOutcome must expose only its implemented Hit/Miss outcomes')
 if "readonly kind: 'system'" not in runtime_types or 'readonly instanceId?: NamespacedId' not in runtime_types:
     error('runtime declarations must allow System SourceRef to omit instanceId')
 if 'finalHpDamage: number' not in runtime_types or re.search(r'\bhpDamage\b', runtime_types):
@@ -869,17 +1094,42 @@ for token in (
     'export interface CommandEnvelopeInput', 'export interface DomainEventEnvelopeInput',
     'parseCommandEnvelope', 'parseDomainEventEnvelope', 'targetShieldAfter: number',
     'plan: CommitPlan', 'ReadonlyArray<Readonly<DomainEventEnvelope>>',
-    'readonly pending: ReadonlyArray<Readonly<Required<Reaction>>>',
+    'export class ReactionQueue<TReaction extends Reaction = Reaction>',
+    'readonly pending: ReadonlyArray<Readonly<Required<TReaction>>>',
+    'export type RuntimeEventType', 'export type PeriodicDamageOutcome',
+    'export type PrimaryDamageCommittedOutcome',
+    'export type DamageMissedOutcome', 'export type DamageMissedEvent',
+    'export type ExactDamageScalar', 'exactRawDamage: ExactDamageScalar',
+    'scalingDamageProjection: number', 'scalingDamageExact: ExactDamageScalar',
+    'formulaDamageProjection: number', 'rawDamageExact: ExactDamageScalar',
+    'export type RuntimeSnapshot', 'export type ReactionDrainResult',
+    'maxCatchUpTicks: number;', 'dataVersion: string;',
+    'Must be invoked synchronously with the reaction object supplied to a ReactionQueue.drain handler',
     'RNG_KEY_SCHEMA_VERSION', "CLOCK_DOMAIN: 'simulation_tick'",
 ):
     if token not in runtime_types:
         error(f'runtime declarations missing hardened contract token: {token}')
+runtime_type_smoke_path = ROOT/'source/runtime/tests/runtime-kernel.types.test.ts'
+if not runtime_type_smoke_path.is_file():
+    error('runtime public TypeScript composition smoke is missing')
+else:
+    runtime_type_smoke = runtime_type_smoke_path.read_text(encoding='utf-8')
+    for token in (
+        'store.snapshot(', 'Runtime.resolveFireball({',
+        'Runtime.canonicalStringify(store.exportState())',
+        'Runtime.ReactionQueue<Runtime.ApplyStatusReaction>',
+        'Runtime.applyStatusReaction(store, reaction)',
+        'Runtime.ExactDamageScalar',
+    ):
+        if token not in runtime_type_smoke:
+            error(f'runtime TypeScript composition smoke missing token: {token}')
 
 # Buildable C# reference must mirror the public canonical contracts.
 csharp_root = ROOT/'source/csharp'
 required_csharp_files = {
     'GameSystemKnowledge.Reference/GameSystemKnowledge.Reference.csproj',
     'GameSystemKnowledge.Reference/Contracts/Identifiers.cs',
+    'GameSystemKnowledge.Reference/Contracts/Tags.cs',
     'GameSystemKnowledge.Reference/Contracts/Stats.cs',
     'GameSystemKnowledge.Reference/Contracts/Effects.cs',
     'GameSystemKnowledge.Reference/Contracts/Status.cs',
@@ -889,9 +1139,21 @@ required_csharp_files = {
     'GameSystemKnowledge.Reference/Systems/CombatResolver.cs',
     'GameSystemKnowledge.Reference/Systems/DictionaryStatQuery.cs',
     'GameSystemKnowledge.Reference/Systems/FireballReferenceScenario.cs',
+    'GameSystemKnowledge.Reference/Systems/FireballSkillPlanner.cs',
+    'GameSystemKnowledge.Reference/Systems/LiveTargetStatusReactionPolicy.cs',
+    'GameSystemKnowledge.Reference/Systems/ReferenceCombatPolicy.cs',
+    'GameSystemKnowledge.Reference/Systems/ReferenceDerivedStatEvaluator.cs',
+    'GameSystemKnowledge.Reference/Systems/ReferenceEffectPipeline.cs',
+    'GameSystemKnowledge.Reference/Systems/ReferenceStatusCleansePolicy.cs',
+    'GameSystemKnowledge.Reference/Systems/ReferenceStatusPolicy.cs',
+    'GameSystemKnowledge.Reference/Systems/SkillAdmissionPolicy.cs',
     'GameSystemKnowledge.Reference/Systems/StatusCatchUpPolicy.cs',
     'GameSystemKnowledge.Reference.Verification/GameSystemKnowledge.Reference.Verification.csproj',
+    'GameSystemKnowledge.Reference.Verification/AdvancedFoundationVerification.cs',
+    'GameSystemKnowledge.Reference.Verification/CombatPolicyVerification.cs',
+    'GameSystemKnowledge.Reference.Verification/FoundationContractVerification.cs',
     'GameSystemKnowledge.Reference.Verification/Program.cs',
+    'GameSystemKnowledge.Reference.Verification/StatusPolicyVerification.cs',
 }
 missing_csharp = sorted(
     relative for relative in required_csharp_files
@@ -901,6 +1163,7 @@ if missing_csharp:
     error(f'missing C# reference files: {missing_csharp}')
 else:
     identifier_source = (csharp_root/'GameSystemKnowledge.Reference/Contracts/Identifiers.cs').read_text(encoding='utf-8')
+    tag_source = (csharp_root/'GameSystemKnowledge.Reference/Contracts/Tags.cs').read_text(encoding='utf-8')
     stat_source = (csharp_root/'GameSystemKnowledge.Reference/Contracts/Stats.cs').read_text(encoding='utf-8')
     effect_source = (csharp_root/'GameSystemKnowledge.Reference/Contracts/Effects.cs').read_text(encoding='utf-8')
     status_source = (csharp_root/'GameSystemKnowledge.Reference/Contracts/Status.cs').read_text(encoding='utf-8')
@@ -909,8 +1172,24 @@ else:
     commit_source = (csharp_root/'GameSystemKnowledge.Reference/Runtime/Commit.cs').read_text(encoding='utf-8')
     resolver_source = (csharp_root/'GameSystemKnowledge.Reference/Systems/CombatResolver.cs').read_text(encoding='utf-8')
     scenario_source = (csharp_root/'GameSystemKnowledge.Reference/Systems/FireballReferenceScenario.cs').read_text(encoding='utf-8')
+    planner_source = (csharp_root/'GameSystemKnowledge.Reference/Systems/FireballSkillPlanner.cs').read_text(encoding='utf-8')
+    combat_policy_source = (csharp_root/'GameSystemKnowledge.Reference/Systems/ReferenceCombatPolicy.cs').read_text(encoding='utf-8')
+    derived_stat_source = (csharp_root/'GameSystemKnowledge.Reference/Systems/ReferenceDerivedStatEvaluator.cs').read_text(encoding='utf-8')
+    effect_pipeline_source = (csharp_root/'GameSystemKnowledge.Reference/Systems/ReferenceEffectPipeline.cs').read_text(encoding='utf-8')
+    status_policy_source = (csharp_root/'GameSystemKnowledge.Reference/Systems/ReferenceStatusPolicy.cs').read_text(encoding='utf-8')
+    cleanse_policy_source = (csharp_root/'GameSystemKnowledge.Reference/Systems/ReferenceStatusCleansePolicy.cs').read_text(encoding='utf-8')
     catch_up_source = (csharp_root/'GameSystemKnowledge.Reference/Systems/StatusCatchUpPolicy.cs').read_text(encoding='utf-8')
+    foundation_verifier_source = (csharp_root/'GameSystemKnowledge.Reference.Verification/FoundationContractVerification.cs').read_text(encoding='utf-8')
+    advanced_verifier_source = (csharp_root/'GameSystemKnowledge.Reference.Verification/AdvancedFoundationVerification.cs').read_text(encoding='utf-8')
+    combat_verifier_source = (csharp_root/'GameSystemKnowledge.Reference.Verification/CombatPolicyVerification.cs').read_text(encoding='utf-8')
+    status_verifier_source = (csharp_root/'GameSystemKnowledge.Reference.Verification/StatusPolicyVerification.cs').read_text(encoding='utf-8')
     verifier_source = (csharp_root/'GameSystemKnowledge.Reference.Verification/Program.cs').read_text(encoding='utf-8')
+    all_csharp_source = '\n'.join(
+        path.read_text(encoding='utf-8')
+        for path in csharp_root.rglob('*.cs')
+    )
+    if 'UnityEngine' in all_csharp_source:
+        error('engine-neutral C# reference must not depend on UnityEngine')
     for declaration in (
         'public readonly record struct EntityId',
         'public enum SourceKind',
@@ -929,19 +1208,45 @@ else:
     for token in ('SourceKind.SkillExecution', 'SourceRef SkillExecution', 'instanceId is null'):
         if token not in identifier_source:
             error(f'C# identifier contract missing {token}')
+    for token in (
+        'public readonly record struct Tag : IComparable<Tag>',
+        'public sealed class TagSet : IReadOnlyList<string>, IEquatable<TagSet>',
+        'public static TagSet Empty',
+        'StringComparer.Ordinal.Compare',
+        '.Distinct()', '.OrderBy(tag => tag)',
+        'A TagSet cannot contain a default Tag.',
+    ):
+        if token not in tag_source:
+            error(f'C# canonical tag contract missing {token}')
     if extract_enum_members(stat_source, 'ModifierOperation') != ['Add', 'PercentAdd', 'More', 'Less', 'Override']:
         error('C# reference ModifierOperation differs from the public five-stage contract')
     for token in (
         'EntityId statId', 'EntityId ModifierId', 'EntityId StatId', 'SourceRef Source',
+        'EntityId? targetId', 'EntityId? skillId',
         'IEnumerable<string>? skillTags = null',
         'IEnumerable<string>? targetTags = null',
         'IEnumerable<EntityId>? targetStatuses = null',
         'decimal distance = 0m', 'string moment = "default"',
         'distance < 0m', 'string.IsNullOrWhiteSpace(moment)',
-        'CopyTags', 'Stat context tags cannot be empty.',
+        'if (skillId.HasValue)', 'EntityId.ThrowIfInvalid(skillId.Value',
+        'TagSet.Empty', 'new TagSet(skillTags)', 'new TagSet(targetTags)',
+        'IReadOnlyList<EntityId> TargetStatuses',
+        'Array.AsReadOnly(targetStatusCopy)',
     ):
         if token not in stat_source:
             error(f'C# Stat contract missing {token}')
+    for retired_stat_context_token in ('CopyTags', 'Stat context tags cannot be empty.'):
+        if retired_stat_context_token in stat_source:
+            error(f'C# StatContext retains retired tag policy: {retired_stat_context_token}')
+    for token in (
+        'TagSet sorts and removes duplicate tags',
+        'StatContext supports non-skill queries',
+        'StatContext rejects a default optional skill ID',
+    ):
+        if token not in foundation_verifier_source:
+            error(f'C# foundation verifier missing contract assertion token: {token}')
+    if 'FoundationContractVerification.Run()' not in verifier_source:
+        error('C# verification entry point must execute foundation contract assertions')
     for token in (
         'EntityId CasterId', 'EntityId? InitialTargetId',
         'SourceRef Source', 'uint RandomSeed', 'ReactionBudget',
@@ -961,7 +1266,14 @@ else:
             error(f'C# Status contract missing {token}')
     if extract_enum_members(skill_source, 'SkillFailureReason') != canonical_skill_failures:
         error('C# reference SkillFailureReason differs from the public enum')
-    for token in ('public interface ISkillRequestValidator', 'SkillDecision Validate', 'public sealed class SkillResult'):
+    for token in (
+        'public interface ISkillRequestValidator',
+        'SkillDecision Validate',
+        'public sealed class SkillResult',
+        'EntityId commandId',
+        'EntityId.ThrowIfInvalid(commandId',
+        'public EntityId CommandId',
+    ):
         if token not in skill_source:
             error(f'C# Skill contract missing {token}')
     if extract_enum_members(combat_source, 'HitOutcome') != canonical_hit_outcomes:
@@ -970,15 +1282,40 @@ else:
         if f'public ' not in combat_source or token not in combat_source:
             error(f'C# reference DamageResult missing {token}')
     for token in (
+        'var canonicalDamageType = new Tag(damageType)',
+        'var canonicalTags = new TagSet(',
+        'public TagSet Tags',
+    ):
+        if token not in combat_source:
+            error(f'C# DamageRequest canonical tag contract missing {token}')
+    for token in (
         'command.fireball.cast.0001', 'entity.caster', 'entity.target',
         'combat.fire.v3', 'effect.fireball-damage', 'baseValue: 24',
-        'scalingStatValue: 120m', 'Spend 20 mana', 'CommitThenReact',
+        'scalingStatValue: 120m', 'public const long ManaCost = 20',
+        '$"Spend {ManaCost} mana"', 'public const long CooldownReadyTick',
+        'public const long CooldownDurationTicks = 60',
+        '$"Set Fireball ready tick to {identity.CooldownReadyTick}"',
+        'CreateExecutionIdentity', 'request.CommandId', 'CommitThenReact',
         'SourceRef.SkillExecution', 'SkillCommitted', 'DamageCommitted',
         'effect.apply-burn', 'RequiresTargetAlive', 'TargetHpAfter',
-        'TargetShieldResourceId',
+        'TargetShieldResourceId', 'if (result.ShieldAbsorbed > 0)',
+        'if (result.FinalHpDamage > 0)', 'bundle.Effects',
+        'The committed damage must belong to the supplied Fireball bundle.',
     ):
         if token not in scenario_source:
             error(f'C# Fireball reference missing canonical fixture token: {token}')
+    skill_committed_plan = re.search(
+        r'new\s+SkillCommitted\s*\(\s*'
+        r'identity\.SkillCommittedEventId\s*,\s*request\.CommandId\s*,\s*'
+        r'request\.CasterId\s*,\s*request\.SkillId\s*,\s*'
+        r'request\.TargetId\s*,\s*identity\.SkillSource\s*,\s*'
+        r'ManaResourceId\s*,\s*ManaCost\s*,\s*'
+        r'CooldownResourceId\s*,\s*identity\.CooldownReadyTick\s*\)',
+        scenario_source,
+        re.S,
+    )
+    if not skill_committed_plan:
+        error('C# Fireball SkillCommitted fact must name the committed mana and cooldown resources and values')
     for token in (
         'VersionedResourceState', 'StateMutation', 'OutboxEvents',
         'CommittedOutboxEvent', 'GetValue', 'GetOutbox',
@@ -992,11 +1329,77 @@ else:
         'ValidateContract', 'EntityId.ThrowIfInvalid(CasterId',
         'EntityId.ThrowIfInvalid(AttackerId',
         'must match the committed target shield resource',
+        'EntityId ManaResourceId', 'long ManaSpent',
+        'EntityId CooldownResourceId', 'long CooldownReadyTick',
+        'manaAfter.Value != manaBefore.Value - ManaSpent',
+        'cooldownAfter.Value != CooldownReadyTick',
+        'SkillCommitted.ManaSpent must match the committed mana transition.',
+        'SkillCommitted.CooldownReadyTick must match the committed cooldown transition.',
+        'Source.InstanceId != CommandId',
+        'ValidateDamageResourceTransition',
+        'before.Value - after.Value != reportedDecrease',
+        'A zero {factName} must not advance the resource version.',
     ):
         if token not in commit_source:
             error(f'C# runtime commit contract missing {token}')
+    for token in (
+        'public sealed class FireballPlanningResult',
+        'SkillAdmissionPolicy.Evaluate',
+        'CreateDamageRequest(request)',
+        'CreateCommitPlan(',
+    ):
+        if token not in planner_source:
+            error(f'C# Fireball planner missing {token}')
     if 'RawDamage is the value entering mitigation' not in resolver_source:
         error('C# CombatResolver does not document post-critical RawDamage semantics')
+    for token in (
+        'public static class ReferenceCombatPolicy',
+        'input.HitRollBps < input.HitChanceBps',
+        'input.PercentArmorPenetrationBps',
+        'input.FlatArmorPenetration',
+        'input.ResistanceBps',
+        'MidpointRounding.AwayFromZero',
+    ):
+        if token not in combat_policy_source:
+            error(f'C# reference combat policy missing {token}')
+    for token in (
+        'public sealed class DerivedStatGraph',
+        'public sealed class ReferenceDerivedStatEvaluator : IStatQuery',
+        'public long NumericPolicyVersion',
+        'CanonicalStatContextDescriptor',
+        'StatEvaluationCacheKey',
+    ):
+        if token not in derived_stat_source:
+            error(f'C# derived-stat reference missing {token}')
+    for token in (
+        'public sealed class ReferenceEffectSpecification',
+        'public static class ReferenceEffectTargetResolver',
+        'public sealed class ResolvedEffectOperation',
+        'public sealed class CommitPlanFragment',
+        'public static class DeterministicEffectCommitPlanComposer',
+    ):
+        if token not in effect_pipeline_source:
+            error(f'C# effect pipeline reference missing {token}')
+    for token in (
+        'public enum StatusSourceScope',
+        'public enum StatusStackBehavior',
+        'Independent',
+        'public static class ReferenceStatusDurationPolicy',
+        'MaximumResistanceBps = 9_000',
+        'MidpointRounding.AwayFromZero',
+        'public static class ReferenceStatusReapplicationPolicy',
+    ):
+        if token not in status_policy_source:
+            error(f'C# status policy reference missing {token}')
+    for token in (
+        'public sealed class StatusCleanseRequest',
+        'public int MaxRemovals',
+        'public static class ReferenceStatusCleansePolicy',
+        'eligible.Sort',
+        'right.Priority.CompareTo(left.Priority)',
+    ):
+        if token not in cleanse_policy_source:
+            error(f'C# status cleanse reference missing {token}')
     for token in ('long currentTick', 'long expiresAtTick', 'dueTickCount > maxCatchUpTicks'):
         if token not in catch_up_source:
             error(f'C# status catch-up policy missing tick contract token: {token}')
@@ -1020,9 +1423,56 @@ else:
         'effect bundle result rejects a default bundle ID',
         'invalidOutboxEvents', 'damage fact attacker',
         'damage fact shield resource',
+        'damage tags are canonicalized with ordinal ordering',
+        'fractional formula and critical stages keep decimal precision',
+        'a distinct ready command is not mistaken for a duplicate',
+        'an admitted miss commits without throwing',
+        'a Miss cannot enqueue the hit-only Burn reaction',
+        'DamageCommitted cannot report a result that disagrees with the actual resource deltas',
+        'correcting the source with the same command ID can still commit',
     ):
         if token not in verifier_source:
             error(f'C# verifier missing contract assertion token: {token}')
+    for token in (
+        'AdvancedFoundationVerification.Run()',
+        'CombatPolicyVerification.Run()',
+        'StatusPolicyVerification.Run()',
+    ):
+        if token not in verifier_source:
+            error(f'C# verification entry point must execute {token}')
+    for source, label, tokens in (
+        (
+            advanced_verifier_source,
+            'advanced foundation verifier',
+            (
+                'graph rejects dependency cycles at load time',
+                'full descriptor equality prevents a collision false hit',
+                'each target mode binds the expected canonical target',
+                'composer rejects implicit last-write-wins mutation collisions',
+            ),
+        ),
+        (
+            combat_verifier_source,
+            'combat policy verifier',
+            (
+                'over-penetration stops at zero armor',
+                'negative resistance endpoint is executable',
+                'positive resistance endpoint is executable',
+            ),
+        ),
+        (
+            status_verifier_source,
+            'status policy verifier',
+            (
+                'cleanse selection is independent of repository enumeration order',
+                'maximum resistance leaves the documented ten percent duration',
+                'non-independent identity cannot match two active instances',
+            ),
+        ),
+    ):
+        for token in tokens:
+            if token not in source:
+                error(f'C# {label} missing regression assertion token: {token}')
     package = json.loads((ROOT/'package.json').read_text(encoding='utf-8'))
     scripts = package.get('scripts', {})
     qa_runner = ROOT/'source/tools/run_qa.py'
@@ -1065,9 +1515,10 @@ if runtime:
                 if label not in card_text:
                     error(f'runtime probe card {index} missing {label}')
     source_links = runtime.select('#csharp-reference-source ~ .source-card-grid a[href*="../source/csharp/"]')
-    if len(source_links) != 9:
-        error(f'runtime page expected nine discoverable C# source links, got {len(source_links)}')
+    if len(source_links) < 14:
+        error(f'runtime page expected at least fourteen discoverable C# source links, got {len(source_links)}')
     runtime_text = runtime.select_one('#article-content').get_text('\n')
+    runtime_text_compact = runtime.select_one('#article-content').get_text(' ', strip=True)
     verification_command = (
         'dotnet run --project '
         'source/csharp/GameSystemKnowledge.Reference.Verification/'
@@ -1080,12 +1531,18 @@ if runtime:
     if not migration_callout or '선택 학습 · Advanced' not in migration_callout.get_text(' ', strip=True):
         error('runtime migration lab must be framed as optional Advanced learning')
     for token in (
-        'Executable assessor, conceptual gameplay', 'production multi-target runtime',
-        '정상·경계·실패 gate 모두 PASS', 'Critical 0개', '각 차원 최소 80%',
-        'Junior → Middle', 'target:*', 'wildcard ID', '비영속 diagnostic',
+        '증거 경계 · 실행 가능한 rubric, 비실행 설계 워크시트.',
+        '학습자가 작성한 resolver나 CommitPlan builder를 실행하지 않으며',
+        '구현 능력·중급 진입·production readiness를 인증하지 않는다.',
+        'Design worksheet · learner-authored tokens', '형성평가',
+        '워크시트 통과', 'learner 구현 실행이나 실무 역량 인증을 뜻하지 않는다.',
+        'Executable token rubric', 'learner code 실행 아님',
+        '같은 business idempotency key와 command ID',
+        '새 business key로 다시 실행하지 않는다.',
+        'target:*', 'wildcard ID', '비영속 trace',
         'contractSchemaVersion', 'replayFormatVersion', 'dataVersion', 'targetOrderPolicyVersion',
     ):
-        if token not in runtime_text:
+        if token not in runtime_text_compact:
             error(f'runtime capstone missing evidence or pass-boundary token: {token}')
     rubric_points = []
     for row in runtime.select('[data-capstone-rubric] tbody tr'):
@@ -1125,6 +1582,15 @@ if glossary:
             error(f'glossary retains legacy source contract: {retired_glossary_token}')
     if 'System은 생략할 수 있다' not in glossary_text:
         error('glossary must explain optional System SourceRef instanceId')
+    for token in (
+        'seed뿐 아니라 호출 순서와 소비 횟수',
+        'CommandId, CasterId, SkillId, TargetId, RequestedTick, RootSeed',
+        '누락 위험을 피하려고 전체 canonical',
+        'dependency completeness를 검증하지는 않는다',
+        'partial read-set은 선언 누락 시 stale hit',
+    ):
+        if token not in glossary_text:
+            error(f'glossary missing current executable-contract qualification: {token}')
 
 app_source = (ROOT/'assets/js/app.js').read_text(encoding='utf-8')
 for token in ("'읽기 완료'", '학습 포인트:', 'data-horizontal-scroll-hint', 'initialiseCapstoneAssessor', 'JSON PARSE FAIL'):

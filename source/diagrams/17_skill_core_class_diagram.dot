@@ -28,7 +28,7 @@ digraph G {
   SkillRequest [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#61b99a">
 <TR><TD BGCOLOR="#eefbf6"><B><FONT POINT-SIZE="16">&lt;&lt;public contract&gt;&gt; SkillRequest</FONT></B></TD></TR>
-<TR><TD ALIGN="LEFT">+ CasterId</TD></TR><TR><TD ALIGN="LEFT">+ SkillId</TD></TR><TR><TD ALIGN="LEFT">+ TargetId?</TD></TR><TR><TD ALIGN="LEFT">+ RequestedTick</TD></TR><TR><TD ALIGN="LEFT">+ RootSeed</TD></TR>
+<TR><TD ALIGN="LEFT">+ CommandId</TD></TR><TR><TD ALIGN="LEFT">+ CasterId</TD></TR><TR><TD ALIGN="LEFT">+ SkillId</TD></TR><TR><TD ALIGN="LEFT">+ TargetId?</TD></TR><TR><TD ALIGN="LEFT">+ RequestedTick</TD></TR><TR><TD ALIGN="LEFT">+ RootSeed</TD></TR>
 </TABLE>>];
   SkillValidator [shape=plain, label=<
 <TABLE BORDER="1" CELLBORDER="0" CELLPADDING="8" CELLSPACING="0" COLOR="#ab8fe0">

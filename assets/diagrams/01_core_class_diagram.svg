@@ -20,8 +20,8 @@
 <!-- StatBlock&#45;&gt;StatInstance -->
 <g id="edge2" class="edge">
 <title>StatBlock:e&#45;&gt;StatInstance:w</title>
-<path fill="none" stroke="#5b6f8f" stroke-width="1.2" d="M485.75,-342.5C485.75,-342.5 650.33,-370.32 694.05,-377.72"/>
-<polygon fill="#5b6f8f" stroke="#5b6f8f" stroke-width="1.2" points="694.08,-377.72 699.34,-375.36 703.54,-379.32 698.28,-381.67 694.08,-377.72"/>
+<path fill="none" stroke="#5b6f8f" stroke-width="1.2" d="M496.31,-344.28C540.02,-351.68 704.61,-379.5 704.61,-379.5"/>
+<polygon fill="#5b6f8f" stroke="#5b6f8f" stroke-width="1.2" points="496.28,-344.28 491.02,-346.64 486.82,-342.68 492.08,-340.33 496.28,-344.28"/>
 <text xml:space="preserve" text-anchor="middle" x="576.25" y="-369.18" font-family="Noto Sans KR" font-size="9.00">contains StatInstance (0..*)</text>
 </g>
 <!-- StatBlock&#45;&gt;CalculationPipeline -->
@@ -41,8 +41,8 @@
 <!-- StatInstance&#45;&gt;StatModifier -->
 <g id="edge4" class="edge">
 <title>StatInstance:e&#45;&gt;StatModifier:w</title>
-<path fill="none" stroke="#3d8b6d" stroke-width="1.2" d="M849.89,-379.5C849.89,-379.5 1020.81,-352.31 1065.54,-345.19"/>
-<polygon fill="#3d8b6d" stroke="#3d8b6d" stroke-width="1.2" points="1065.6,-345.18 1069.83,-341.26 1075.08,-343.67 1070.84,-347.58 1065.6,-345.18"/>
+<path fill="none" stroke="#3d8b6d" stroke-width="1.2" d="M860.5,-377.81C905.23,-370.69 1076.15,-343.5 1076.15,-343.5"/>
+<polygon fill="#3d8b6d" stroke="#3d8b6d" stroke-width="1.2" points="860.44,-377.82 856.2,-381.74 850.96,-379.33 855.2,-375.42 860.44,-377.82"/>
 <text xml:space="preserve" text-anchor="middle" x="978.62" y="-369.53" font-family="Noto Sans KR" font-size="9.00">holds active modifiers (0..*)</text>
 </g>
 <!-- StatModifier&#45;&gt;StatContext -->

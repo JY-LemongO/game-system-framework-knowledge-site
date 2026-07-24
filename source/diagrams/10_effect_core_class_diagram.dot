@@ -95,7 +95,7 @@ digraph G {
     { rank=same; DamageEffectExecutor; ApplyStatusExecutor; ModifyResourceExecutor; }
   }
   Legend [shape=note, label="Relationship guide\nsolid arrow: data / runtime input\ndashed hollow arrow: interface implementation\npurple arrow: operation dispatch", fontname="Noto Sans KR", fillcolor="#ffffff", color="#99a8bd"];
-  EffectBundle:e -> EffectOperation:w [label="contains operations (1..*)" arrowhead=diamond color="#8A6D3B"];
+  EffectBundle:e -> EffectOperation:w [label="contains operations (1..*)" dir=both arrowtail=diamond arrowhead=none color="#8A6D3B"];
   EffectDefinition:s -> TargetSelector:n [label="selects targets" color="#7257A6"];
   EffectDefinition:sw -> ValueExpression:n [label="evaluates optional value" color="#7257A6"];
   EffectDefinition:se -> EffectCondition:n [label="guards with conditions (0..*)" color="#7257A6"];

@@ -28,8 +28,8 @@
 <!-- StatDefinitionRepository&#45;&gt;DerivedStatDefinition -->
 <g id="edge1" class="edge">
 <title>StatDefinitionRepository:e&#45;&gt;DerivedStatDefinition:w</title>
-<path fill="none" stroke="#8a6d3b" stroke-width="1.2" d="M650.02,-361C650.02,-361 812.25,-406.87 855.35,-419.06"/>
-<polygon fill="#8a6d3b" stroke="#8a6d3b" stroke-width="1.2" points="855.47,-419.09 860.96,-417.32 864.71,-421.71 859.22,-423.48 855.47,-419.09"/>
+<path fill="none" stroke="#8a6d3b" stroke-width="1.2" d="M660.43,-363.94C703.52,-376.13 865.75,-422 865.75,-422"/>
+<polygon fill="none" stroke="#8a6d3b" stroke-width="1.2" points="660.3,-363.91 654.81,-365.68 651.06,-361.29 656.55,-359.52 660.3,-363.91"/>
 <text xml:space="preserve" text-anchor="middle" x="768.88" y="-413.03" font-family="Noto Sans KR" font-size="9.00">stores derived definitions (0..*)</text>
 </g>
 <!-- DerivedStatDefinition&#45;&gt;IStatFormula -->
@@ -63,8 +63,8 @@
 <!-- StatEventBus&#45;&gt;StatChangedEvent -->
 <g id="edge6" class="edge">
 <title>StatEventBus:e&#45;&gt;StatChangedEvent:w</title>
-<path fill="none" stroke="#397b8c" stroke-width="1.2" d="M663.51,-725C663.51,-725 826.79,-755.08 870.16,-763.07"/>
-<polygon fill="#397b8c" stroke="#397b8c" stroke-width="1.2" points="870.13,-763.06 875.43,-760.79 879.57,-764.8 874.27,-767.08 870.13,-763.06"/>
+<path fill="none" stroke="#397b8c" stroke-width="1.2" stroke-dasharray="5,2" d="M663.51,-725C663.51,-725 830.49,-755.76 871.58,-763.33"/>
+<polygon fill="#397b8c" stroke="#397b8c" stroke-width="1.2" points="879.2,-764.74 870.68,-766.83 876.68,-764.37 871.31,-763.38 871.33,-763.29 871.35,-763.19 876.72,-764.18 871.98,-759.75 879.2,-764.74"/>
 <text xml:space="preserve" text-anchor="middle" x="768.88" y="-756.97" font-family="Noto Sans KR" font-size="9.00">delivers StatChangedEvent</text>
 </g>
 <!-- StatSaveAdapter&#45;&gt;StatDefinitionRepository -->

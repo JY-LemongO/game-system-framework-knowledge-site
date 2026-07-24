@@ -102,7 +102,7 @@
           ]
         },
         "commandIdPolicy": { "enum": [null, "random-guid", "reuse-root-command", "derive-from-trigger-event-and-reaction-kind"] },
-        "retryPolicy": { "enum": [null, "implicit-retry-same-command", "reuse-consumed-idempotency-key", "new-command-id-or-explicit-operator-policy", "new-command-and-idempotency-keys-or-explicit-operator-policy"] }
+        "retryPolicy": { "enum": [null, "implicit-retry-same-command", "reuse-consumed-idempotency-key", "new-command-id-or-explicit-operator-policy", "new-command-and-idempotency-keys-or-explicit-operator-policy", "same-business-keys-per-reaction-disposition-retry"] }
       }
     },
     "status": {

@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <title>Skill / Action System · GSF System Atlas</title>
-<meta content="C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조" name="description"/>
+<meta content="C# Skill admission과 snapshot 기반 비용·쿨다운 검증, Fireball resolve·원자적 plan 조율 구조" name="description"/>
 <meta content="#f7f8fb" name="theme-color"/>
 <link href="../favicon.svg" rel="icon" sizes="any" type="image/svg+xml"/>
 <script>
@@ -214,7 +214,7 @@
        Skill / Action System
       </h1>
 <p class="lead">
-       Skill System은 입력이나 AI 의도를 비용, 쿨다운, 타겟팅, 액션 타임라인, EffectBundle 실행으로 변환하는 목표형 조율 계층이다. 현재 C# 참조는 불변 <code>SkillRequest</code>·<code>SkillDecision</code>·<code>SkillResult</code>와 validator port를 제공하고, validator/coordinator/timeline 구현은 개념 확장이다. Effect가 결과 요청이라면 Skill은 그 요청을 언제 어떤 조건으로 보낼지 소유한다.
+       Skill System은 입력이나 AI 의도를 비용, 쿨다운, 타겟팅, 액션 타임라인, EffectBundle 실행으로 변환하는 조율 계층이다. C# 참조는 불변 요청·결과뿐 아니라 <code>SkillAdmissionPolicy</code>와 <code>FireballSkillPlanner</code>로 대상 생존 → cooldown → resource 우선순위, <code>readyTick &lt;= RequestedTick</code>, snapshot version plan과 stale rollback을 실행 검증한다. 예약·애니메이션 timeline은 여전히 개념 확장이다.
       </p>
 <div class="badges">
 <span class="badge" data-example-language="csharp">예제 언어 · C#</span>
@@ -367,6 +367,7 @@
 <h2 id="핵심-객체">
       핵심 객체
      </h2>
+<div class="callout warn"><b>객체 표의 증거 범위.</b> <code>SkillRequest</code>, <code>SkillDecision</code>, <code>SkillResult</code>, <code>SkillAdmissionPolicy</code>, <code>FireballSkillPlanner</code>는 현재 실행 C#이다. <code>SkillDefinition</code>, <code>SkillRuntime</code>, <code>SkillExecution</code>, <code>SkillBook</code>, <code>CostPolicy</code>, <code>CooldownPolicy</code>, <code>TargetingSpec</code>, <code>ActionTimeline</code>, 범용 <code>SkillExecutor</code>는 책임을 설명하는 product 모델이며 현재 저장소의 구현 타입이 아니다.</div>
 <figure class="diagram">
 <div class="dh">
 <strong>
@@ -433,7 +434,7 @@
          SkillRequest
         </td>
 <td>
-         스킬 사용 요청. CasterId, SkillId, TargetId, RequestedTick, RootSeed를 포함한다.
+         스킬 사용 요청. CommandId, CasterId, SkillId, TargetId, RequestedTick, RootSeed를 포함한다. CommandId는 한 번의 cast와 commit 멱등성의 경계다.
         </td>
 </tr>
 <tr>
@@ -494,8 +495,8 @@
 </tr>
 </table>
 </div>
-<h3 id="csharp-skill-contracts">C# 핵심 계약</h3>
-<p><code>SkillRequest</code>는 한 번의 의도를 나타내는 불변 입력이고, <code>SkillDecision</code>은 실행 전 검증 결과, <code>SkillResult</code>는 실행이 끝난 뒤의 최종 결과다. 아래 타입은 실행 참조와 같은 공개 계약이다. <code>SkillExecution</code>과 release plan은 타임라인·비용 정책에 따라 달라지는 런타임 구현 모델이므로 최소 공개 계약에 억지로 고정하지 않는다.</p>
+<h3 id="csharp-skill-contracts">C# 핵심 계약 · Executable abridged</h3>
+<p><code>SkillRequest</code>는 한 번의 의도를 나타내는 불변 입력이고, <code>SkillDecision</code>은 실행 전 검증 결과, <code>SkillResult</code>는 실행이 끝난 뒤의 최종 결과다. 아래 코드는 학습에 필요한 불변식만 남긴 <strong>축약본</strong>이다. 예외 메시지와 전체 구현까지 포함한 규범 원본은 <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Skills.cs"><code>Contracts/Skills.cs</code></a>이며, 실제 구현·복사에는 원본을 사용한다.</p>
 <pre><code class="language-csharp">public enum SkillFailureReason
 {
     NotLearned,
@@ -508,6 +509,7 @@
 
 public sealed class SkillRequest
 {
+    public EntityId CommandId { get; }
     public EntityId CasterId { get; }
     public EntityId SkillId { get; }
     public EntityId? TargetId { get; }
@@ -515,15 +517,23 @@ public sealed class SkillRequest
     public uint RootSeed { get; }
 
     public SkillRequest(
+        EntityId commandId,
         EntityId casterId,
         EntityId skillId,
         EntityId? targetId,
         long requestedTick,
         uint rootSeed)
     {
+        EntityId.ThrowIfInvalid(commandId, nameof(commandId));
+        EntityId.ThrowIfInvalid(casterId, nameof(casterId));
+        EntityId.ThrowIfInvalid(skillId, nameof(skillId));
+        if (targetId.HasValue)
+            EntityId.ThrowIfInvalid(targetId.Value, nameof(targetId));
+
         if (requestedTick &lt; 0)
             throw new ArgumentOutOfRangeException(nameof(requestedTick));
 
+        CommandId = commandId;
         CasterId = casterId;
         SkillId = skillId;
         TargetId = targetId;
@@ -532,12 +542,15 @@ public sealed class SkillRequest
     }
 }
 
-public readonly record struct SkillDecision
+public sealed class SkillDecision
 {
     public SkillDecision(
         bool canExecute,
         SkillFailureReason? failureReason)
     {
+        if (failureReason is { } reason &amp;&amp; !Enum.IsDefined(reason))
+            throw new ArgumentOutOfRangeException(nameof(failureReason));
+
         if (canExecute &amp;&amp; failureReason is not null)
             throw new ArgumentException("Accepted request cannot have a failure reason.");
 
@@ -572,27 +585,54 @@ public sealed class SkillResult
         SkillFailureReason? failureReason,
         IEnumerable&lt;EffectResult&gt;? effects = null)
     {
+        if (failureReason is { } reason &amp;&amp; !Enum.IsDefined(reason))
+            throw new ArgumentOutOfRangeException(nameof(failureReason));
+
         if (succeeded &amp;&amp; failureReason is not null)
             throw new ArgumentException("Success cannot have a failure reason.");
 
         if (!succeeded &amp;&amp; failureReason is null)
             throw new ArgumentException("Failure requires a reason.");
 
+        EffectResult[] effectCopy =
+            (effects ?? Enumerable.Empty&lt;EffectResult&gt;()).ToArray();
+        if (effectCopy.Any(effect =&gt; effect is null))
+            throw new ArgumentException("Effects cannot contain null.", nameof(effects));
+        if (!succeeded &amp;&amp; effectCopy.Length != 0)
+            throw new ArgumentException("Failure cannot expose committed effects.", nameof(effects));
+
         Succeeded = succeeded;
         FailureReason = failureReason;
-        Effects = Array.AsReadOnly(
-            (effects ?? Enumerable.Empty&lt;EffectResult&gt;()).ToArray());
+        Effects = Array.AsReadOnly(effectCopy);
     }
 }</code></pre>
+<h3 id="csharp-skill-admission">C# 실행 승인 정책과 snapshot plan</h3>
+<p><a href="../source/csharp/GameSystemKnowledge.Reference/Systems/SkillAdmissionPolicy.cs"><code>SkillAdmissionPolicy.cs</code></a>는 살아 있는 명시적 대상 스킬의 작은 실행 정책이다. 한 요청에서 여러 조건이 동시에 실패해도 외부 실패 사유는 하나여야 하므로 <strong>대상 → cooldown → resource</strong> 순서를 계약으로 고정한다. <a href="../source/csharp/GameSystemKnowledge.Reference/Systems/FireballSkillPlanner.cs"><code>FireballSkillPlanner.cs</code></a>는 승인 뒤에만 Combat을 호출하고, resolve 때 읽은 mana·cooldown·shield·HP version을 commit precondition에 넣는다.</p>
+<div class="callout"><b>cast마다 새 실행 identity를 만든다.</b> <a href="../source/csharp/GameSystemKnowledge.Reference/Systems/FireballReferenceScenario.cs"><code>FireballReferenceScenario.cs</code></a>의 <code>FireballExecutionIdentity</code>는 요청의 <code>CommandId</code>에서 SkillExecution Source, bundle/event/reaction ID, reaction 멱등 키와 정렬 키를 파생한다. 쿨다운 종료 tick은 <code>RequestedTick + 60</code>, DamageRequest seed는 해당 요청에 기록된 <code>RootSeed</code>를 사용한다. 같은 CommandId 재전송은 같은 cast의 멱등 replay이고, 반복 시전은 새 CommandId와 최신 tick·snapshot을 사용해야 별도 실행이 된다. RootSeed는 각 요청의 replay 입력으로 반드시 기록하되 전역 유일 ID는 아니다.</div>
+<div class="table-scroll"><table class="data-table"><thead><tr><th>Snapshot</th><th>결정</th><th>부수 효과</th></tr></thead><tbody>
+<tr><td><code>targetHp == 0</code>, cooldown·mana도 실패</td><td><code>InvalidTarget</code></td><td>Combat/RNG/plan 없음</td></tr>
+<tr><td><code>readyTick &gt; RequestedTick</code>, mana도 부족</td><td><code>Cooldown</code></td><td>Combat/RNG/plan 없음</td></tr>
+<tr><td><code>readyTick == RequestedTick</code>, mana 충분</td><td>Accepted</td><td>resolve 후 versioned plan 생성</td></tr>
+<tr><td>승인 뒤 Combat 결과가 <code>Miss</code></td><td>Accepted</td><td>mana·cooldown만 mutation, Shield·HP 불변, zero-damage <code>DamageCommitted</code>, Burn reaction 없음</td></tr>
+<tr><td>승인 뒤 cooldown version 변경</td><td>commit의 <code>PreconditionFailed</code></td><td>mana·피해·outbox 모두 0</td></tr>
+</tbody></table></div>
+<div class="callout warn"><b>경계 의미.</b> 쿨다운은 “현재 tick이 ready tick보다 크다”가 아니라 <code>readyTick &lt;= RequestedTick</code>이면 준비된 것이다. 승인 정책은 snapshot을 바꾸지 않는 순수 함수이며, RNG와 Combat은 모든 deterministic guard가 통과한 뒤에만 실행한다.</div>
+<div class="table-scroll"><table class="data-table"><thead><tr><th>단계</th><th>실패가 뜻하는 것</th><th>현재 증거</th></tr></thead><tbody>
+<tr><td>Request admission</td><td>요청 snapshot에서 대상·cooldown·resource 조건을 통과하지 못함. 상태 변경 없음.</td><td><strong>Executable</strong> · <code>SkillDecision</code></td></tr>
+<tr><td>Cost reservation</td><td>동시 실행을 위해 가용 자원을 임시 점유하지 못함. 확정 지출과는 다름.</td><td><strong>Conceptual</strong> · 현재 fixture는 예약 상태를 만들지 않음</td></tr>
+<tr><td>Release revalidation / interruption</td><td>시전 중 대상·제어 상태가 바뀌어 release를 중단함. 예약 환불 정책이 필요함.</td><td><strong>Conceptual</strong> · timeline 상태 머신 없음</td></tr>
+<tr><td>Commit precondition</td><td>resolve 뒤 mana·cooldown·target version이 바뀜. 전체 plan을 stale로 거부하고 재선택하지 않음.</td><td><strong>Executable</strong> · <code>PreconditionFailed</code>, state/outbox 불변</td></tr>
+<tr><td>Post-commit reaction</td><td>주 transaction은 이미 확정됨. 후속 Burn이 사망 대상이면 <code>NotApplicable</code>로 종결.</td><td><strong>Executable</strong> · primary commit을 rollback하지 않음</td></tr>
+</tbody></table></div>
 <p>목표형 실행기에서는 검증 뒤 Skill coordinator가 <code>SkillExecution</code>을 만들고 <code>reserve_then_commit</code> 정책이 release marker에서 비용·쿨다운·주 Effect의 commit plan을 준비한다. 현재 C#/JavaScript Fireball fixture는 예약·timeline·release 상태 머신을 구현하지 않고 검증 뒤 동등한 원자적 plan을 직접 만든다. 다른 CostPolicy의 확정 시점도 프로젝트 정책으로 별도 정의한다.</p>
 <h2 id="실행-파이프라인">
       실행 파이프라인
      </h2>
-<div class="callout"><b>증거 수준.</b> 아래 ActionTimeline과 <code>reserve_then_commit</code> 단계는 production 조율을 위한 <code>Conceptual extension</code>이다. 현재 실행 참조가 검증하는 범위는 불변 요청·결과 계약과 비용·쿨다운·주 Damage를 묶는 원자적 commit 경계다.</div>
+<div class="callout"><b>증거 수준.</b> 아래 ActionTimeline과 <code>reserve_then_commit</code> 예약 단계는 production 조율을 위한 <code>Conceptual extension</code>이다. 실행 참조는 불변 요청·결과, 대상/cooldown/resource 승인 순서, 승인 뒤 Combat 호출, snapshot version plan, 비용·쿨다운·주 Damage의 원자 commit과 stale rollback까지 검증한다.</div>
 <figure class="diagram">
 <div class="dh">
 <strong>
-        Skill 실행 시퀀스
+        Skill 실행 흐름
        </strong>
 <div class="da">
 <a class="small" href="../assets/diagrams/19_skill_execution_sequence_diagram.svg" target="_blank">
@@ -600,7 +640,7 @@ public sealed class SkillResult
         </a>
 </div>
 </div>
-<img alt="Skill 실행 시퀀스" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/19_skill_execution_sequence_diagram.svg"/>
+<img alt="Skill 실행 흐름도" class="zoomable" data-zoom="" decoding="async" loading="lazy" src="../assets/diagrams/19_skill_execution_sequence_diagram.svg"/>
 <figcaption class="cap">
        입력 또는 AI 요청이 SkillValidator, SkillRuntime, ActionTimeline, EffectService를 거쳐 결과로 정리되는 흐름이다.
       </figcaption>
@@ -634,6 +674,7 @@ public sealed class SkillResult
 <h2 id="스킬-생명주기">
       스킬 생명주기
      </h2>
+<div class="callout warn"><b>Conceptual lifecycle.</b> 아래 상태와 marker 이름은 시전형 product 모델을 설명한다. 현재 실행 C#에는 이 상태 머신이나 <code>CastStarted</code>·<code>RecoveryStarted</code>·<code>CooldownCommitted</code> 이벤트가 없다. 실행 fixture의 authoritative fact는 비용·cooldown 전이와 일치하도록 검증되는 <code>SkillCommitted</code>이며, timeline을 구현할 때 각 marker의 trace/event 여부를 별도 schema로 정해야 한다.</div>
 <figure class="diagram">
 <div class="dh">
 <strong>
@@ -1143,7 +1184,7 @@ public sealed class SkillResult
         1. SkillRequest
        </h3>
 <p>
-        플레이어가 살아 있는 단일 대상을 지정한다. 요청에는 CasterId, SkillId, TargetId, RequestedTick, RootSeed가 들어간다.
+        플레이어가 살아 있는 단일 대상을 지정한다. 요청에는 CommandId, CasterId, SkillId, TargetId, RequestedTick, RootSeed가 들어간다. CommandId는 cast마다 새로 만들고, 나머지 실행 ID와 쿨다운 종료 tick은 이 요청에서 파생한다.
        </p>
 </div>
 <div class="ti">
@@ -1151,7 +1192,7 @@ public sealed class SkillResult
         2. Validator
        </h3>
 <p>
-        마나 20 이상, 쿨다운 없음, 침묵/기절 아님, 단일 대상이 살아 있는지 확인한다.
+         현재 실행 정책은 단일 대상의 생존, 쿨다운, 마나 20 이상을 그 순서로 확인한다. learned와 침묵/기절 같은 control lock 검사는 product 확장이다.
        </p>
 </div>
 <div class="ti">
@@ -1384,6 +1425,7 @@ public sealed class SkillResult
 <li><span>01 · 책임 경계</span><details data-checkpoint-question="" data-question-id="skill.q1"><summary>스킬 UI가 실제 쿨다운을 보관하고 SkillExecutor가 release 시 대상 HP를 직접 감소시키는 구조가 왜 잘못됐을까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">실제 쿨다운은 SkillRuntime이 소유하고 UI는 표시만 해야 한다. SkillExecutor는 검증·비용·타임라인을 조율하며 HP 변경은 Effect와 Combat 경로로 위임한다.</p></div></details></li>
 <li><span>02 · 경계 상황</span><details data-checkpoint-question="" data-question-id="skill.q2"><summary>목표형 reserve_then_commit 정책에서 release 전 중단, release plan 실패, commit 성공 시 비용은 각각 어떻게 처리해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">정책상 release 전 중단이면 예약을 취소하고 EffectBundle을 실행하지 않는다. release에 도달했어도 precondition 충돌 등으로 plan commit이 실패하면 비용은 최종 확정되지 않으며 예약을 해제하거나 재시도 정책을 따른다. 비용·쿨다운·주 효과 plan의 commit이 성공한 경우에만 비용이 최종 확정된다. 현재 fixture는 예약과 timeline 자체는 구현하지 않는다.</p></div></details></li>
 <li><span>03 · 시스템 연결</span><details data-checkpoint-question="" data-question-id="skill.q3"><summary>목표형 Fireball 조율에서 release 뒤 Burn까지의 handoff 순서는 무엇일까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">Skill과 Effect가 비용·쿨다운·Damage 주 효과 plan을 준비하고 RuntimeCommitter가 한 번에 commit한다. 그 뒤 DamageCommitted를 ReactionQueue 명령으로 바꿔 ApplyStatusEffect → Status 순서로 Burn을 적용한다. 현재 fixture는 release timeline을 축약하지만 commit 이후 handoff는 검증한다.</p></div></details></li>
+<li><span>04 · 승인 경계</span><details data-checkpoint-question="" data-question-id="skill.q4"><summary>RequestedTick과 cooldown readyTick이 같고 mana는 충분하다면 승인해야 할까?</summary><div class="checkpoint-answer"><b>정답과 해설</b><p data-answer-explanation="">승인해야 한다. 계약은 <code>readyTick &lt;= RequestedTick</code>이다. 반대로 readyTick이 한 tick이라도 미래면 Cooldown으로 거부하며, mana도 동시에 부족해도 우선순위상 Cooldown 하나를 반환하고 Combat/RNG는 호출하지 않는다.</p></div></details></li>
 </ol>
 </section>
 <h2 id="설계-점검">
@@ -1414,8 +1456,8 @@ public sealed class SkillResult
 </ul>
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
-<a class="prev" href="../modules/effect-system.html"><span>← 이전</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a>
-<a class="next" href="../modules/combat-resolution-system.html"><span>다음 →</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a>
+<a class="prev" href="../modules/effect-system.html"><span>← 이전</span><b>Effect System</b><small>C# Effect 계약과 결정론적 target snapshot·resolved operation·원자적 commit fragment 합성 구조</small></a>
+<a class="next" href="../modules/combat-resolution-system.html"><span>다음 →</span><b>Combat</b><small>C# 순수 정책으로 명중·치명타·관통·방어·저항·barrier·overkill과 단일 반올림 경계를 계산하는 구조</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -1601,7 +1643,7 @@ public sealed class SkillResult
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a aria-current="page" class="is-active" href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# Status 요청·결과 계약과 JavaScript Burn 실행 참조를 바탕으로 버프, DoT, 중첩, tick, 정화, 면역을 설계하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# compact 계약, JavaScript 실행 fixture, 목표형 Skill·Effect·Combat·Status 조율을 구분한 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Derived Stat DAG·Modifier 계산·versioned context cache와 리소스·저장 경계를 함께 배우는 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# Effect 계약과 결정론적 target snapshot·resolved operation·원자적 commit fragment 합성 구조</small></a><a aria-current="page" class="is-active" href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# Skill admission과 snapshot 기반 비용·쿨다운 검증, Fireball resolve·원자적 plan 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# 순수 정책으로 명중·치명타·관통·방어·저항·barrier·overkill과 단일 반올림 경계를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# 상태 재적용·중첩·지속시간·정화 결정 정책과 JavaScript Burn tick 실행을 함께 배우는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# handoff와 아직 남은 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# admission·snapshot·atomic commit과 JavaScript replay·Burn reaction을 잇는 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 검증하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 표기의 개념·혼합 학습 모델을 UML 관계도와 비-UML 실행 흐름도로 구분하고 구현 증거 경계를 확인하는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

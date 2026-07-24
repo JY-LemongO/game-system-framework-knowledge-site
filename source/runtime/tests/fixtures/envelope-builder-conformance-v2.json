@@ -6,7 +6,7 @@
     "correlationId": "correlation.fixture.builder.0001"
   },
   "expectedCommand": {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "commandId": "command.fixture.builder.0001",
     "actorId": "entity.fixture-actor",
     "requestedTick": 42,
@@ -23,7 +23,7 @@
     "occurredTick": 42
   },
   "expectedEvent": {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "eventId": "event.fixture.builder.0001",
     "type": "FixtureCommitted",
     "correlationId": "correlation.fixture.builder.0001",

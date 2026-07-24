@@ -12,11 +12,11 @@ public sealed class ApplyStatusRequest
         EntityId.ThrowIfInvalid(targetId, nameof(targetId));
         SourceRef.ThrowIfInvalid(source, nameof(source));
 
-        if (stackDelta == 0)
+        if (stackDelta <= 0)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(stackDelta),
-                "A status application must change the stack count.");
+                "A status application must add at least one stack. IStatusService.Remove handles whole-instance removal; partial stack decrement requires an explicit product policy.");
         }
 
         StatusId = statusId;
@@ -61,11 +61,25 @@ public sealed class StatusResult
 
     public static StatusResult Removed(
         EntityId instanceId,
-        StatusRemoveReason reason) =>
-        new(true, ValidInstanceId(instanceId), reason, null);
+        StatusRemoveReason reason)
+    {
+        if (!Enum.IsDefined(reason))
+        {
+            throw new ArgumentOutOfRangeException(nameof(reason));
+        }
 
-    public static StatusResult Failed(StatusFailureReason reason) =>
-        new(false, null, null, reason);
+        return new(true, ValidInstanceId(instanceId), reason, null);
+    }
+
+    public static StatusResult Failed(StatusFailureReason reason)
+    {
+        if (!Enum.IsDefined(reason))
+        {
+            throw new ArgumentOutOfRangeException(nameof(reason));
+        }
+
+        return new(false, null, null, reason);
+    }
 
     private static EntityId ValidInstanceId(EntityId instanceId)
     {
@@ -106,7 +120,72 @@ public enum StatusCatchUpAction
     CloseExpiredStatus
 }
 
-public sealed record StatusCatchUpResult(
-    int TicksToExecute,
-    StatusCatchUpAction Action,
-    StatusRemoveReason? RemoveReason);
+public sealed class StatusCatchUpResult
+{
+    public StatusCatchUpResult(
+        int ticksToExecute,
+        StatusCatchUpAction action,
+        StatusRemoveReason? removeReason)
+    {
+        if (ticksToExecute < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(ticksToExecute));
+        }
+
+        if (!Enum.IsDefined(action))
+        {
+            throw new ArgumentOutOfRangeException(nameof(action));
+        }
+
+        if (removeReason is { } definedReason &&
+            !Enum.IsDefined(definedReason))
+        {
+            throw new ArgumentOutOfRangeException(nameof(removeReason));
+        }
+
+        // 종료 동작만 명시적인 만료 사유를 가질 수 있다.
+        if (action == StatusCatchUpAction.CloseExpiredStatus)
+        {
+            if (removeReason is not StatusRemoveReason.Expired and
+                not StatusRemoveReason.CatchUpLimited)
+            {
+                throw new ArgumentException(
+                    "Closing an expired status requires an expiry reason.",
+                    nameof(removeReason));
+            }
+
+            if (removeReason == StatusRemoveReason.CatchUpLimited &&
+                ticksToExecute == 0)
+            {
+                throw new ArgumentException(
+                    "Limited catch-up closure must execute at least one bounded tick.",
+                    nameof(ticksToExecute));
+            }
+        }
+        else if (removeReason is not null)
+        {
+            throw new ArgumentException(
+                "A continuing catch-up action cannot have a removal reason.",
+                nameof(removeReason));
+        }
+
+        // 지연은 이번 평가에서 실제로 제한분을 처리한 뒤 남은 작업이 있을 때만 성립한다.
+        if (action == StatusCatchUpAction.DeferRemainingTicks &&
+            ticksToExecute == 0)
+        {
+            throw new ArgumentException(
+                "Deferred catch-up must execute at least one bounded tick.",
+                nameof(ticksToExecute));
+        }
+
+        TicksToExecute = ticksToExecute;
+        Action = action;
+        RemoveReason = removeReason;
+    }
+
+    public int TicksToExecute { get; }
+
+    public StatusCatchUpAction Action { get; }
+
+    public StatusRemoveReason? RemoveReason { get; }
+}

@@ -1,7 +1,7 @@
 {
-  "fixtureVersion": 1,
+  "fixtureVersion": 2,
   "name": "default-fireball-golden",
-  "runtimeVersion": "3.4.0-reference",
+  "runtimeVersion": "4.0.1-reference",
   "input": {
     "rootSeed": 61710,
     "tick": 18240,
@@ -44,8 +44,8 @@
     "simulateStatusTicks": true
   },
   "expected": {
-    "replayHash": "9ebfbe8397c05c15",
-    "traceHash": "53680cfe919b59c8",
+    "replayHash": "36fda2c2ebf59218",
+    "traceHash": "ddcfb204dce2e0d4",
     "finalState": {
       "tick": 18246,
       "entities": {
@@ -99,6 +99,10 @@
       },
       "targetId": "entity.target",
       "damageType": "fire",
+      "exactRawDamage": {
+        "numerator": "252",
+        "denominator": "1"
+      },
       "rawDamage": 252,
       "resistanceBps": 2000,
       "resolvedDamage": 202,
@@ -115,6 +119,8 @@
         "rawTickDamage": 30,
         "durationTicks": 6,
         "intervalTicks": 2,
+        "maxCatchUpTicks": 8,
+        "dataVersion": "data.2026.07",
         "applyWhenTargetAlive": true
       }
     },
@@ -130,7 +136,7 @@
       "StatusTicked",
       "StatusExpired"
     ],
-    "traceCount": 18,
+    "traceCount": 22,
     "invariants": {
       "nonNegativeResources": true,
       "damageConservation": true,

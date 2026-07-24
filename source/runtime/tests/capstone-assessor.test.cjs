@@ -221,7 +221,7 @@ test('차원 최소점 미달은 총점 80 이상이어도 불합격한다', () 
   assert.equal(result.passed, false);
 });
 
-test('reaction 재시도 정책은 유지된 멱등 키와 다른 새 command·reaction key를 요구한다', () => {
+test('reaction 재시도 정책은 동일 business key와 reaction별 disposition을 요구한다', () => {
   const submission = clone(PASSING);
   submission.reaction.retryPolicy = 'implicit-retry-same-command';
   const result = C.assessCombatCapstone(submission);

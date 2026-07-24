@@ -1,6 +1,6 @@
 {
   "name": "game-system-knowledge",
-  "version": "3.4.0-reference",
+  "version": "4.0.0-reference",
   "private": true,
   "description": "Offline learning site and executable lab for game system architecture",
   "scripts": {

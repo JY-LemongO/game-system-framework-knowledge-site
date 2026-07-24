@@ -1,10 +1,12 @@
 # Phase 3 Runtime Reference 구현 보고서
 
-- 판본: `3.4.0-reference`
+- 판본: `4.0.0-reference`
 - 최초 작성일: 2026-07-10
-- 실행 참조 감사 갱신일: 2026-07-20
+- 실행 참조 감사 갱신일: 2026-07-24
 - 구현 성격: 엔진·서버 비종속, 단일 프로세스, in-memory 기준 구현
 - 핵심 목적: 문서에 있던 결정론·commit·reaction·cache·tick·migration 계약을 실제 코드와 회귀 테스트로 고정
+
+여기서 판본은 사이트·문서 묶음의 release edition이다. 내장 JavaScript 커널의 `runtimeVersion`은 replay semantics를 식별하는 별도 버전이며 현재 `4.0.1-reference`다. 따라서 `VERSION`/`package.json`의 `4.0.0-reference`와 커널·TypeScript 선언·golden fixture·Fireball 페이지의 `4.0.1-reference`는 drift가 아니라 의도적으로 독립된 두 버전 축이다.
 
 ---
 
@@ -59,6 +61,12 @@ DomainEventEnvelope
 
 replay header에는 다음 버전을 기록한다.
 
+`runtimeVersion`이 달라지면 같은 사이트 판본 안에서도 이전 golden replay를 그대로 승인하지 않는다. 커널 동작이 바뀌면 source·browser asset·TypeScript 선언·golden fixture·공개 예시를 함께 올리고, release edition은 학습 묶음 자체를 새로 발행할 때만 올린다.
+
+현재 `contractSchemaVersion=2`는 피해 fact의 필수 canonical `exactRawDamage`와 닫힌 event payload 계약을, `replayFormatVersion=2`는 exact outcome·trace projection shape를 식별한다. v1 command/event/plan과 replay fixture를 묵시적으로 보정하지 않고 `SCHEMA_VERSION_UNSUPPORTED`로 거절한다. 실제 제품에서 v1을 계속 읽어야 한다면 별도 adapter 또는 명시적 migration을 제공해야 한다.
+
+반면 numeric policy `integer-bps-half-away-from-zero-v1`과 formula `combat.fire.v3`의 규범은 원래부터 exact intermediate와 primary 완화 전 raw 미되먹임을 요구했다. JavaScript Runtime 4.0.0의 단계 반올림은 새 정책이 아니라 이 규범을 어긴 구현 결함이었고, 4.0.1이 이를 교정한다. 그래서 numeric/formula 축은 유지하되 runtime·contract·replay 축으로 구 결과와 wire shape를 격리한다.
+
 - `runtimeVersion`
 - `contractSchemaVersion`
 - `replayFormatVersion`
@@ -100,9 +108,10 @@ resolve는 caster·target·store를 변경하지 않는다. 따라서 prediction
 
 ### 3.2 정수 산술
 
-- 모든 runtime 수치는 safe integer다.
+- HP·Mana·Shield, 설정 BPS, 보고용 `rawDamage`와 committed damage는 safe integer다.
+- Fireball의 formula·critical 중간값은 `BigInt` 기반 기약 유리수로 유지한다. JSON trace의 `rawDamageExact`와 outcome/outbox의 `exactRawDamage`는 `{ numerator, denominator }`의 canonical 10진 문자열로 보존하고, 이 값을 다시 읽어도 정밀도를 잃지 않는다.
 - 비율은 10,000 basis points다.
-- 반올림 정책은 `integer-bps-half-away-from-zero-v1`이다. 부호가 있는 정확한 중간값은 0에서 멀어지는 방향으로 반올림한다.
+- 반올림 정책은 `integer-bps-half-away-from-zero-v1`이다. 표시용 raw 정수와 완화 뒤 committed 정수는 각각 같은 정확한 중간값에서 0을 기준으로 바깥 방향으로 반올림한다. 표시용 raw 정수를 완화식의 입력으로 재사용하지 않는다.
 - 피해 회계 invariant는 다음과 같다.
 
 ```text
@@ -135,7 +144,7 @@ command/plan 소유권 확인
 
 ## 4. P3-C · Bounded ReactionQueue
 
-`DamageCommitted`가 Burn 적용 조건을 만족하면 subscriber가 target을 즉시 바꾸지 않고 `apply-status` reaction을 만든다.
+`DamageCommitted`가 Burn 적용 조건을 만족하면 subscriber가 target을 즉시 바꾸지 않고 `apply-status` reaction을 만든다. builder는 event를 deterministic reaction으로 투영할 뿐 권위 경계가 아니다. handler가 causation ID로 같은 store outbox의 committed `DamageCommitted`를 찾고 ID·정렬·budget과 actor/source/target/Burn payload 전체를 다시 파생해 일치시킨 뒤에만 Status commit을 만든다. event가 정한 최소 depth 1은 낮출 수 없고, 더 큰 값은 queue가 현재 부모에서 `parent.depth + 1`로 파생한다. handler도 queue의 동기 dispatch 권한을 요구하므로 직접 호출로 wave 상한을 우회할 수 없다.
 
 실행 순서는 다음 tuple로 고정한다.
 
@@ -159,7 +168,7 @@ command/plan 소유권 확인
 
 ### 5.1 ContextualStatCache
 
-cache key는 다음 descriptor의 hash다.
+외부에 돌려주는 진단용 `cacheKey`는 다음 descriptor의 hash다. 실제 in-memory Map의 equality key는 hash가 아니라 전체 `canonicalDescriptor` 문자열이므로 짧은 hash가 충돌해도 descriptor가 다르면 cache hit가 아니다.
 
 ```text
 entityId
@@ -168,9 +177,9 @@ ownerVersion
 contextFingerprint
 ```
 
-`contextFingerprint`는 caller가 선언한 dependency path의 값만 canonicalize한다. 예를 들어 `target.id`, `target.tags`, `distanceBand`가 다르면 같은 owner의 같은 stat이어도 별도 entry다.
+`contextFingerprint`는 caller가 선언한 dependency path의 presence와 값만 canonicalize한다. 예를 들어 `target.id`, `target.tags`, `distanceBand`가 다르면 같은 owner의 같은 stat이어도 별도 entry다. 하지만 runtime이 `compute`의 실제 read-set과 선언을 대조하지 않으므로 dependency 누락은 자동 검출되지 않으며 stale hit가 날 수 있다.
 
-현재 구현은 bounded LRU와 entity 단위 invalidation을 제공한다. 생산 단계에서는 dependency 선언 누락을 잡기 위한 dev-mode read tracking을 추가한다.
+현재 구현은 bounded LRU와 entity 단위 invalidation을 제공한다. 생산 단계에서는 dependency 선언 누락을 잡기 위한 dev-mode read tracking을 추가한다. 반면 C# `ReferenceDerivedStatEvaluator`는 correctness 우선 정책으로 전체 canonical `StatContext`와 owner/definition/numeric version을 key에 넣으며, 이 JS 최적화형 계약과 범위를 구분한다.
 
 ### 5.2 Status tick
 
@@ -226,7 +235,7 @@ Command received
 | Replay hash | `18ea7715eebe2c03` |
 | Trace hash | `f7ba8ff22fec26ba` |
 
-`source/runtime/fixtures/fireball-golden-v1.json`이 expected state, outcome, event type, hash를 보관한다.
+`source/runtime/fixtures/fireball-golden-v2.json`이 expected state, outcome, event type, hash를 보관한다.
 
 ---
 

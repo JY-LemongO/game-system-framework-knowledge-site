@@ -1,5 +1,35 @@
 # Changelog · Phase 3 Runtime Reference
 
+## 4.0.0-reference · 2026-07-24
+
+### Added
+
+- engine-neutral C# derived-stat DAG/cache, effect targeting/composition, full combat, status reapplication/duration/cleanse policies
+- executable normal·boundary·failure verification for repeated casts, non-hit commits, canonical tags, numeric endpoints, cache collisions, target ordering, and status identity
+- learner-authored capstone execution probes and hardened JavaScript reaction/event contracts
+
+### Changed
+
+- `SkillRequest` now requires `CommandId`; Fireball derives bundle, event, reaction, idempotency, order, cooldown, source, and seed-bearing requests per execution
+- compact combat resolution keeps decimal intermediates until the documented final calculation boundary
+- JavaScript runtime kernel `4.0.1-reference` now mirrors that boundary with canonical BigInt-backed rational intermediates while the site release remains `4.0.0-reference`
+- command/event/plan contract schema and replay fixture format advance to v2; v1 wire objects are explicitly unsupported instead of being silently reinterpreted
+- learning pages distinguish executable reference, conceptual extension, and production adapter boundaries and link abridged examples to their normative source
+- the C# reference remains engine-neutral; Unity physics and scene data enter only through canonical adapter snapshots
+
+### Fixed
+
+- repeated Fireball casts no longer reuse the first cast's identities, cooldown, or replay seed
+- admitted Miss/Blocked outcomes commit cost and cooldown without false target writes or hit-only Burn reactions
+- `DamageCommitted` now verifies skill-source command ownership and exact HP/shield pre→post deltas plus version behavior before publication
+- damage type/tags use one canonical `Tag`/`TagSet` grammar, ordering, and duplicate policy
+- compact and full combat policy descriptions now state their distinct ranges and shared rounding boundary explicitly
+- Fireball no longer feeds its rounded raw-damage projection back into resistance; C# and JavaScript both lock the `3/4 raw × 50% resistance → 0` regression boundary
+
+### Evidence boundary
+
+- the repository provides deterministic, buildable in-memory reference policies and tests; durable storage, networking, Unity adapters, load testing, and product-specific balance remain integration work
+
 ## 3.4.0-reference · 2026-07-20
 
 ### Added

@@ -214,7 +214,7 @@
        Core Runtime / System Contract
       </h1>
 <p class="lead">
-       Core Runtime은 Stat, Effect, Skill, Combat, Status가 같은 계약으로 대화하게 만드는 기반 계층이다. 현재 C# 실행 참조는 EntityId와 SourceRef 불변 값 타입을 제공하고, 시간·랜덤·이벤트 포트는 이 페이지의 normative conceptual contract로 설계한다.
+       Core Runtime은 Stat, Effect, Skill, Combat, Status가 같은 계약으로 대화하게 만드는 기반 계층이다. 현재 C# 실행 참조는 EntityId·SourceRef·Tag·TagSet 불변 계약을 제공하고, 시간·랜덤·이벤트 포트는 이 페이지의 normative conceptual contract로 설계한다.
       </p>
 <div class="badges">
 <span class="badge" data-example-language="csharp">예제 언어 · C#</span>
@@ -239,7 +239,7 @@
 </div>
 </section>
 <div aria-label="학습 안내" class="grid cols2 learning-brief">
-<article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>공유 식별자는 C# 값 타입으로, 시간·랜덤·이벤트는 인터페이스로 표현하고 도메인 규칙과 기반 규약의 경계를 설명한다.</p></article>
+  <article class="card"><span class="section-kicker">Learning goals</span><h2 id="학습-목표">학습 목표</h2><p>공유 식별자와 canonical TagSet은 C# 값 계약으로, 시간·랜덤·이벤트는 개념적 포트로 구분하고 도메인 규칙과 기반 규약의 경계를 설명한다.</p></article>
 <article class="card"><span class="section-kicker">Prerequisites</span><h2 id="선수-개념">선수 개념</h2><p>객체 참조와 안정적인 ID의 차이, 이벤트 발행과 직접 호출의 차이를 알고 있으면 좋다.</p></article>
 </div>
 <h2 id="왜-core-runtime이-필요한가">
@@ -277,7 +277,7 @@
 </tr>
 <tr>
 <td>
-         TagSet, GameContext 개념, IEventBus 같은 시스템 간 계약
+         실행 C# TagSet과 GameContext·IEventBus 같은 개념적 시스템 간 계약
         </td>
 <td>
          스킬 사용 가능 여부와 쿨다운 정책
@@ -381,7 +381,7 @@
         <code>
          dot
         </code>
-        처럼 규칙 분기에 쓰는 공통 분류다. 타입 상속보다 데이터 기반 조건식을 만들기 쉽다.
+        처럼 규칙 분기에 쓰는 공통 분류다. 실행 C#의 <code>Tag</code>는 소문자 ASCII canonical 입력만 허용하고, <code>TagSet</code>은 입력을 방어 복사한 뒤 중복 제거와 <code>StringComparer.Ordinal</code> 정렬을 수행한다. 따라서 입력 배열 순서나 중복이 달라도 같은 내용이면 같은 집합으로 비교된다.
        </p>
 </div>
 <div class="card">
@@ -583,8 +583,9 @@
 </table>
 </div>
 <h3 id="csharp-core-contracts">C# 실행 값 타입과 개념적 포트</h3>
-<p>EntityId·SourceRef 부분은 현재 <code>source/csharp/</code> 실행 참조와 같은 계약이다. 이어지는 IGameClock·IRandomStream·IEventBus는 소비자가 필요로 하는 최소 경계를 보여주는 <code>Normative conceptual contract</code>이며 현재 C# 프로젝트에는 구현·선언되어 있지 않다. Unity나 서버에 적용할 때 해당 adapter와 전달 보장을 별도로 구현한다.</p>
-<pre><code class="language-csharp">public readonly record struct EntityId : IComparable&lt;EntityId&gt;
+<p><strong>Executable · exact.</strong> 아래 EntityId·SourceRef 선언은 현재 <code>source/csharp/</code> 실행 참조와 동일하다. 뒤의 TagSet은 핵심 불변식만 보인 축약이고, 시간·랜덤·이벤트 포트는 별도 <strong>Conceptual</strong> 블록이다.</p>
+<pre><code class="language-csharp">// Executable contract · exact declarations from Contracts/Identifiers.cs
+public readonly record struct EntityId : IComparable&lt;EntityId&gt;
 {
     private readonly string? _value;
 
@@ -761,8 +762,26 @@ public readonly record struct SourceRef
 
     public static SourceRef System(EntityId systemId) =&gt;
         new(SourceKind.System, systemId);
+}</code></pre>
+<p><strong>Executable · abridged.</strong> 검증 문법과 equality helper 전체는 <a href="../source/csharp/GameSystemKnowledge.Reference/Contracts/Tags.cs"><code>Contracts/Tags.cs</code></a>가 기준이다.</p>
+<pre><code class="language-csharp">// Executable contract · abridged; validation helper bodies are omitted.
+public readonly record struct Tag : IComparable&lt;Tag&gt;
+{
+    public Tag(string value); // lowercase canonical text only
+    public bool IsValid { get; }
+    public string Value { get; }
 }
 
+public sealed class TagSet : IReadOnlyList&lt;string&gt;, IEquatable&lt;TagSet&gt;
+{
+    public static TagSet Empty { get; }
+    public TagSet(IEnumerable&lt;string&gt; tags);
+    public int Count { get; }
+    public string this[int index] { get; }
+    public bool Contains(Tag tag);
+}</code></pre>
+<p><strong>Conceptual · not declared in the C# reference.</strong> 다음 포트는 책임 경계를 설명하는 의사 계약이다. 특히 <code>Action</code> callback을 저장할 수 없으므로 이 <code>Schedule</code> 모양을 durable scheduler의 완성형으로 사용하면 안 된다. production에서는 ScheduleId·DueTick·stable order·idempotency key를 가진 직렬화 가능한 command를 별도 scheduler port에 저장한다.</p>
+<pre><code class="language-csharp">// Conceptual ports · no implementation or declaration ships in source/csharp.
 public interface IGameClock
 {
     long CurrentTick { get; }
@@ -787,6 +806,18 @@ public interface IEventBus
     void Publish&lt;TEvent&gt;(TEvent gameEvent);
     IDisposable Subscribe&lt;TEvent&gt;(Action&lt;TEvent&gt; handler);
 }</code></pre>
+<h3 id="numeric-lanes">수치 lane과 변환 경계</h3>
+<div class="table-scroll">
+<table class="data-table">
+<thead><tr><th>Lane</th><th>표현</th><th>반올림·범위 규칙</th><th>증거 상태</th></tr></thead>
+<tbody>
+<tr><td>Stat scalar</td><td>C# <code>decimal</code></td><td>공식과 보정의 중간값이다. 중간 단계마다 정수 반올림하지 않는다.</td><td><strong>Executable</strong> · IStatQuery와 StatModifier</td></tr>
+<tr><td>비율·확률·계수</td><td>10,000 basis points</td><td>50%=5,000, 120%=12,000. 의미별 허용 범위는 생성 경계에서 검사한다.</td><td><strong>Executable</strong> · Combat 요청/문맥. StatModifier의 decimal 비율을 BPS로 바꾸는 evaluator는 아직 Conceptual</td></tr>
+<tr><td>Commit resource</td><td>정수 <code>long</code></td><td>상태 반영 경계에서 한 번 반올림하고 checked 연산과 non-negative invariant를 적용한다.</td><td><strong>Executable</strong> · Runtime Commit</td></tr>
+</tbody>
+</table>
+</div>
+<div class="callout warn"><b>변환 경계.</b> <code>decimal stat scalar × coefficientBps / 10_000</code>을 계산한 뒤 numeric policy가 지정한 위치에서만 정수로 변환한다. C# midpoint는 Microsoft <a href="https://learn.microsoft.com/en-us/dotnet/api/system.math.round"><code>Math.Round</code> 문서</a>의 <code>MidpointRounding.AwayFromZero</code>를 명시한다. Unity adapter가 float·fixed-point·Burst 친화 표현을 사용하더라도 domain reference의 입력·출력과 rounding fixture를 맞춰야 하며, <code>UnityEngine</code> 타입을 이 계약 안으로 들이지 않는다.</div>
 <h2 id="sourceref와-추적성">
 	      SourceRef와 추적성
      </h2>
@@ -892,7 +923,7 @@ public interface IEventBus
       Event와 Reaction의 실행 순서
      </h2>
 <p>
-      IEventBus는 관찰과 후속 반응을 분리해야 한다. UI·로그용 알림은 즉시 관찰해도 되지만, 흡혈·반사·장비 발동처럼 게임 상태를 바꾸는 반응은 우선순위와 재진입 방지 규칙이 있는
+      이 절의 <code>IEventBus</code>는 <strong>Conceptual</strong> 포트이며 generic Publish/Subscribe 시그니처만으로 아래 보장을 강제할 수 없다. production에서는 outbox dispatcher만 publication 권한을 갖고, UI·로그용 committed observation과 상태를 바꾸는 reaction command를 분리해야 한다. 흡혈·반사·장비 발동 같은 반응은 우선순위와 재진입 방지 규칙이 있는
       <code>
        ReactionQueue
       </code>
@@ -1028,7 +1059,7 @@ public interface IEventBus
 </article>
 <nav aria-label="이전 및 다음 문서" class="doc-pager">
 <a class="prev" href="../index.html"><span>← 이전</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a>
-<a class="next" href="../modules/stat-system.html"><span>다음 →</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a>
+<a class="next" href="../modules/stat-system.html"><span>다음 →</span><b>Stat System</b><small>C# Derived Stat DAG·Modifier 계산·versioned context cache와 리소스·저장 경계를 함께 배우는 구조</small></a>
 </nav>
 </main>
 <aside aria-label="페이지 보조 탐색" class="context-rail">
@@ -1186,7 +1217,7 @@ public interface IEventBus
       </kbd>
 </button>
 </div>
-<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a aria-current="page" class="is-active" href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Stat·Modifier 계약과 개념적 계산 파이프라인, 리소스, 저장, 디버그 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# EffectContext와 실행 인터페이스, TargetSelector, DamageEffect, ApplyStatusEffect 설계</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# SkillRequest·결과 계약과 목표형 비용, 쿨다운, 타겟팅, EffectBundle 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# DamageRequest와 pre-resolved CombatContext로 DamageResult를 계산하고 전체 판정 파이프라인의 확장 경계를 구분하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# Status 요청·결과 계약과 JavaScript Burn 실행 참조를 바탕으로 버프, DoT, 중첩, tick, 정화, 면역을 설계하는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# 계약과 개념적 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# compact 계약, JavaScript 실행 fixture, 목표형 Skill·Effect·Combat·Status 조율을 구분한 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 확인하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 타입·인터페이스 표기의 UML 다이어그램을 검색하고 확대해서 보는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
+<div class="drawer-groups"><section class="drawer-group"><h3>시작</h3><div><a href="../index.html"><span>Overview</span><b>홈</b><small>C# 타입과 계약으로 Core Runtime부터 Runtime Lab까지 순서대로 익히는 게임 시스템 설계 학습 사이트</small></a></div></section><section class="drawer-group"><h3>Foundation</h3><div><a aria-current="page" class="is-active" href="../modules/core-runtime.html"><span>Foundation</span><b>Core Runtime</b><small>C# 값 타입과 인터페이스로 정의하는 Entity, Source, Event, Time, Random 공통 계약</small></a></div></section><section class="drawer-group"><h3>Core Systems</h3><div><a href="../modules/stat-system.html"><span>Core</span><b>Stat System</b><small>C# Derived Stat DAG·Modifier 계산·versioned context cache와 리소스·저장 경계를 함께 배우는 구조</small></a><a href="../modules/effect-system.html"><span>Bridge</span><b>Effect System</b><small>C# Effect 계약과 결정론적 target snapshot·resolved operation·원자적 commit fragment 합성 구조</small></a><a href="../modules/skill-action-system.html"><span>Action</span><b>Skill / Action</b><small>C# Skill admission과 snapshot 기반 비용·쿨다운 검증, Fireball resolve·원자적 plan 조율 구조</small></a><a href="../modules/combat-resolution-system.html"><span>Resolution</span><b>Combat</b><small>C# 순수 정책으로 명중·치명타·관통·방어·저항·barrier·overkill과 단일 반올림 경계를 계산하는 구조</small></a><a href="../modules/status-system.html"><span>Runtime</span><b>Status</b><small>C# 상태 재적용·중첩·지속시간·정화 결정 정책과 JavaScript Burn tick 실행을 함께 배우는 구조</small></a></div></section><section class="drawer-group"><h3>Architecture</h3><div><a href="../modules/integration-map.html"><span>Architecture</span><b>통합 구조</b><small>Core, Stat, Effect, Skill, Combat, Status의 실행 C# handoff와 아직 남은 product 확장을 구분한 의존 방향</small></a></div></section><section class="drawer-group"><h3>Practice / Lab</h3><div><a href="../modules/fireball-case-study.html"><span>Case Study</span><b>Fireball 예제</b><small>Fireball의 C# admission·snapshot·atomic commit과 JavaScript replay·Burn reaction을 잇는 수직 슬라이스</small></a><a href="../modules/runtime-reference.html"><span>Lab</span><b>Runtime Lab</b><small>C#과 JavaScript의 실행 증거 범위를 나눠 replay, atomic commit, reaction, cache, migration을 검증하는 실습</small></a></div></section><section class="drawer-group"><h3>Reference</h3><div><a href="../modules/diagram-gallery.html"><span>Reference</span><b>다이어그램</b><small>C# 표기의 개념·혼합 학습 모델을 UML 관계도와 비-UML 실행 흐름도로 구분하고 구현 증거 경계를 확인하는 갤러리</small></a><a href="../modules/glossary.html"><span>Reference</span><b>용어집</b><small>반복되는 C# 시스템 설계 용어와 UML 기초 문법</small></a></div></section></div>
 </div>
 </dialog>
 <dialog aria-labelledby="command-title" class="command-palette" data-command-palette="">

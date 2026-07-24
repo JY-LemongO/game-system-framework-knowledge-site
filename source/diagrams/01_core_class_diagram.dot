@@ -59,9 +59,9 @@ digraph CoreClassDiagram {
 </TABLE>
 >]
 	IStatOwner:e -> StatBlock:w [label="owns StatBlock (1)" arrowhead=vee color="#5B6F8F"]
-	StatBlock:e -> StatInstance:w [label="contains StatInstance (0..*)" arrowhead=diamond color="#5B6F8F"]
+	StatBlock:e -> StatInstance:w [label="contains StatInstance (0..*)" dir=both arrowtail=diamond arrowhead=none color="#5B6F8F"]
 	StatInstance:ne -> StatDefinition:w [label="uses definition (1)" arrowhead=vee color="#8A6D3B"]
-	StatInstance:e -> StatModifier:w [label="holds active modifiers (0..*)" arrowhead=diamond color="#3D8B6D"]
+	StatInstance:e -> StatModifier:w [label="holds active modifiers (0..*)" dir=both arrowtail=diamond arrowhead=none color="#3D8B6D"]
 	StatModifier:e -> IModifierCondition:w [label="checks conditions (0..*)" arrowhead=vee color="#7257A6"]
 	StatBlock:s -> CalculationPipeline:w [label="delegates value calculation" arrowhead=vee color="#397B8C"]
 	CalculationPipeline:e -> StatContext:w [label="reads query context" arrowhead=vee color="#8292A8" style=dashed]

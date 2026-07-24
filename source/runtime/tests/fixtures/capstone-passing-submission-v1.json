@@ -51,7 +51,7 @@
     ],
     "budgetFailure": "keep-primary-and-dispatched-discard-undispatched-diagnostic-trace",
     "commandIdPolicy": "derive-from-trigger-event-and-reaction-kind",
-    "retryPolicy": "new-command-and-idempotency-keys-or-explicit-operator-policy"
+    "retryPolicy": "same-business-keys-per-reaction-disposition-retry"
   },
   "status": {
     "applyRule": "committed-hit-and-target-alive",

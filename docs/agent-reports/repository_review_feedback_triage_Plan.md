@@ -60,7 +60,7 @@
 - `source/runtime/runtime-kernel.js:8`
 - `assets/js/runtime-kernel.js:8`
 - `source/runtime/runtime-kernel.d.ts:1`
-- `source/runtime/fixtures/fireball-golden-v1.json:4`
+- 당시 `source/runtime/fixtures/fireball-golden-v1.json:4` (현재 v2 fixture로 승격)
 - `modules/fireball-case-study.html:358`
 - `source/qa/qa-results.json:1-39`
 - `QA_REPORT.md:1-8`

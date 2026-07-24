@@ -36,7 +36,12 @@ def run_text(command: list[str]) -> str:
 
 
 def git_text(*arguments: str) -> str:
-    return run_text(["git", *arguments])
+    return run_text([
+        "git",
+        "-c",
+        f"safe.directory={ROOT.as_posix()}",
+        *arguments,
+    ])
 
 
 def chromium_version() -> str:
